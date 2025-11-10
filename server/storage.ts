@@ -1,33 +1,101 @@
-import { type StoreSettings, type DiscountTier, type Verification } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { 
+  storeSettings, 
+  discountTiers, 
+  verifications,
+  type StoreSettings, 
+  type DiscountTier, 
+  type Verification,
+  type InsertStoreSettings,
+  type InsertDiscountTier,
+  type InsertVerification
+} from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
   getStoreSettings(): Promise<StoreSettings | undefined>;
+  updateStoreSettings(settings: InsertStoreSettings): Promise<StoreSettings>;
   getDiscountTiers(): Promise<DiscountTier[]>;
+  createDiscountTier(tier: InsertDiscountTier): Promise<DiscountTier>;
+  updateDiscountTier(id: string, tier: InsertDiscountTier): Promise<DiscountTier>;
+  deleteDiscountTier(id: string): Promise<void>;
   getVerifications(): Promise<Verification[]>;
+  createVerification(verification: InsertVerification): Promise<Verification>;
 }
 
-export class MemStorage implements IStorage {
-  private storeSettings: StoreSettings | undefined;
-  private discountTiers: Map<string, DiscountTier>;
-  private verifications: Map<string, Verification>;
-
-  constructor() {
-    this.discountTiers = new Map();
-    this.verifications = new Map();
+export class DatabaseStorage implements IStorage {
+  async getStoreSettings(): Promise<StoreSettings | undefined> {
+    const [settings] = await db.select().from(storeSettings).limit(1);
+    return settings || undefined;
   }
 
-  async getStoreSettings(): Promise<StoreSettings | undefined> {
-    return this.storeSettings;
+  async updateStoreSettings(settings: InsertStoreSettings): Promise<StoreSettings> {
+    const existing = await this.getStoreSettings();
+    
+    if (existing) {
+      const [updated] = await db
+        .update(storeSettings)
+        .set(settings)
+        .where(eq(storeSettings.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(storeSettings)
+        .values(settings)
+        .returning();
+      return created;
+    }
   }
 
   async getDiscountTiers(): Promise<DiscountTier[]> {
-    return Array.from(this.discountTiers.values());
+    return await db.select().from(discountTiers);
+  }
+
+  async createDiscountTier(tier: InsertDiscountTier): Promise<DiscountTier> {
+    const [created] = await db
+      .insert(discountTiers)
+      .values(tier)
+      .returning();
+    return created;
+  }
+
+  async updateDiscountTier(id: string, tier: InsertDiscountTier): Promise<DiscountTier> {
+    const [updated] = await db
+      .update(discountTiers)
+      .set(tier)
+      .where(eq(discountTiers.id, id))
+      .returning();
+    
+    if (!updated) {
+      throw new Error("Discount tier not found");
+    }
+    
+    return updated;
+  }
+
+  async deleteDiscountTier(id: string): Promise<void> {
+    const result = await db
+      .delete(discountTiers)
+      .where(eq(discountTiers.id, id))
+      .returning();
+    
+    if (result.length === 0) {
+      throw new Error("Discount tier not found");
+    }
   }
 
   async getVerifications(): Promise<Verification[]> {
-    return Array.from(this.verifications.values());
+    return await db.select().from(verifications);
+  }
+
+  async createVerification(verification: InsertVerification): Promise<Verification> {
+    const [created] = await db
+      .insert(verifications)
+      .values(verification)
+      .returning();
+    return created;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
