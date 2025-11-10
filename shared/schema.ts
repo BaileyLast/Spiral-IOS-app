@@ -8,6 +8,8 @@ export const storeSettings = pgTable("store_settings", {
   storeName: text("store_name").notNull(),
   instagramHandle: text("instagram_handle").notNull(),
   tokenActive: boolean("token_active").notNull().default(true),
+  shopDomain: text("shop_domain"),
+  accessToken: text("access_token"),
 });
 
 export const discountTiers = pgTable("discount_tiers", {

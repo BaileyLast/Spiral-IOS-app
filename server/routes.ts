@@ -113,6 +113,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Shopify OAuth Routes
+  app.get("/shopify/install", (req, res) => {
+    const shop = req.query.shop as string || 'spiral-test.myshopify.com';
+    const redirectUri = process.env.SHOPIFY_REDIRECT_URI;
+    const clientId = process.env.SHOPIFY_API_KEY;
+    const scopes = 'read_products,read_orders,write_discounts,read_fulfillments';
+
+    if (!redirectUri || !clientId) {
+      return res.status(500).json({ error: "Shopify credentials not configured" });
+    }
+
+    const installUrl = `https://${shop}/admin/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${redirectUri}`;
+    res.redirect(installUrl);
+  });
+
+  app.get("/shopify/callback", async (req, res) => {
+    const { shop, code } = req.query;
+
+    if (!shop || !code) {
+      return res.status(400).send("Missing shop or code parameter");
+    }
+
+    try {
+      const params = new URLSearchParams({
+        client_id: process.env.SHOPIFY_API_KEY!,
+        client_secret: process.env.SHOPIFY_API_SECRET!,
+        code: code as string,
+      });
+
+      const tokenResponse = await fetch(`https://${shop}/admin/oauth/access_token`, {
+        method: 'POST',
+        body: params,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+
+      if (!tokenResponse.ok) {
+        console.error("Failed to get Shopify access token:", await tokenResponse.text());
+        return res.status(500).send("Failed to authenticate with Shopify");
+      }
+
+      const data = await tokenResponse.json() as { access_token: string };
+      
+      // Store the access token in the database
+      await storage.updateStoreSettings({
+        storeName: shop as string,
+        instagramHandle: '',
+        tokenActive: true,
+        shopDomain: shop as string,
+        accessToken: data.access_token,
+      });
+
+      console.log('Shopify access token obtained for shop:', shop);
+      res.send('✅ Spiral successfully connected to your Shopify store! You can close this window and return to the dashboard.');
+    } catch (error) {
+      console.error("Error during Shopify OAuth:", error);
+      res.status(500).send("Failed to complete Shopify authentication");
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
