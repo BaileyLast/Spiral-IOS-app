@@ -113,6 +113,32 @@ Preferred communication style: Simple, everyday language.
 - **tsx**: TypeScript execution engine for development
 - **PostCSS & Autoprefixer**: CSS processing pipeline for Tailwind
 
+### Implemented Integrations
+
+**Shopify OAuth 2.0 Integration**
+- Complete authorization code grant flow with CSRF protection
+- State/nonce generation and validation via express-session
+- HMAC signature verification using timing-safe comparison
+- Secure token storage in PostgreSQL (store_settings table)
+- Data merging to preserve existing merchant settings during reconnection
+- Production-ready with trust proxy configuration for Render deployment
+
+Required environment variables for deployment:
+- `SESSION_SECRET`: Secret key for session encryption (generate with `openssl rand -hex 32`)
+- `SHOPIFY_API_KEY`: Shopify app client ID
+- `SHOPIFY_API_SECRET`: Shopify app client secret
+- `SHOPIFY_REDIRECT_URI`: OAuth callback URL (e.g., `https://your-app.onrender.com/shopify/callback`)
+
+OAuth endpoints:
+- `/shopify/install?shop=store-name.myshopify.com`: Initiates OAuth flow
+- `/shopify/callback`: Handles authorization and token exchange
+
+Security features:
+- CSRF protection via session-based state parameter
+- HMAC signature verification on all callbacks
+- Timing-safe string comparison to prevent timing attacks
+- Secure, HTTP-only session cookies with proxy trust
+- Automatic merging of new tokens with existing settings
+
 ### Planned Integrations
-- **Shopify Admin API**: For embedded app authentication, webhook handling, and store data synchronization
-- **Instagram Graph API**: For follower count verification and post validation (requires OAuth token management configured through store_settings.tokenActive)
+- **Instagram Graph API**: For follower count verification and post validation (requires OAuth token management)
