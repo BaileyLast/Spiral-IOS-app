@@ -2,19 +2,17 @@
 # This file configures your Shopify app for deployment and integration
 # Learn more: https://shopify.dev/docs/apps/tools/cli/configuration
 
-# Replace YOUR_SHOPIFY_API_KEY with your actual Shopify API key from Partners Dashboard
-# To get your API key:
-# 1. Go to https://partners.shopify.com
-# 2. Select your app or create a new one
-# 3. Copy the "Client ID" from the app credentials section
+# The client_id (API Key) is public and safe to commit to version control
+# The client_secret (API Secret) is stored securely in Replit Secrets as SHOPIFY_API_SECRET
+# Access credentials in your code using process.env.SHOPIFY_API_KEY and process.env.SHOPIFY_API_SECRET
 
 name = "Spiral"
-client_id = "YOUR_SHOPIFY_API_KEY"
+client_id = "edf4e15492cfecf8934f5084e4f8e686"
 application_url = "https://joinspiral.app"
 embedded = true
 
 [auth]
-redirect_urls = ["https://api.joinspiral.com/shopify/callback"]
+redirect_urls = ["https://joinspiral.app/shopify/callback"]
 
 [access_scopes]
 scopes = "read_products,read_orders,write_discounts,read_fulfillments"
