@@ -1,7 +1,16 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import crypto from "crypto";
 import { storage } from "./storage";
 import { insertStoreSettingsSchema, insertDiscountTierSchema, insertVerificationSchema } from "@shared/schema";
+
+// Extend session types
+declare module 'express-session' {
+  interface SessionData {
+    oauthState?: string;
+    oauthShop?: string;
+  }
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Store Settings Routes
@@ -124,15 +133,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ error: "Shopify credentials not configured" });
     }
 
-    const installUrl = `https://${shop}/admin/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${redirectUri}`;
+    // Generate CSRF protection state nonce
+    const state = crypto.randomBytes(16).toString('hex');
+    req.session.oauthState = state;
+    req.session.oauthShop = shop;
+
+    const installUrl = `https://${shop}/admin/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${state}`;
     res.redirect(installUrl);
   });
 
   app.get("/shopify/callback", async (req, res) => {
-    const { shop, code } = req.query;
+    const { shop, code, state, hmac } = req.query;
 
-    if (!shop || !code) {
-      return res.status(400).send("Missing shop or code parameter");
+    if (!shop || !code || !state) {
+      return res.status(400).send("Missing required parameters");
+    }
+
+    // Validate state for CSRF protection
+    if (state !== req.session.oauthState || shop !== req.session.oauthShop) {
+      console.error("OAuth state mismatch - possible CSRF attack");
+      return res.status(403).send("Invalid state parameter - CSRF validation failed");
+    }
+
+    // Clear state from session after validation
+    delete req.session.oauthState;
+    delete req.session.oauthShop;
+
+    // Verify HMAC signature from Shopify (required for security)
+    if (!hmac) {
+      console.error("Missing HMAC parameter in callback");
+      return res.status(403).send("Missing HMAC signature");
+    }
+
+    const queryParams = { ...req.query };
+    delete queryParams.hmac;
+    delete queryParams.signature;
+
+    // Sort keys and build query string for HMAC validation
+    const sortedParams = Object.keys(queryParams)
+      .sort()
+      .map(key => `${key}=${queryParams[key]}`)
+      .join('&');
+
+    const computedHmac = crypto
+      .createHmac('sha256', process.env.SHOPIFY_API_SECRET!)
+      .update(sortedParams)
+      .digest('hex');
+
+    // Timing-safe comparison to prevent timing attacks
+    const hmacBuffer = Buffer.from(hmac as string, 'utf8');
+    const computedBuffer = Buffer.from(computedHmac, 'utf8');
+
+    if (hmacBuffer.length !== computedBuffer.length || 
+        !crypto.timingSafeEqual(hmacBuffer, computedBuffer)) {
+      console.error("HMAC verification failed - possible callback tampering");
+      return res.status(403).send("Invalid HMAC signature");
     }
 
     try {
@@ -157,10 +212,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const data = await tokenResponse.json() as { access_token: string };
       
-      // Store the access token in the database
+      // Get existing settings to preserve non-OAuth fields
+      const existingSettings = await storage.getStoreSettings();
+      
+      // Merge with existing settings instead of overwriting
       await storage.updateStoreSettings({
-        storeName: shop as string,
-        instagramHandle: '',
+        storeName: existingSettings?.storeName || shop as string,
+        instagramHandle: existingSettings?.instagramHandle || '',
         tokenActive: true,
         shopDomain: shop as string,
         accessToken: data.access_token,

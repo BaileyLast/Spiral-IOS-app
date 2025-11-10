@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import type { StoreSettings } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function Home() {
   const { toast } = useToast();
@@ -53,26 +55,55 @@ export default function Home() {
     );
   }
 
+  const isConnected = settings?.accessToken && settings?.shopDomain;
+
+  const handleConnectShopify = () => {
+    const shop = prompt("Enter your Shopify store domain (e.g., your-store.myshopify.com):");
+    if (shop) {
+      window.location.href = `/shopify/install?shop=${encodeURIComponent(shop)}`;
+    }
+  };
+
   return (
     <div className="p-8">
       <div className="max-w-7xl mx-auto">
         <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
         
+        {!isConnected && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Connect Your Shopify Store</CardTitle>
+              <CardDescription>
+                Connect your Shopify store to start managing Instagram-based discounts for your customers.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={handleConnectShopify} 
+                data-testid="button-connect-shopify"
+              >
+                <Store className="w-4 h-4 mr-2" />
+                Connect to Shopify
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <StoreInfoCard 
             icon={Store} 
             label="Connected Store" 
-            value={settings?.storeName || "Not connected"} 
+            value={settings?.shopDomain || "Not connected"} 
           />
           <StoreInfoCard 
             icon={Instagram} 
             label="Instagram Handle" 
-            value={settings?.instagramHandle || "Not connected"} 
+            value={settings?.instagramHandle || "Not configured"} 
           />
           <StoreInfoCard 
             icon={Shield} 
-            label="Token Health" 
-            value={<StatusBadge active={settings?.tokenActive ?? false} />} 
+            label="Shopify Connection" 
+            value={<StatusBadge active={!!isConnected} />} 
           />
         </div>
       </div>
