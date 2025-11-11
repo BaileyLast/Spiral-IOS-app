@@ -1,118 +1,139 @@
-import { DiscountTierCard } from "@/components/DiscountTierCard";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, AlertCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Plus, Trash2, AlertCircle } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { DiscountTier } from "@shared/schema";
+import type { DiscountTier, StoreSettings } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
-import { useEffect } from "react";
+
+interface BracketFormData {
+  fromFollowers: number;
+  toFollowers: number | null;
+  discountPercent: number;
+}
 
 export default function DiscountRules() {
   const { toast } = useToast();
-  const { data: tiers = [], isLoading, isError, error } = useQuery<DiscountTier[]>({
+  const [minFollowers, setMinFollowers] = useState(0);
+  const [brackets, setBrackets] = useState<BracketFormData[]>([
+    { fromFollowers: 0, toFollowers: 1000, discountPercent: 5 },
+  ]);
+
+  const { data: settings } = useQuery<StoreSettings>({
+    queryKey: ["/api/settings"],
+  });
+
+  const { data: existingTiers, isLoading } = useQuery<DiscountTier[]>({
     queryKey: ["/api/discount-tiers"],
   });
 
   useEffect(() => {
-    if (isError) {
+    if (settings) {
+      setMinFollowers(settings.minFollowers || 0);
+    }
+  }, [settings]);
+
+  useEffect(() => {
+    if (existingTiers && existingTiers.length > 0) {
+      const loadedBrackets = existingTiers.map((tier) => ({
+        fromFollowers: tier.fromFollowers,
+        toFollowers: tier.toFollowers,
+        discountPercent: typeof tier.discountPercent === 'string' 
+          ? parseFloat(tier.discountPercent) 
+          : tier.discountPercent,
+      }));
+      setBrackets(loadedBrackets);
+    }
+  }, [existingTiers]);
+
+  const saveRulesMutation = useMutation({
+    mutationFn: async (payload: { minFollowers: number; tiers: BracketFormData[] }) => {
+      return await apiRequest("POST", "/api/discount-rules", payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/discount-tiers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+      toast({ description: "Discount rules saved successfully" });
+    },
+    onError: (error: Error) => {
       toast({
-        description: error instanceof Error ? error.message : "Failed to load discount tiers",
+        description: error.message || "Failed to save discount rules",
         variant: "destructive",
       });
+    },
+  });
+
+  const handleAddBracket = () => {
+    const lastBracket = brackets[brackets.length - 1];
+    
+    if (lastBracket.toFollowers === null) {
+      const newFrom = lastBracket.fromFollowers + 1000;
+      const newTo = newFrom + 999;
+      
+      setBrackets([
+        ...brackets.slice(0, -1),
+        { ...lastBracket, toFollowers: newFrom - 1 },
+        { fromFollowers: newFrom, toFollowers: null, discountPercent: 5 },
+      ]);
+    } else {
+      const newFrom = lastBracket.toFollowers + 1;
+      setBrackets([
+        ...brackets,
+        { fromFollowers: newFrom, toFollowers: null, discountPercent: 5 },
+      ]);
     }
-  }, [isError, error, toast]);
-
-  const createTierMutation = useMutation({
-    mutationFn: async (tier: { minFollowers: number; maxFollowers: number; discountPercent: number }) => {
-      return await apiRequest("POST", "/api/discount-tiers", tier);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/discount-tiers"] });
-      toast({ description: "Discount tier added successfully" });
-    },
-    onError: (error: Error) => {
-      toast({ 
-        description: error.message || "Failed to add discount tier", 
-        variant: "destructive" 
-      });
-    },
-  });
-
-  const updateTierMutation = useMutation({
-    mutationFn: async ({ id, ...tier }: { id: string; minFollowers: number; maxFollowers: number; discountPercent: number }) => {
-      return await apiRequest("PATCH", `/api/discount-tiers/${id}`, tier);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/discount-tiers"] });
-      toast({ description: "Discount tier updated successfully" });
-    },
-    onError: (error: Error) => {
-      toast({ 
-        description: error.message || "Failed to update discount tier", 
-        variant: "destructive" 
-      });
-    },
-  });
-
-  const deleteTierMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return await apiRequest("DELETE", `/api/discount-tiers/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/discount-tiers"] });
-      toast({ description: "Discount tier deleted successfully" });
-    },
-    onError: (error: Error) => {
-      toast({ 
-        description: error.message || "Failed to delete discount tier", 
-        variant: "destructive" 
-      });
-    },
-  });
-
-  const handleUpdate = (tier: { id: string; minFollowers: number; maxFollowers: number; discountPercent: number }) => {
-    updateTierMutation.mutate(tier);
   };
 
-  const handleDelete = (id: string) => {
-    deleteTierMutation.mutate(id);
+  const handleRemoveBracket = (index: number) => {
+    if (brackets.length === 1) {
+      toast({
+        description: "You must have at least one discount bracket",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newBrackets = brackets.filter((_, i) => i !== index);
+    
+    if (index === newBrackets.length) {
+      newBrackets[newBrackets.length - 1].toFollowers = null;
+    }
+    
+    setBrackets(newBrackets);
   };
 
-  const handleAddTier = () => {
-    createTierMutation.mutate({
-      minFollowers: 0,
-      maxFollowers: 1000,
-      discountPercent: 5,
-    });
+  const handleBracketChange = (index: number, field: keyof BracketFormData, value: number | null) => {
+    const newBrackets = [...brackets];
+    newBrackets[index] = { ...newBrackets[index], [field]: value };
+    setBrackets(newBrackets);
+  };
+
+  const handleSave = () => {
+    const hasInvalidDiscount = brackets.some((b) => b.discountPercent < 2.5);
+    if (hasInvalidDiscount) {
+      toast({
+        description: "Minimum discount allowed is 2.5%",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const normalizedBrackets = brackets.map((bracket, index) => ({
+      ...bracket,
+      toFollowers: index === brackets.length - 1 ? null : bracket.toFollowers,
+    }));
+
+    saveRulesMutation.mutate({ minFollowers, tiers: normalizedBrackets });
   };
 
   if (isLoading) {
     return (
       <div className="p-8">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           <h1 className="text-2xl font-bold mb-6">Discount Rules</h1>
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-48 bg-muted animate-pulse rounded-lg" />
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (isError) {
-    return (
-      <div className="p-8">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-2xl font-bold mb-6">Discount Rules</h1>
-          <div className="flex flex-col items-center justify-center py-12 border rounded-lg bg-destructive/10">
-            <AlertCircle className="w-12 h-12 text-destructive mb-4" />
-            <p className="text-lg font-medium text-foreground mb-2">Failed to load discount rules</p>
-            <p className="text-sm text-muted-foreground">
-              {error instanceof Error ? error.message : "An unexpected error occurred"}
-            </p>
-          </div>
+          <div className="h-96 bg-muted animate-pulse rounded-xl" />
         </div>
       </div>
     );
@@ -120,31 +141,138 @@ export default function DiscountRules() {
 
   return (
     <div className="p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">Discount Rules</h1>
-          <Button onClick={handleAddTier} data-testid="button-add-tier">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Tier
-          </Button>
-        </div>
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-2xl font-bold mb-2">Discount Rules</h1>
+        <p className="text-muted-foreground mb-6">
+          Set follower thresholds and discounts for Spiral shoppers.
+        </p>
 
-        <div className="space-y-4">
-          {tiers.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              No discount tiers yet. Click "Add Tier" to create one.
-            </div>
-          ) : (
-            tiers.map((tier) => (
-              <DiscountTierCard
-                key={tier.id}
-                tier={tier}
-                onUpdate={handleUpdate}
-                onDelete={handleDelete}
+        <Card>
+          <CardHeader>
+            <CardTitle>Follower Requirements</CardTitle>
+            <CardDescription>
+              Define the minimum followers required and create discount brackets
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Minimum followers required to qualify
+              </label>
+              <Input
+                type="number"
+                className="w-48"
+                value={minFollowers}
+                onChange={(e) => setMinFollowers(Number(e.target.value))}
+                min={0}
+                data-testid="input-min-followers"
               />
-            ))
-          )}
-        </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <label className="block text-sm font-medium">Discount Brackets</label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddBracket}
+                  data-testid="button-add-bracket"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Bracket
+                </Button>
+              </div>
+
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="text-left px-4 py-3 text-sm font-medium">From</th>
+                      <th className="text-left px-4 py-3 text-sm font-medium">To</th>
+                      <th className="text-left px-4 py-3 text-sm font-medium">Discount (%)</th>
+                      <th className="w-12 px-4 py-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {brackets.map((bracket, index) => (
+                      <tr key={index} data-testid={`row-bracket-${index}`}>
+                        <td className="px-4 py-3">
+                          <Input
+                            type="number"
+                            className="w-32"
+                            value={bracket.fromFollowers}
+                            onChange={(e) =>
+                              handleBracketChange(index, "fromFollowers", Number(e.target.value))
+                            }
+                            min={0}
+                            data-testid={`input-from-${index}`}
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          {index === brackets.length - 1 ? (
+                            <span className="text-muted-foreground text-sm">No limit</span>
+                          ) : (
+                            <Input
+                              type="number"
+                              className="w-32"
+                              value={bracket.toFollowers || 0}
+                              onChange={(e) =>
+                                handleBracketChange(index, "toFollowers", Number(e.target.value))
+                              }
+                              min={bracket.fromFollowers + 1}
+                              data-testid={`input-to-${index}`}
+                            />
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Input
+                            type="number"
+                            className="w-24"
+                            value={bracket.discountPercent}
+                            onChange={(e) =>
+                              handleBracketChange(index, "discountPercent", Number(e.target.value))
+                            }
+                            min={2.5}
+                            step={0.1}
+                            data-testid={`input-discount-${index}`}
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveBracket(index)}
+                            disabled={brackets.length === 1}
+                            data-testid={`button-remove-${index}`}
+                          >
+                            <Trash2 className="w-4 h-4 text-muted-foreground" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex items-start gap-2 mt-3 p-3 bg-muted/30 rounded-md">
+                <AlertCircle className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-muted-foreground">
+                  The final bracket automatically has no upper limit. All discounts must be at least 2.5%.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-4">
+              <Button
+                onClick={handleSave}
+                disabled={saveRulesMutation.isPending}
+                data-testid="button-save-rules"
+              >
+                {saveRulesMutation.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

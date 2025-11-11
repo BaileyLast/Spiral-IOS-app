@@ -80,7 +80,10 @@ export class DatabaseStorage implements IStorage {
   async createDiscountTier(tier: InsertDiscountTier): Promise<DiscountTier> {
     const [created] = await db
       .insert(discountTiers)
-      .values(tier)
+      .values({
+        ...tier,
+        discountPercent: tier.discountPercent.toString(),
+      })
       .returning();
     return created;
   }
@@ -88,7 +91,10 @@ export class DatabaseStorage implements IStorage {
   async updateDiscountTier(id: string, tier: InsertDiscountTier): Promise<DiscountTier> {
     const [updated] = await db
       .update(discountTiers)
-      .set(tier)
+      .set({
+        ...tier,
+        discountPercent: tier.discountPercent.toString(),
+      })
       .where(eq(discountTiers.id, id))
       .returning();
     
@@ -119,7 +125,12 @@ export class DatabaseStorage implements IStorage {
     
     const created = await db
       .insert(discountTiers)
-      .values(tiers)
+      .values(
+        tiers.map((tier) => ({
+          ...tier,
+          discountPercent: tier.discountPercent.toString(),
+        }))
+      )
       .returning();
     
     return created;

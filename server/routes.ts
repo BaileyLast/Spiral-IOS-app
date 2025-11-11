@@ -108,6 +108,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Tiers must be an array" });
       }
 
+      if (tiers.length > 0 && tiers[tiers.length - 1].toFollowers !== null) {
+        return res.status(400).json({ error: "Final discount bracket must have no upper limit" });
+      }
+
       const validatedTiers = tiers.map((tier) => {
         const validated = insertDiscountTierSchema.parse(tier);
         return validated;
@@ -122,7 +126,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       if (error instanceof Error && error.name === "ZodError") {
-        res.status(400).json({ error: "Invalid discount rules data. Ensure all discounts are at least 2.5%" });
+        const zodError = error as any;
+        const firstIssue = zodError.issues?.[0];
+        const errorMessage = firstIssue?.message || "Invalid discount rules data";
+        res.status(400).json({ error: errorMessage });
       } else {
         console.error("Failed to save discount rules:", error);
         res.status(500).json({ error: "Failed to save discount rules" });

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, boolean, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -17,7 +17,7 @@ export const discountTiers = pgTable("discount_tiers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   fromFollowers: integer("from_followers").notNull(),
   toFollowers: integer("to_followers"),
-  discountPercent: integer("discount_percent").notNull(),
+  discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }).notNull(),
 });
 
 export const verifications = pgTable("verifications", {
@@ -33,10 +33,18 @@ export const verifications = pgTable("verifications", {
 export const insertStoreSettingsSchema = createInsertSchema(storeSettings).omit({ id: true });
 export const insertDiscountTierSchema = createInsertSchema(discountTiers)
   .omit({ id: true })
-  .refine((data) => data.discountPercent >= 2.5, {
-    message: "Minimum discount allowed is 2.5%",
-    path: ["discountPercent"],
-  });
+  .extend({
+    discountPercent: z.coerce.number().min(2.5, "Minimum discount allowed is 2.5%"),
+    fromFollowers: z.number().int().min(0, "Followers must be non-negative"),
+    toFollowers: z.number().int().min(0, "Followers must be non-negative").nullable(),
+  })
+  .refine(
+    (data) => !data.toFollowers || data.toFollowers > data.fromFollowers,
+    {
+      message: "To followers must be greater than from followers",
+      path: ["toFollowers"],
+    }
+  );
 export const insertVerificationSchema = createInsertSchema(verifications).omit({ id: true, verifiedAt: true });
 
 export type InsertStoreSettings = z.infer<typeof insertStoreSettingsSchema>;
