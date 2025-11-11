@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Plus, Trash2, AlertCircle } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { DiscountTier, StoreSettings } from "@shared/schema";
+import type { DiscountTier } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 
 interface BracketFormData {
@@ -16,7 +16,6 @@ interface BracketFormData {
 
 export default function DiscountRules() {
   const { toast } = useToast();
-  const [minFollowers, setMinFollowers] = useState(300);
   const [brackets, setBrackets] = useState<BracketFormData[]>([
     { fromFollowers: 300, toFollowers: 499, discountPercent: 2.5 },
     { fromFollowers: 500, toFollowers: 999, discountPercent: 5 },
@@ -24,19 +23,9 @@ export default function DiscountRules() {
     { fromFollowers: 1500, toFollowers: null, discountPercent: 10 },
   ]);
 
-  const { data: settings } = useQuery<StoreSettings>({
-    queryKey: ["/api/settings"],
-  });
-
   const { data: existingTiers, isLoading } = useQuery<DiscountTier[]>({
     queryKey: ["/api/discount-tiers"],
   });
-
-  useEffect(() => {
-    if (settings) {
-      setMinFollowers(settings.minFollowers || 0);
-    }
-  }, [settings]);
 
   useEffect(() => {
     if (existingTiers && existingTiers.length > 0) {
@@ -140,20 +129,14 @@ export default function DiscountRules() {
       return;
     }
 
-    if (brackets.length > 0 && brackets[0].fromFollowers < minFollowers) {
-      toast({
-        description: `First bracket must start at or above the minimum followers threshold (${minFollowers})`,
-        variant: "destructive",
-      });
-      return;
-    }
+    const effectiveMinFollowers = brackets[0]?.fromFollowers ?? 0;
 
     const normalizedBrackets = brackets.map((bracket, index) => ({
       ...bracket,
       toFollowers: index === brackets.length - 1 ? null : bracket.toFollowers,
     }));
 
-    saveRulesMutation.mutate({ minFollowers, tiers: normalizedBrackets });
+    saveRulesMutation.mutate({ minFollowers: effectiveMinFollowers, tiers: normalizedBrackets });
   };
 
   if (isLoading) {
@@ -182,34 +165,24 @@ export default function DiscountRules() {
               Define the minimum followers required and create discount brackets
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Minimum followers required to qualify
-              </label>
-              <Input
-                type="number"
-                className="w-48"
-                value={minFollowers}
-                onChange={(e) => setMinFollowers(Number(e.target.value))}
-                min={0}
-                data-testid="input-min-followers"
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-3">
+          <CardContent>
+            <div className="flex items-center justify-between mb-3">
+              <div>
                 <label className="block text-sm font-medium">Discount Brackets</label>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleAddBracket}
-                  data-testid="button-add-bracket"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Bracket
-                </Button>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Minimum {brackets[0]?.fromFollowers || 0} followers required to qualify
+                </p>
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAddBracket}
+                data-testid="button-add-bracket"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Bracket
+              </Button>
+            </div>
 
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full">
@@ -233,7 +206,7 @@ export default function DiscountRules() {
                               onChange={(e) =>
                                 handleBracketChange(index, "fromFollowers", Number(e.target.value))
                               }
-                              min={minFollowers}
+                              min={0}
                               data-testid={`input-from-${index}`}
                             />
                           ) : (
@@ -293,12 +266,11 @@ export default function DiscountRules() {
                 </table>
               </div>
 
-              <div className="flex items-start gap-2 mt-3 p-3 bg-muted/30 rounded-md">
-                <AlertCircle className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-muted-foreground">
-                  The final bracket automatically has no upper limit. All discounts must be at least 2.5%.
-                </p>
-              </div>
+            <div className="flex items-start gap-2 mt-3 p-3 bg-muted/30 rounded-md">
+              <AlertCircle className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-muted-foreground">
+                The final bracket automatically has no upper limit. All discounts must be at least 2.5%. The first bracket's starting point sets the minimum followers required.
+              </p>
             </div>
 
             <div className="flex justify-end pt-4">
