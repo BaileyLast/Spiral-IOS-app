@@ -96,6 +96,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/discount-rules", async (req, res) => {
+    try {
+      const { minFollowers, tiers } = req.body;
+
+      if (typeof minFollowers !== "number" || minFollowers < 0) {
+        return res.status(400).json({ error: "Invalid minimum followers value" });
+      }
+
+      if (!Array.isArray(tiers)) {
+        return res.status(400).json({ error: "Tiers must be an array" });
+      }
+
+      const validatedTiers = tiers.map((tier) => {
+        const validated = insertDiscountTierSchema.parse(tier);
+        return validated;
+      });
+
+      await storage.updateMinFollowers(minFollowers);
+      const savedTiers = await storage.replaceAllDiscountTiers(validatedTiers);
+
+      res.json({
+        minFollowers,
+        tiers: savedTiers,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === "ZodError") {
+        res.status(400).json({ error: "Invalid discount rules data. Ensure all discounts are at least 2.5%" });
+      } else {
+        console.error("Failed to save discount rules:", error);
+        res.status(500).json({ error: "Failed to save discount rules" });
+      }
+    }
+  });
+
   // Verification Routes
   app.get("/api/verifications", async (req, res) => {
     try {
