@@ -63,11 +63,21 @@ Preferred communication style: Simple, everyday language.
 
 **Discount Rules Validation**
 - Minimum discount: 2.5% enforced on all brackets (frontend and backend)
-- First bracket must start at or above `minFollowers` threshold to prevent logical inconsistencies
+- Minimum followers threshold: Derived from the first bracket's `fromFollowers` value (displayed as informational context in UI)
+- First bracket must start at or above 0 (non-negative)
 - Final bracket automatically has `toFollowers = null` (no upper limit)
 - Follower counts must be non-negative
 - Range ordering: `toFollowers > fromFollowers` (when toFollowers is not null)
 - Both frontend and backend validate these rules with consistent error messages
+
+**Discount Rules UI Design**
+- Dynamic bracket creation system with unlimited tiers
+- First bracket's "From" value sets the global minimum followers threshold
+- Automatic bracket sequencing: new brackets start at previous bracket's end + 1
+- Locked "From" inputs for brackets 2+ to prevent gaps/overlaps
+- Cascade updates: changing a bracket's "To" value auto-updates subsequent brackets
+- Smart removal handling: recalculates following brackets to maintain contiguous ranges
+- Minimum followers displayed as informational text in table header (not editable separately)
 
 **API Architecture**
 - RESTful API pattern with /api route prefix convention
