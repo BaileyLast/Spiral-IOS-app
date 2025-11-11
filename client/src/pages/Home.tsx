@@ -7,9 +7,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useLocation } from "wouter";
 
 export default function Home() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const { data: settings, isLoading, isError, error } = useQuery<StoreSettings | null>({
     queryKey: ["/api/settings"],
   });
@@ -58,10 +60,7 @@ export default function Home() {
   const isConnected = settings?.accessToken && settings?.shopDomain;
 
   const handleConnectShopify = () => {
-    const shop = prompt("Enter your Shopify store domain (e.g., your-store.myshopify.com):");
-    if (shop) {
-      window.location.href = `/shopify/install?shop=${encodeURIComponent(shop)}`;
-    }
+    setLocation("/settings");
   };
 
   return (
