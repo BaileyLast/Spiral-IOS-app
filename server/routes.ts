@@ -9,6 +9,7 @@ declare module 'express-session' {
   interface SessionData {
     oauthState?: string;
     oauthShop?: string;
+    instagramOauthState?: string;
   }
 }
 
@@ -274,6 +275,142 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error during Shopify OAuth:", error);
       res.status(500).send("Failed to complete Shopify authentication");
+    }
+  });
+
+  // Instagram OAuth Routes
+  app.get("/instagram/install", (req, res) => {
+    const redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
+    const appId = process.env.INSTAGRAM_APP_ID;
+    const scopes = 'instagram_basic,pages_show_list,pages_read_engagement';
+
+    if (!redirectUri || !appId) {
+      return res.status(500).json({ error: "Instagram credentials not configured" });
+    }
+
+    // Generate CSRF protection state nonce
+    const state = crypto.randomBytes(16).toString('hex');
+    req.session.instagramOauthState = state;
+
+    const authUrl = `https://api.instagram.com/oauth/authorize?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&response_type=code&state=${state}`;
+    res.redirect(authUrl);
+  });
+
+  app.get("/instagram/callback", async (req, res) => {
+    const { code, state, error } = req.query;
+
+    if (error) {
+      console.error("Instagram OAuth error:", error);
+      return res.status(400).send(`Instagram authorization failed: ${error}`);
+    }
+
+    if (!code || !state) {
+      return res.status(400).send("Missing required parameters");
+    }
+
+    // Validate state for CSRF protection
+    if (state !== req.session.instagramOauthState) {
+      console.error("Instagram OAuth state mismatch - possible CSRF attack");
+      return res.status(403).send("Invalid state parameter - CSRF validation failed");
+    }
+
+    // Clear state from session after validation
+    delete req.session.instagramOauthState;
+
+    try {
+      // Step 1: Exchange code for short-lived access token
+      const tokenParams = new URLSearchParams({
+        client_id: process.env.INSTAGRAM_APP_ID!,
+        client_secret: process.env.INSTAGRAM_APP_SECRET!,
+        grant_type: 'authorization_code',
+        redirect_uri: process.env.INSTAGRAM_REDIRECT_URI!,
+        code: code as string,
+      });
+
+      const tokenResponse = await fetch('https://api.instagram.com/oauth/access_token', {
+        method: 'POST',
+        body: tokenParams,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+
+      if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text();
+        console.error("Failed to get Instagram access token:", errorText);
+        return res.status(500).send("Failed to authenticate with Instagram");
+      }
+
+      const tokenData = await tokenResponse.json() as { access_token: string; user_id: number };
+      const shortLivedToken = tokenData.access_token;
+
+      // Step 2: Exchange short-lived token for long-lived token
+      const longTokenUrl = `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${process.env.INSTAGRAM_APP_SECRET}&access_token=${shortLivedToken}`;
+      
+      const longTokenResponse = await fetch(longTokenUrl);
+      
+      if (!longTokenResponse.ok) {
+        const errorText = await longTokenResponse.text();
+        console.error("Failed to exchange for long-lived token:", errorText);
+        return res.status(500).send("Failed to get long-lived token");
+      }
+
+      const longTokenData = await longTokenResponse.json() as { access_token: string; expires_in: number };
+      const longLivedToken = longTokenData.access_token;
+
+      // Step 3: Get Instagram Business Account info from Facebook Pages
+      const accountInfoUrl = `https://graph.facebook.com/v19.0/me/accounts?fields=id,name,instagram_business_account{id,username}&access_token=${longLivedToken}`;
+      
+      const accountInfoResponse = await fetch(accountInfoUrl);
+      
+      if (!accountInfoResponse.ok) {
+        const errorText = await accountInfoResponse.text();
+        console.error("Failed to get Instagram account info:", errorText);
+        return res.status(500).send("Failed to retrieve Instagram account information");
+      }
+
+      const accountData = await accountInfoResponse.json() as {
+        data: Array<{
+          id: string;
+          name: string;
+          instagram_business_account?: {
+            id: string;
+            username: string;
+          };
+        }>;
+      };
+
+      // Find the first page with an Instagram Business Account
+      const pageWithInstagram = accountData.data.find(page => page.instagram_business_account);
+      
+      if (!pageWithInstagram || !pageWithInstagram.instagram_business_account) {
+        return res.status(400).send("No Instagram Business Account found. Please connect an Instagram Business Account to your Facebook Page and try again.");
+      }
+
+      const igAccount = pageWithInstagram.instagram_business_account;
+      
+      // Get existing settings to preserve non-Instagram fields
+      const existingSettings = await storage.getStoreSettings();
+      
+      // Update settings with Instagram connection data
+      await storage.updateStoreSettings({
+        storeName: existingSettings?.storeName || "My Store",
+        instagramHandle: `@${igAccount.username}`,
+        tokenActive: existingSettings?.tokenActive ?? true,
+        shopDomain: existingSettings?.shopDomain,
+        accessToken: existingSettings?.accessToken,
+        minFollowers: existingSettings?.minFollowers ?? 0,
+        instagramBusinessAccountId: igAccount.id,
+        instagramPageId: pageWithInstagram.id,
+        instagramUsername: igAccount.username,
+        instagramAccessToken: longLivedToken,
+      });
+
+      console.log('Instagram connected successfully:', igAccount.username);
+      res.send('✅ Spiral successfully connected to your Instagram Business Account! You can close this window and return to the dashboard.');
+    } catch (error) {
+      console.error("Error during Instagram OAuth:", error);
+      res.status(500).send("Failed to complete Instagram authentication");
     }
   });
 

@@ -11,6 +11,10 @@ export const storeSettings = pgTable("store_settings", {
   shopDomain: text("shop_domain"),
   accessToken: text("access_token"),
   minFollowers: integer("min_followers").notNull().default(0),
+  instagramBusinessAccountId: text("instagram_business_account_id"),
+  instagramPageId: text("instagram_page_id"),
+  instagramUsername: text("instagram_username"),
+  instagramAccessToken: text("instagram_access_token"),
 });
 
 export const discountTiers = pgTable("discount_tiers", {

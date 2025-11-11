@@ -1,43 +1,17 @@
-import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Store, Instagram, CreditCard, RefreshCw } from "lucide-react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
 import type { StoreSettings } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { StatusBadge } from "@/components/StatusBadge";
 
 export default function Settings() {
   const { toast } = useToast();
-  const [instagramHandle, setInstagramHandle] = useState("");
 
   const { data: settings, isLoading } = useQuery<StoreSettings>({
     queryKey: ["/api/settings"],
-  });
-
-  useEffect(() => {
-    if (settings?.instagramHandle) {
-      setInstagramHandle(settings.instagramHandle);
-    }
-  }, [settings]);
-
-  const updateSettingsMutation = useMutation({
-    mutationFn: async (payload: Partial<StoreSettings>) => {
-      return await apiRequest("PATCH", "/api/settings", payload);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
-      toast({ description: "Settings updated successfully" });
-    },
-    onError: (error: Error) => {
-      toast({
-        description: error.message || "Failed to update settings",
-        variant: "destructive",
-      });
-    },
   });
 
   const handleConnectShopify = () => {
@@ -47,16 +21,12 @@ export default function Settings() {
     }
   };
 
-  const handleUpdateInstagram = (e: React.FormEvent) => {
-    e.preventDefault();
-    const handle = instagramHandle.startsWith('@') ? instagramHandle : `@${instagramHandle}`;
-    updateSettingsMutation.mutate({ 
-      instagramHandle: handle,
-      storeName: settings?.storeName || "My Store"
-    });
+  const handleConnectInstagram = () => {
+    window.location.href = '/instagram/install';
   };
 
   const isShopifyConnected = !!(settings?.accessToken && settings?.shopDomain);
+  const isInstagramConnected = !!(settings?.instagramBusinessAccountId && settings?.instagramAccessToken);
 
   if (isLoading) {
     return (
@@ -139,50 +109,65 @@ export default function Settings() {
 
           <Card>
             <CardHeader>
-              <div className="flex items-center gap-3">
-                <Instagram className="w-5 h-5 text-muted-foreground" />
-                <div>
-                  <CardTitle>Instagram Settings</CardTitle>
-                  <CardDescription>Configure your Instagram business account</CardDescription>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Instagram className="w-5 h-5 text-muted-foreground" />
+                  <div>
+                    <CardTitle>Instagram Connection</CardTitle>
+                    <CardDescription>Manage your Instagram Business Account integration</CardDescription>
+                  </div>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleUpdateInstagram} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="instagram-handle">Instagram Handle</Label>
-                  <Input
-                    id="instagram-handle"
-                    type="text"
-                    placeholder="@yourstore"
-                    value={instagramHandle}
-                    onChange={(e) => setInstagramHandle(e.target.value)}
-                    data-testid="input-instagram-handle"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    This is the Instagram account that shoppers must follow to qualify for discounts.
-                  </p>
-                </div>
-                <Button 
-                  type="submit" 
-                  disabled={updateSettingsMutation.isPending}
-                  data-testid="button-save-instagram"
-                >
-                  {updateSettingsMutation.isPending ? "Saving..." : "Save Instagram Settings"}
-                </Button>
-              </form>
-              
-              <div className="mt-6 p-4 border rounded-lg bg-muted/50">
-                <p className="text-sm font-medium mb-2">Instagram API Connection</p>
                 <StatusBadge 
-                  active={false}
+                  active={isInstagramConnected}
                   activeLabel="Connected"
                   inactiveLabel="Not Connected"
                 />
-                <p className="text-xs text-muted-foreground mt-2">
-                  Instagram Graph API integration coming soon for automatic follower verification.
-                </p>
               </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {isInstagramConnected ? (
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-sm text-muted-foreground">Instagram Username</Label>
+                    <p className="text-sm font-medium mt-1" data-testid="text-instagram-username">
+                      @{settings?.instagramUsername}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm text-muted-foreground">Business Account ID</Label>
+                    <p className="text-sm font-mono text-xs mt-1" data-testid="text-business-account-id">
+                      {settings?.instagramBusinessAccountId}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm text-muted-foreground">Page ID</Label>
+                    <p className="text-sm font-mono text-xs mt-1" data-testid="text-page-id">
+                      {settings?.instagramPageId}
+                    </p>
+                  </div>
+                  <Button 
+                    onClick={handleConnectInstagram} 
+                    variant="outline"
+                    data-testid="button-reconnect-instagram"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Reconnect Account
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Connect your Instagram Business Account to enable automatic follower verification and discount management.
+                  </p>
+                  <Button 
+                    onClick={handleConnectInstagram}
+                    data-testid="button-connect-instagram"
+                  >
+                    <Instagram className="w-4 h-4 mr-2" />
+                    Connect Instagram
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
 
