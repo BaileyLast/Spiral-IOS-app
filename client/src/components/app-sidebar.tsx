@@ -1,4 +1,4 @@
-import { Home, Percent, CheckCircle } from "lucide-react";
+import { Home, Percent, CheckCircle, Settings } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -27,6 +27,11 @@ const menuItems = [
     title: "Verifications",
     url: "/verifications",
     icon: CheckCircle,
+  },
+  {
+    title: "Settings",
+    url: "/settings",
+    icon: Settings,
   },
 ];
 

@@ -8,6 +8,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import Home from "@/pages/Home";
 import DiscountRules from "@/pages/DiscountRules";
 import Verifications from "@/pages/Verifications";
+import Settings from "@/pages/Settings";
 
 function Router() {
   return (
@@ -15,6 +16,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/discount-rules" component={DiscountRules} />
       <Route path="/verifications" component={Verifications} />
+      <Route path="/settings" component={Settings} />
     </Switch>
   );
 }
