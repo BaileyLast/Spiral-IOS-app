@@ -10,6 +10,7 @@ import {
   SidebarMenuItem,
   SidebarHeader,
 } from "@/components/ui/sidebar";
+import logoUrl from "@assets/SPIRAL_1762869701780.png";
 
 const menuItems = [
   {
@@ -35,7 +36,12 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="p-6">
-        <h1 className="text-xl font-bold text-foreground">Spiral</h1>
+        <img 
+          src={logoUrl} 
+          alt="Spiral" 
+          className="w-32 h-auto"
+          data-testid="img-logo"
+        />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
