@@ -10,12 +10,13 @@ export const storeSettings = pgTable("store_settings", {
   tokenActive: boolean("token_active").notNull().default(true),
   shopDomain: text("shop_domain"),
   accessToken: text("access_token"),
+  minFollowers: integer("min_followers").notNull().default(0),
 });
 
 export const discountTiers = pgTable("discount_tiers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  minFollowers: integer("min_followers").notNull(),
-  maxFollowers: integer("max_followers").notNull(),
+  fromFollowers: integer("from_followers").notNull(),
+  toFollowers: integer("to_followers"),
   discountPercent: integer("discount_percent").notNull(),
 });
 
@@ -30,7 +31,12 @@ export const verifications = pgTable("verifications", {
 });
 
 export const insertStoreSettingsSchema = createInsertSchema(storeSettings).omit({ id: true });
-export const insertDiscountTierSchema = createInsertSchema(discountTiers).omit({ id: true });
+export const insertDiscountTierSchema = createInsertSchema(discountTiers)
+  .omit({ id: true })
+  .refine((data) => data.discountPercent >= 2.5, {
+    message: "Minimum discount allowed is 2.5%",
+    path: ["discountPercent"],
+  });
 export const insertVerificationSchema = createInsertSchema(verifications).omit({ id: true, verifiedAt: true });
 
 export type InsertStoreSettings = z.infer<typeof insertStoreSettingsSchema>;
