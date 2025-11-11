@@ -112,6 +112,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Final discount bracket must have no upper limit" });
       }
 
+      if (tiers.length > 0 && tiers[0].fromFollowers < minFollowers) {
+        return res.status(400).json({ error: `First bracket must start at or above the minimum followers threshold (${minFollowers})` });
+      }
+
       const validatedTiers = tiers.map((tier) => {
         const validated = insertDiscountTierSchema.parse(tier);
         return validated;

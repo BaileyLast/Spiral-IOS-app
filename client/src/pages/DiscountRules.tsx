@@ -120,6 +120,14 @@ export default function DiscountRules() {
       return;
     }
 
+    if (brackets.length > 0 && brackets[0].fromFollowers < minFollowers) {
+      toast({
+        description: `First bracket must start at or above the minimum followers threshold (${minFollowers})`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     const normalizedBrackets = brackets.map((bracket, index) => ({
       ...bracket,
       toFollowers: index === brackets.length - 1 ? null : bracket.toFollowers,
@@ -204,7 +212,7 @@ export default function DiscountRules() {
                             onChange={(e) =>
                               handleBracketChange(index, "fromFollowers", Number(e.target.value))
                             }
-                            min={0}
+                            min={index === 0 ? minFollowers : 0}
                             data-testid={`input-from-${index}`}
                           />
                         </td>
