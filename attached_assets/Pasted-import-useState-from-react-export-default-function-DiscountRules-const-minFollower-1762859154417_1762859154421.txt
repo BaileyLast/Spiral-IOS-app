@@ -1,0 +1,134 @@
+import { useState } from "react";
+
+export default function DiscountRules() {
+  const [minFollowers, setMinFollowers] = useState(0);
+  const [tiers, setTiers] = useState([
+    { id: 1, from: 0, to: 1000, discount: 5 },
+  ]);
+
+  const handleChange = (id, field, value) => {
+    setTiers((prev) =>
+      prev.map((t) =>
+        t.id === id ? { ...t, [field]: value } : t
+      )
+    );
+  };
+
+  const addTier = () => {
+    const last = tiers[tiers.length - 1];
+    const newFrom = last ? Number(last.to) + 1 : 0;
+    setTiers([
+      ...tiers,
+      { id: Date.now(), from: newFrom, to: newFrom + 1000, discount: 5 },
+    ]);
+  };
+
+  const handleSave = () => {
+    const invalid = tiers.some((t) => t.discount < 2.5);
+    if (invalid) {
+      alert("❌ Minimum discount allowed is 2.5%");
+      return;
+    }
+
+    const payload = {
+      minFollowers,
+      tiers,
+    };
+
+    fetch("https://joinspiral.app/api/merchant/discount-rules", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error();
+        alert("✅ Discount rules saved successfully");
+      })
+      .catch(() => alert("❌ Failed to save discount rules"));
+  };
+
+  return (
+    <div className="p-8">
+      <h1 className="text-2xl font-semibold mb-6">Discount Rules</h1>
+      <p className="text-gray-500 mb-8">
+        Set follower thresholds and discounts for Spiral shoppers.
+      </p>
+
+      <div className="bg-white rounded-2xl shadow p-6 max-w-3xl">
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Minimum followers required to qualify
+          </label>
+          <input
+            type="number"
+            className="border rounded-lg px-3 py-2 w-48"
+            value={minFollowers}
+            onChange={(e) => setMinFollowers(Number(e.target.value))}
+          />
+        </div>
+
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="border-b text-left text-gray-500">
+              <th className="pb-3">From</th>
+              <th className="pb-3">To</th>
+              <th className="pb-3">Discount (%)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tiers.map((t) => (
+              <tr key={t.id} className="border-b last:border-none">
+                <td className="py-3">
+                  <input
+                    type="number"
+                    className="border rounded-lg px-3 py-2 w-28"
+                    value={t.from}
+                    onChange={(e) =>
+                      handleChange(t.id, "from", Number(e.target.value))
+                    }
+                  />
+                </td>
+                <td className="py-3">
+                  <input
+                    type="number"
+                    className="border rounded-lg px-3 py-2 w-28"
+                    value={t.to}
+                    onChange={(e) =>
+                      handleChange(t.id, "to", Number(e.target.value))
+                    }
+                  />
+                </td>
+                <td className="py-3">
+                  <input
+                    type="number"
+                    className="border rounded-lg px-3 py-2 w-24 text-center"
+                    value={t.discount}
+                    onChange={(e) =>
+                      handleChange(t.id, "discount", Number(e.target.value))
+                    }
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div className="flex justify-between items-center mt-6">
+          <button
+            onClick={addTier}
+            className="text-purple-600 hover:text-purple-800 text-sm font-medium"
+          >
+            + Add another bracket
+          </button>
+
+          <button
+            onClick={handleSave}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg shadow-sm"
+          >
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
