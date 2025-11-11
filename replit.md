@@ -53,9 +53,21 @@ Preferred communication style: Simple, everyday language.
 - Database connection through Neon serverless PostgreSQL (@neondatabase/serverless)
 
 **Data Models**
-1. **Store Settings**: Stores Shopify store configuration (store name, Instagram handle, token status)
-2. **Discount Tiers**: Follower count ranges mapped to discount percentages
+1. **Store Settings**: Stores Shopify store configuration (store name, Instagram handle, token status, minimum followers threshold)
+   - `minFollowers`: INTEGER NOT NULL DEFAULT 0 - minimum follower count required for any discount eligibility
+2. **Discount Tiers**: Flexible follower count ranges mapped to discount percentages
+   - `fromFollowers`: INTEGER NOT NULL - lower bound of follower range (inclusive)
+   - `toFollowers`: INTEGER (nullable) - upper bound of follower range (null for final bracket means no limit)
+   - `discountPercent`: NUMERIC(5,2) NOT NULL - discount percentage (supports decimals, e.g., 7.5%)
 3. **Verifications**: Shopper verification records linking email, Instagram handle, follower count, post URL, and verification status
+
+**Discount Rules Validation**
+- Minimum discount: 2.5% enforced on all brackets (frontend and backend)
+- First bracket must start at or above `minFollowers` threshold to prevent logical inconsistencies
+- Final bracket automatically has `toFollowers = null` (no upper limit)
+- Follower counts must be non-negative
+- Range ordering: `toFollowers > fromFollowers` (when toFollowers is not null)
+- Both frontend and backend validate these rules with consistent error messages
 
 **API Architecture**
 - RESTful API pattern with /api route prefix convention
