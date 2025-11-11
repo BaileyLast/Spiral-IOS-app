@@ -16,9 +16,12 @@ interface BracketFormData {
 
 export default function DiscountRules() {
   const { toast } = useToast();
-  const [minFollowers, setMinFollowers] = useState(0);
+  const [minFollowers, setMinFollowers] = useState(300);
   const [brackets, setBrackets] = useState<BracketFormData[]>([
-    { fromFollowers: 0, toFollowers: 1000, discountPercent: 5 },
+    { fromFollowers: 300, toFollowers: 499, discountPercent: 2.5 },
+    { fromFollowers: 500, toFollowers: 999, discountPercent: 5 },
+    { fromFollowers: 1000, toFollowers: 1499, discountPercent: 7.5 },
+    { fromFollowers: 1500, toFollowers: null, discountPercent: 10 },
   ]);
 
   const { data: settings } = useQuery<StoreSettings>({
@@ -101,12 +104,29 @@ export default function DiscountRules() {
       newBrackets[newBrackets.length - 1].toFollowers = null;
     }
     
+    for (let i = Math.max(1, index); i < newBrackets.length; i++) {
+      const prevBracket = newBrackets[i - 1];
+      if (prevBracket.toFollowers !== null) {
+        newBrackets[i].fromFollowers = prevBracket.toFollowers + 1;
+      }
+    }
+    
     setBrackets(newBrackets);
   };
 
   const handleBracketChange = (index: number, field: keyof BracketFormData, value: number | null) => {
     const newBrackets = [...brackets];
     newBrackets[index] = { ...newBrackets[index], [field]: value };
+    
+    if (field === 'toFollowers' && index < newBrackets.length - 1) {
+      for (let i = index + 1; i < newBrackets.length; i++) {
+        const prevBracket = newBrackets[i - 1];
+        if (prevBracket.toFollowers !== null) {
+          newBrackets[i].fromFollowers = prevBracket.toFollowers + 1;
+        }
+      }
+    }
+    
     setBrackets(newBrackets);
   };
 
@@ -205,16 +225,27 @@ export default function DiscountRules() {
                     {brackets.map((bracket, index) => (
                       <tr key={index} data-testid={`row-bracket-${index}`}>
                         <td className="px-4 py-3">
-                          <Input
-                            type="number"
-                            className="w-32"
-                            value={bracket.fromFollowers}
-                            onChange={(e) =>
-                              handleBracketChange(index, "fromFollowers", Number(e.target.value))
-                            }
-                            min={index === 0 ? minFollowers : 0}
-                            data-testid={`input-from-${index}`}
-                          />
+                          {index === 0 ? (
+                            <Input
+                              type="number"
+                              className="w-32"
+                              value={bracket.fromFollowers}
+                              onChange={(e) =>
+                                handleBracketChange(index, "fromFollowers", Number(e.target.value))
+                              }
+                              min={minFollowers}
+                              data-testid={`input-from-${index}`}
+                            />
+                          ) : (
+                            <Input
+                              type="number"
+                              className="w-32 bg-muted/30"
+                              value={bracket.fromFollowers}
+                              readOnly
+                              disabled
+                              data-testid={`input-from-${index}`}
+                            />
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           {index === brackets.length - 1 ? (
