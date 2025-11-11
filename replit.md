@@ -53,7 +53,10 @@ Preferred communication style: Simple, everyday language.
 - Database connection through Neon serverless PostgreSQL (@neondatabase/serverless)
 
 **Data Models**
-1. **Store Settings**: Stores Shopify store configuration (store name, Instagram handle, token status, minimum followers threshold)
+1. **Store Settings**: Stores Shopify and Instagram OAuth connection data with store configuration
+   - Shopify fields: `storeName`, `shopDomain`, `accessToken`, `tokenActive`
+   - Instagram OAuth fields: `instagramBusinessAccountId`, `instagramPageId`, `instagramUsername`, `instagramAccessToken`
+   - Legacy field: `instagramHandle` (deprecated in favor of OAuth username)
    - `minFollowers`: INTEGER NOT NULL DEFAULT 0 - minimum follower count required for any discount eligibility
 2. **Discount Tiers**: Flexible follower count ranges mapped to discount percentages
    - `fromFollowers`: INTEGER NOT NULL - lower bound of follower range (inclusive)
@@ -162,5 +165,53 @@ Security features:
 - Secure, HTTP-only session cookies with proxy trust
 - Automatic merging of new tokens with existing settings
 
-### Planned Integrations
-- **Instagram Graph API**: For follower count verification and post validation (requires OAuth token management)
+**Instagram OAuth 2.0 Integration**
+- Complete Meta OAuth authorization flow with Instagram Business Display API
+- Three-step authentication: authorization code → short-lived token → long-lived token (60 days)
+- CSRF protection via session-based state parameter matching Shopify implementation
+- Automatic Instagram Business Account discovery via Facebook Pages API
+- Secure long-lived token storage in PostgreSQL (store_settings table)
+- Settings merging preserves existing Shopify and store configuration during connection
+
+Required environment variables for deployment:
+- `INSTAGRAM_APP_ID`: Meta App client ID (from Meta for Developers)
+- `INSTAGRAM_APP_SECRET`: Meta App client secret
+- `INSTAGRAM_REDIRECT_URI`: OAuth callback URL (e.g., `https://your-app.onrender.com/instagram/callback`)
+
+OAuth endpoints:
+- `/instagram/install`: Initiates Instagram OAuth flow with Meta
+- `/instagram/callback`: Handles authorization, token exchange, and account data retrieval
+
+OAuth scopes requested:
+- `instagram_basic`: Basic Instagram account information
+- `pages_show_list`: Access to user's Facebook Pages list
+- `pages_read_engagement`: Read Instagram Business Account linked to Pages
+
+OAuth flow details:
+1. User clicks "Connect Instagram" in Settings
+2. Redirects to `/instagram/install` which generates CSRF state and redirects to Meta authorization
+3. User authorizes on Instagram/Facebook (must have Instagram Business or Creator account)
+4. Meta redirects to `/instagram/callback` with authorization code
+5. Backend validates CSRF state parameter
+6. Exchanges authorization code for short-lived access token (1 hour)
+7. Exchanges short-lived token for long-lived access token (60 days expiry)
+8. Fetches user's Facebook Pages with `instagram_business_account` field
+9. Finds first Page with linked Instagram Business Account
+10. Stores business account ID, page ID, username, and long-lived token in database
+11. Preserves existing Shopify connection and store settings during update
+12. User returns to Settings page showing connected Instagram username and account details
+
+Security features:
+- CSRF protection via session-based state parameter
+- Timing-safe string comparison for state validation
+- Secure, HTTP-only session cookies
+- Error handling for missing Instagram Business Account connections
+- Validation that user has proper account type (Business/Creator, not Personal)
+
+Settings UI:
+- Displays "Connected" or "Not Connected" status badge
+- Shows `@username`, business account ID, and page ID when connected
+- "Connect Instagram" button initiates OAuth flow
+- "Reconnect Account" button allows re-authorization for token refresh or account switching
+
+Note: Instagram Basic Display was deprecated in December 2024. This integration requires Instagram Business or Creator accounts linked to Facebook Pages.
