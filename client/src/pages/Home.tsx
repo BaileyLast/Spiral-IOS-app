@@ -1,5 +1,5 @@
 import { StatusBadge } from "@/components/StatusBadge";
-import { Store, Instagram, AlertCircle, Users, CheckCircle, TrendingUp } from "lucide-react";
+import { Store, Instagram, AlertCircle, Users, TrendingUp } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { StoreSettings, Verification } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
@@ -79,7 +79,6 @@ export default function Home() {
   // Calculate KPIs
   const totalAudienceReach = verifications.reduce((sum, v) => sum + (v.followerCount || 0), 0);
   const totalPosts = verifications.length;
-  const approvedVerifications = verifications.filter(v => v.status === "approved");
   
   // Get recent activity (last 5 verifications)
   const recentActivity = [...verifications]
@@ -184,7 +183,7 @@ export default function Home() {
         {/* Performance Snapshot */}
         <div>
           <h2 className="text-lg font-semibold mb-3">Performance Snapshot</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
               <CardHeader className="pb-3">
                 <CardDescription>Total Audience Reach</CardDescription>
@@ -218,25 +217,6 @@ export default function Home() {
                       {totalPosts}
                     </p>
                     <p className="text-xs text-muted-foreground">verifications</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription>Approved Discounts</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <CheckCircle className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold" data-testid="text-approved-count">
-                      {approvedVerifications.length}
-                    </p>
-                    <p className="text-xs text-muted-foreground">approved</p>
                   </div>
                 </div>
               </CardContent>
