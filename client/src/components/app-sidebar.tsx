@@ -10,7 +10,7 @@ import {
   SidebarMenuItem,
   SidebarHeader,
 } from "@/components/ui/sidebar";
-import logoUrl from "@assets/SPIRAL_1762869701780.png";
+import logoUrl from "@assets/Spiral logo (2)_1763051288266.png";
 
 const menuItems = [
   {

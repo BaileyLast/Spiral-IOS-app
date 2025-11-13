@@ -33,9 +33,11 @@ Preferred communication style: Simple, everyday language.
 
 **Design Tokens & Theming**
 - HSL-based color system with CSS custom properties for theming
+- Branded purple (#5729a3 / HSL: 263° 60% 40%) used for sidebar and header backgrounds
 - Light mode optimized with defined color scales for primary (purple/262° hue), secondary, muted, accent, and destructive variants
 - Custom spacing system using Tailwind units (3, 4, 6, 8, 12)
 - Typography using Inter font family loaded from Google Fonts
+- White Spiral logo (spiral icon with text) displayed in sidebar header on purple background
 
 ### Backend Architecture
 
