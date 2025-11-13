@@ -33,7 +33,7 @@ export default function App() {
           <div className="flex h-screen w-full">
             <AppSidebar />
             <div className="flex flex-col flex-1">
-              <header className="flex items-center p-4 border-b bg-background">
+              <header className="flex items-center p-4 border-b bg-sidebar text-sidebar-foreground border-sidebar-border">
                 <SidebarTrigger data-testid="button-sidebar-toggle" />
               </header>
               <main className="flex-1 overflow-auto bg-background">
