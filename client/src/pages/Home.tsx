@@ -180,9 +180,9 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Performance Snapshot */}
+        {/* Performance */}
         <div>
-          <h2 className="text-lg font-semibold mb-3">Performance Snapshot</h2>
+          <h2 className="text-lg font-semibold mb-3">Performance</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
               <CardHeader className="pb-3">
