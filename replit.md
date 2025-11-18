@@ -157,7 +157,7 @@ Required environment variables for deployment:
 - `SHOPIFY_REDIRECT_URI`: OAuth callback URL (e.g., `https://your-app.onrender.com/shopify/callback`)
 
 OAuth endpoints:
-- `/shopify/install?shop=store-name.myshopify.com`: Initiates OAuth flow
+- `/auth/shopify`: Initiates OAuth flow (optionally accepts ?shop=store-name.myshopify.com query parameter)
 - `/shopify/callback`: Handles authorization and token exchange
 
 Security features:
@@ -181,7 +181,7 @@ Required environment variables for deployment:
 - `INSTAGRAM_REDIRECT_URI`: OAuth callback URL (e.g., `https://your-app.onrender.com/instagram/callback`)
 
 OAuth endpoints:
-- `/instagram/install`: Initiates Instagram OAuth flow with Meta
+- `/auth/instagram`: Initiates Instagram OAuth flow with Meta
 - `/instagram/callback`: Handles authorization, token exchange, and account data retrieval
 
 OAuth scopes requested:
@@ -191,7 +191,7 @@ OAuth scopes requested:
 
 OAuth flow details:
 1. User clicks "Connect Instagram" in Settings
-2. Redirects to `/instagram/install` which generates CSRF state and redirects to Meta authorization
+2. Redirects to `/auth/instagram` which generates CSRF state and redirects to Meta authorization
 3. User authorizes on Instagram/Facebook (must have Instagram Business or Creator account)
 4. Meta redirects to `/instagram/callback` with authorization code
 5. Backend validates CSRF state parameter
