@@ -15,14 +15,11 @@ export default function Settings() {
   });
 
   const handleConnectShopify = () => {
-    const shop = prompt("Enter your Shopify store domain (e.g., your-store.myshopify.com):");
-    if (shop) {
-      window.location.href = `/shopify/install?shop=${encodeURIComponent(shop)}`;
-    }
+    window.location.href = '/auth/shopify';
   };
 
   const handleConnectInstagram = () => {
-    window.location.href = '/instagram/install';
+    window.location.href = '/auth/instagram';
   };
 
   const isShopifyConnected = !!(settings?.accessToken && settings?.shopDomain);
