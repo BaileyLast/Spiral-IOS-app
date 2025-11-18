@@ -169,7 +169,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Shopify OAuth Routes
-  app.get("/shopify/install", (req, res) => {
+  app.get("/auth/shopify", (req, res) => {
     const shop = req.query.shop as string || 'spiral-test.myshopify.com';
     const redirectUri = process.env.SHOPIFY_REDIRECT_URI;
     const clientId = process.env.SHOPIFY_API_KEY;
@@ -279,7 +279,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Instagram OAuth Routes
-  app.get("/instagram/install", (req, res) => {
+  app.get("/auth/instagram", (req, res) => {
     const redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
     const appId = process.env.INSTAGRAM_APP_ID;
     const scopes = 'instagram_basic,pages_show_list,pages_read_engagement';
