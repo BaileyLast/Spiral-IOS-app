@@ -40,7 +40,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="p-6">
+      <SidebarHeader className="p-6 flex justify-center items-center">
         <img 
           src={logoUrl} 
           alt="Spiral" 
