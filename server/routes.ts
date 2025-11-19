@@ -590,6 +590,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Shopify Webhook Routes
+  app.post("/webhooks/shopify/orders/create", async (req, res) => {
+    try {
+      const order = req.body;
+      console.log("Received order webhook:", order.id);
+      
+      // TODO: Process order and check if Spiral discount was used
+      // Store order details in database for tracking
+      
+      res.status(200).send("Webhook received");
+    } catch (error) {
+      console.error("Error processing order webhook:", error);
+      res.status(500).send("Failed to process webhook");
+    }
+  });
+
+  app.post("/webhooks/shopify/orders/fulfilled", async (req, res) => {
+    try {
+      const fulfillment = req.body;
+      console.log("Received fulfillment webhook:", fulfillment.id);
+      
+      // TODO: Update order fulfillment status
+      // Calculate post deadline (e.g., 7 days from fulfillment)
+      // Send notification to customer
+      
+      res.status(200).send("Webhook received");
+    } catch (error) {
+      console.error("Error processing fulfillment webhook:", error);
+      res.status(500).send("Failed to process webhook");
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
