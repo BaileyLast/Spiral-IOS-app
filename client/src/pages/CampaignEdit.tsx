@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, useLocation } from "wouter";
 import { useForm } from "react-hook-form";
@@ -35,6 +35,7 @@ export default function CampaignEdit() {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
   const [selectionMode, setSelectionMode] = useState<"products" | "collections">("products");
+  const hasHydratedRef = useRef(false);
 
   const { data: campaign } = useQuery<Campaign>({
     queryKey: ["/api/campaigns", campaignId],
@@ -49,12 +50,12 @@ export default function CampaignEdit() {
     queryKey: ["/api/collections"],
   });
 
-  const { data: campaignProducts = [] } = useQuery<ShopifyProduct[]>({
+  const { data: campaignProducts = [], isLoading: isLoadingProducts } = useQuery<ShopifyProduct[]>({
     queryKey: ["/api/campaigns", campaignId, "products"],
     enabled: !isNew && !!campaignId,
   });
 
-  const { data: campaignCollections = [] } = useQuery<ShopifyCollection[]>({
+  const { data: campaignCollections = [], isLoading: isLoadingCollections } = useQuery<ShopifyCollection[]>({
     queryKey: ["/api/campaigns", campaignId, "collections"],
     enabled: !isNew && !!campaignId,
   });
@@ -62,11 +63,55 @@ export default function CampaignEdit() {
   const form = useForm<CampaignFormData>({
     resolver: zodResolver(campaignFormSchema),
     defaultValues: {
-      name: campaign?.name || "",
-      description: campaign?.description || "",
-      status: (campaign?.status === "active" || campaign?.status === "inactive") ? campaign.status : "active",
+      name: "",
+      description: "",
+      status: "active",
     },
   });
+
+  // Reset state when navigating to a different campaign
+  useEffect(() => {
+    hasHydratedRef.current = false;
+    setSelectedProducts([]);
+    setSelectedCollections([]);
+    setSelectionMode("products");
+    form.reset({
+      name: "",
+      description: "",
+      status: "active",
+    });
+  }, [campaignId, form]);
+
+  // Hydrate form and selections only once when all data has loaded
+  useEffect(() => {
+    if (!isNew && !hasHydratedRef.current && campaign && !isLoadingProducts && !isLoadingCollections) {
+      // Hydrate form
+      form.reset({
+        name: campaign.name,
+        description: campaign.description || "",
+        status: (campaign.status === "active" || campaign.status === "inactive") ? campaign.status : "active",
+      });
+
+      // Hydrate product selections
+      if (campaignProducts.length > 0) {
+        setSelectedProducts(campaignProducts.map(p => p.id));
+      }
+
+      // Hydrate collection selections  
+      if (campaignCollections.length > 0) {
+        setSelectedCollections(campaignCollections.map(c => c.id));
+      }
+
+      // Set initial tab based on what has data (prefer products if both)
+      if (campaignProducts.length > 0) {
+        setSelectionMode("products");
+      } else if (campaignCollections.length > 0) {
+        setSelectionMode("collections");
+      }
+
+      hasHydratedRef.current = true;
+    }
+  }, [campaign, campaignProducts, campaignCollections, isNew, form, isLoadingProducts, isLoadingCollections]);
 
   const syncMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/shopify/sync"),
@@ -115,8 +160,8 @@ export default function CampaignEdit() {
   const onSubmit = (data: CampaignFormData) => {
     saveMutation.mutate({
       ...data,
-      productIds: selectionMode === "products" ? selectedProducts : undefined,
-      collectionIds: selectionMode === "collections" ? selectedCollections : undefined,
+      productIds: selectedProducts,
+      collectionIds: selectedCollections,
     });
   };
 
