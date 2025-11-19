@@ -25,7 +25,7 @@ import {
   type InsertCampaignCollection
 } from "@shared/schema";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 export interface IStorage {
   getStoreSettings(): Promise<StoreSettings | undefined>;
@@ -280,7 +280,7 @@ export class DatabaseStorage implements IStorage {
     const products = await db
       .select()
       .from(shopifyProducts)
-      .where(eq(shopifyProducts.id, productIds[0]));
+      .where(inArray(shopifyProducts.id, productIds));
     
     return products;
   }
@@ -299,7 +299,7 @@ export class DatabaseStorage implements IStorage {
     const collections = await db
       .select()
       .from(shopifyCollections)
-      .where(eq(shopifyCollections.id, collectionIds[0]));
+      .where(inArray(shopifyCollections.id, collectionIds));
     
     return collections;
   }

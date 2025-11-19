@@ -1,4 +1,4 @@
-import { Home, Percent, CheckCircle, Settings } from "lucide-react";
+import { Home, Percent, CheckCircle, Settings, Target } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -22,6 +22,11 @@ const menuItems = [
     title: "Discount Rules",
     url: "/discount-rules",
     icon: Percent,
+  },
+  {
+    title: "Campaigns",
+    url: "/campaigns",
+    icon: Target,
   },
   {
     title: "Verifications",
