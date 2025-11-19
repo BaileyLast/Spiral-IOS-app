@@ -2,7 +2,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import crypto from "crypto";
 import { storage } from "./storage";
-import { insertStoreSettingsSchema, insertDiscountTierSchema, insertVerificationSchema } from "@shared/schema";
+import { insertStoreSettingsSchema, insertDiscountTierSchema, insertVerificationSchema, insertCampaignSchema } from "@shared/schema";
+import { fetchShopifyProducts, fetchShopifyCollections } from "./shopify";
 
 // Extend session types
 declare module 'express-session' {
@@ -165,6 +166,181 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Failed to create verification:", error);
         res.status(500).json({ error: "Failed to create verification" });
       }
+    }
+  });
+
+  // Shopify Product & Collection Routes
+  app.post("/api/shopify/sync", async (req, res) => {
+    try {
+      const settings = await storage.getStoreSettings();
+      
+      if (!settings?.shopDomain || !settings?.accessToken) {
+        return res.status(400).json({ error: "Shopify not connected" });
+      }
+
+      const shopifyProducts = await fetchShopifyProducts({
+        shopDomain: settings.shopDomain,
+        accessToken: settings.accessToken,
+      });
+
+      const shopifyCollections = await fetchShopifyCollections({
+        shopDomain: settings.shopDomain,
+        accessToken: settings.accessToken,
+      });
+
+      const syncedProducts = await storage.syncProducts(
+        shopifyProducts.map((p) => ({
+          shopifyProductId: p.id.toString(),
+          title: p.title,
+          handle: p.handle,
+          productType: p.product_type || null,
+          vendor: p.vendor || null,
+          imageUrl: p.image?.src || null,
+          variants: JSON.stringify(p.variants),
+        }))
+      );
+
+      const syncedCollections = await storage.syncCollections(
+        shopifyCollections.map((c) => ({
+          shopifyCollectionId: c.id.toString(),
+          title: c.title,
+          handle: c.handle,
+          productCount: c.products_count || 0,
+        }))
+      );
+
+      res.json({
+        products: syncedProducts.length,
+        collections: syncedCollections.length,
+      });
+    } catch (error) {
+      console.error("Failed to sync Shopify data:", error);
+      res.status(500).json({ error: "Failed to sync Shopify data" });
+    }
+  });
+
+  app.get("/api/products", async (req, res) => {
+    try {
+      const products = await storage.getProducts();
+      res.json(products);
+    } catch (error) {
+      console.error("Failed to fetch products:", error);
+      res.status(500).json({ error: "Failed to fetch products" });
+    }
+  });
+
+  app.get("/api/collections", async (req, res) => {
+    try {
+      const collections = await storage.getCollections();
+      res.json(collections);
+    } catch (error) {
+      console.error("Failed to fetch collections:", error);
+      res.status(500).json({ error: "Failed to fetch collections" });
+    }
+  });
+
+  // Campaign Routes
+  app.get("/api/campaigns", async (req, res) => {
+    try {
+      const campaigns = await storage.getCampaigns();
+      res.json(campaigns);
+    } catch (error) {
+      console.error("Failed to fetch campaigns:", error);
+      res.status(500).json({ error: "Failed to fetch campaigns" });
+    }
+  });
+
+  app.get("/api/campaigns/:id", async (req, res) => {
+    try {
+      const campaign = await storage.getCampaign(req.params.id);
+      if (!campaign) {
+        return res.status(404).json({ error: "Campaign not found" });
+      }
+      res.json(campaign);
+    } catch (error) {
+      console.error("Failed to fetch campaign:", error);
+      res.status(500).json({ error: "Failed to fetch campaign" });
+    }
+  });
+
+  app.post("/api/campaigns", async (req, res) => {
+    try {
+      const validated = insertCampaignSchema.parse(req.body);
+      const campaign = await storage.createCampaign(validated);
+      
+      if (req.body.productIds && Array.isArray(req.body.productIds)) {
+        await storage.setCampaignProducts(campaign.id, req.body.productIds);
+      }
+      
+      if (req.body.collectionIds && Array.isArray(req.body.collectionIds)) {
+        await storage.setCampaignCollections(campaign.id, req.body.collectionIds);
+      }
+      
+      res.json(campaign);
+    } catch (error) {
+      if (error instanceof Error && error.name === "ZodError") {
+        res.status(400).json({ error: "Invalid campaign data" });
+      } else {
+        console.error("Failed to create campaign:", error);
+        res.status(500).json({ error: "Failed to create campaign" });
+      }
+    }
+  });
+
+  app.patch("/api/campaigns/:id", async (req, res) => {
+    try {
+      const campaign = await storage.updateCampaign(req.params.id, req.body);
+      
+      if (req.body.productIds && Array.isArray(req.body.productIds)) {
+        await storage.setCampaignProducts(campaign.id, req.body.productIds);
+      }
+      
+      if (req.body.collectionIds && Array.isArray(req.body.collectionIds)) {
+        await storage.setCampaignCollections(campaign.id, req.body.collectionIds);
+      }
+      
+      res.json(campaign);
+    } catch (error) {
+      if (error instanceof Error && error.message === "Campaign not found") {
+        res.status(404).json({ error: "Campaign not found" });
+      } else {
+        console.error("Failed to update campaign:", error);
+        res.status(500).json({ error: "Failed to update campaign" });
+      }
+    }
+  });
+
+  app.delete("/api/campaigns/:id", async (req, res) => {
+    try {
+      await storage.deleteCampaign(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      if (error instanceof Error && error.message === "Campaign not found") {
+        res.status(404).json({ error: "Campaign not found" });
+      } else {
+        console.error("Failed to delete campaign:", error);
+        res.status(500).json({ error: "Failed to delete campaign" });
+      }
+    }
+  });
+
+  app.get("/api/campaigns/:id/products", async (req, res) => {
+    try {
+      const products = await storage.getCampaignProducts(req.params.id);
+      res.json(products);
+    } catch (error) {
+      console.error("Failed to fetch campaign products:", error);
+      res.status(500).json({ error: "Failed to fetch campaign products" });
+    }
+  });
+
+  app.get("/api/campaigns/:id/collections", async (req, res) => {
+    try {
+      const collections = await storage.getCampaignCollections(req.params.id);
+      res.json(collections);
+    } catch (error) {
+      console.error("Failed to fetch campaign collections:", error);
+      res.status(500).json({ error: "Failed to fetch campaign collections" });
     }
   });
 
