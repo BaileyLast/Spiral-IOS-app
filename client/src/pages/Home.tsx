@@ -1,5 +1,5 @@
 import { StatusBadge } from "@/components/StatusBadge";
-import { Store, Instagram, AlertCircle, Users, TrendingUp } from "lucide-react";
+import { AlertCircle, Users, TrendingUp } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { StoreSettings, Verification } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
@@ -9,6 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useLocation } from "wouter";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDistanceToNow } from "date-fns";
+import shopifyIcon from "@assets/Shopify Purple_1763735957080.png";
+import instagramIcon from "@assets/Instagram Purple_1763735981805.png";
 
 export default function Home() {
   const { toast } = useToast();
@@ -113,7 +115,7 @@ export default function Home() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-lg bg-muted">
-                      <Store className="w-5 h-5 text-muted-foreground" />
+                      <img src={shopifyIcon} alt="Shopify" className="w-5 h-5" />
                     </div>
                     <div>
                       <p className="text-sm font-medium">Shopify Connection</p>
@@ -148,7 +150,7 @@ export default function Home() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-lg bg-muted">
-                      <Instagram className="w-5 h-5 text-muted-foreground" />
+                      <img src={instagramIcon} alt="Instagram" className="w-5 h-5" />
                     </div>
                     <div>
                       <p className="text-sm font-medium">Instagram Connection</p>
