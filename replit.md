@@ -15,7 +15,8 @@ Preferred communication style: Simple, everyday language.
 - **UI/UX**: shadcn/ui component system built on Radix UI primitives, styled with Tailwind CSS. Features a "new-york" style variant, neutral color scheme, and a clean, minimalist design inspired by Linear and Stripe.
 - **Layout**: Context-based layout with a collapsible sidebar and a fixed-width main content area.
 - **State Management**: React Query for server state, configured to throw on 401 errors.
-- **Theming**: HSL-based color system with CSS custom properties, featuring a branded purple primary color and Inter font.
+- **Theming**: HSL-based color system with CSS custom properties, featuring a branded purple primary color (#5729a3) and secondary purple (#935eb2) with Inter font.
+- **Dashboard Design**: Modernized with gradient accents, animated connection indicators, gradient stat cards, and polished table styling. Connection cards feature top gradient bars (purple for active, yellow for expired), animated status dots, and prominent warning badges for expired tokens. Performance cards use gradient backgrounds with branded purple tones. Activity table includes hover states and modern status pills.
 
 ### Backend
 - **Server**: Express.js with middleware for request handling, logging, and JSON body parsing.
