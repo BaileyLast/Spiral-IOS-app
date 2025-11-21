@@ -114,9 +114,7 @@ export default function Home() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="p-3 rounded-lg bg-muted">
-                      <img src={shopifyIcon} alt="Shopify" className="w-8 h-8" />
-                    </div>
+                    <img src={shopifyIcon} alt="Shopify" className="h-12 w-auto" />
                     <div>
                       <p className="text-sm font-medium">Shopify Connection</p>
                       <p className="text-xs text-muted-foreground">
@@ -149,9 +147,7 @@ export default function Home() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="p-3 rounded-lg bg-muted">
-                      <img src={instagramIcon} alt="Instagram" className="w-8 h-8" />
-                    </div>
+                    <img src={instagramIcon} alt="Instagram" className="h-12 w-auto" />
                     <div>
                       <p className="text-sm font-medium">Instagram Connection</p>
                       <p className="text-xs text-muted-foreground">
