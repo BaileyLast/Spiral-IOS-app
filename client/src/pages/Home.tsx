@@ -192,7 +192,7 @@ export default function Home() {
                       size="sm" 
                       onClick={() => setLocation("/settings")}
                       data-testid="button-connect-instagram-status"
-                      className="bg-[#935eb2] text-white"
+                      className="bg-[#5729a3] text-white"
                     >
                       Connect
                     </Button>
