@@ -32,10 +32,12 @@ export interface IStorage {
   updateStoreSettings(settings: InsertStoreSettings): Promise<StoreSettings>;
   updateMinFollowers(minFollowers: number): Promise<StoreSettings>;
   getDiscountTiers(): Promise<DiscountTier[]>;
+  getDiscountTiersByCampaign(campaignId: string): Promise<DiscountTier[]>;
   createDiscountTier(tier: InsertDiscountTier): Promise<DiscountTier>;
   updateDiscountTier(id: string, tier: InsertDiscountTier): Promise<DiscountTier>;
   deleteDiscountTier(id: string): Promise<void>;
   replaceAllDiscountTiers(tiers: InsertDiscountTier[]): Promise<DiscountTier[]>;
+  replaceCampaignDiscountTiers(campaignId: string, tiers: InsertDiscountTier[]): Promise<DiscountTier[]>;
   getVerifications(): Promise<Verification[]>;
   createVerification(verification: InsertVerification): Promise<Verification>;
   syncProducts(products: InsertShopifyProduct[]): Promise<ShopifyProduct[]>;
@@ -105,6 +107,13 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(discountTiers);
   }
 
+  async getDiscountTiersByCampaign(campaignId: string): Promise<DiscountTier[]> {
+    return await db
+      .select()
+      .from(discountTiers)
+      .where(eq(discountTiers.campaignId, campaignId));
+  }
+
   async createDiscountTier(tier: InsertDiscountTier): Promise<DiscountTier> {
     const [created] = await db
       .insert(discountTiers)
@@ -156,6 +165,27 @@ export class DatabaseStorage implements IStorage {
       .values(
         tiers.map((tier) => ({
           ...tier,
+          discountPercent: tier.discountPercent.toString(),
+        }))
+      )
+      .returning();
+    
+    return created;
+  }
+
+  async replaceCampaignDiscountTiers(campaignId: string, tiers: InsertDiscountTier[]): Promise<DiscountTier[]> {
+    await db.delete(discountTiers).where(eq(discountTiers.campaignId, campaignId));
+    
+    if (tiers.length === 0) {
+      return [];
+    }
+    
+    const created = await db
+      .insert(discountTiers)
+      .values(
+        tiers.map((tier) => ({
+          ...tier,
+          campaignId,
           discountPercent: tier.discountPercent.toString(),
         }))
       )
@@ -255,6 +285,7 @@ export class DatabaseStorage implements IStorage {
   async deleteCampaign(id: string): Promise<void> {
     await db.delete(campaignProducts).where(eq(campaignProducts.campaignId, id));
     await db.delete(campaignCollections).where(eq(campaignCollections.campaignId, id));
+    await db.delete(discountTiers).where(eq(discountTiers.campaignId, id));
     
     const result = await db
       .delete(campaigns)

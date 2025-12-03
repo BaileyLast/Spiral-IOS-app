@@ -2,9 +2,56 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Plus, Package, Users } from "lucide-react";
+import { Plus, Package, Calendar, Clock } from "lucide-react";
 import type { Campaign } from "@shared/schema";
+
+function getStatusBadge(status: string) {
+  switch (status) {
+    case "active":
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 border border-green-200">
+          Active
+        </span>
+      );
+    case "draft":
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+          Draft
+        </span>
+      );
+    case "paused":
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700 border border-yellow-200">
+          Paused
+        </span>
+      );
+    case "ended":
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 border border-red-200">
+          Ended
+        </span>
+      );
+    default:
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+          {status}
+        </span>
+      );
+  }
+}
+
+function getProductSelectionLabel(type: string) {
+  switch (type) {
+    case "all":
+      return "All products";
+    case "specific":
+      return "Specific products";
+    case "excluded":
+      return "All except excluded";
+    default:
+      return type;
+  }
+}
 
 export default function Campaigns() {
   const { data: campaigns = [], isLoading } = useQuery<Campaign[]>({
@@ -38,7 +85,7 @@ export default function Campaigns() {
             <p className="text-muted-foreground mt-2">Manage your product campaigns and discount offerings</p>
           </div>
           <Link href="/campaigns/new">
-            <Button data-testid="button-create-campaign">
+            <Button data-testid="button-create-campaign" className="bg-[#5729a3] text-white">
               <Plus className="w-4 h-4 mr-2" />
               Create Campaign
             </Button>
@@ -55,7 +102,7 @@ export default function Campaigns() {
                   Create your first campaign to start offering follower-based discounts
                 </p>
                 <Link href="/campaigns/new">
-                  <Button data-testid="button-create-first-campaign">
+                  <Button data-testid="button-create-first-campaign" className="bg-[#5729a3] text-white">
                     <Plus className="w-4 h-4 mr-2" />
                     Create Campaign
                   </Button>
@@ -64,23 +111,24 @@ export default function Campaigns() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-6">
+          <div className="grid gap-4">
             {campaigns.map((campaign) => (
-              <Card key={campaign.id} data-testid={`card-campaign-${campaign.id}`}>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="flex items-center gap-2">
-                        {campaign.name}
-                        <Badge 
-                          variant={campaign.status === "active" ? "default" : "secondary"}
-                          data-testid={`badge-status-${campaign.id}`}
-                        >
-                          {campaign.status}
-                        </Badge>
-                      </CardTitle>
+              <Card 
+                key={campaign.id} 
+                data-testid={`card-campaign-${campaign.id}`}
+                className="hover-elevate transition-all duration-200"
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <CardTitle className="text-lg">{campaign.name}</CardTitle>
+                        <span data-testid={`badge-status-${campaign.id}`}>
+                          {getStatusBadge(campaign.status)}
+                        </span>
+                      </div>
                       {campaign.description && (
-                        <CardDescription className="mt-2">
+                        <CardDescription className="mt-1.5 line-clamp-2">
                           {campaign.description}
                         </CardDescription>
                       )}
@@ -92,15 +140,19 @@ export default function Campaigns() {
                     </Link>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-6 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                      <Users className="w-4 h-4" />
-                      <span>Created {new Date(campaign.createdAt).toLocaleDateString()}</span>
-                    </div>
+                <CardContent className="pt-0">
+                  <div className="flex items-center gap-6 text-sm text-muted-foreground flex-wrap">
                     <div className="flex items-center gap-2">
                       <Package className="w-4 h-4" />
-                      <span>Last updated {new Date(campaign.updatedAt).toLocaleDateString()}</span>
+                      <span>{getProductSelectionLabel(campaign.productSelectionType)}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      <span>{campaign.postingWindowDays} day posting window</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      <span>Created {new Date(campaign.createdAt).toLocaleDateString()}</span>
                     </div>
                   </div>
                 </CardContent>

@@ -19,6 +19,7 @@ export const storeSettings = pgTable("store_settings", {
 
 export const discountTiers = pgTable("discount_tiers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  campaignId: varchar("campaign_id"),
   fromFollowers: integer("from_followers").notNull(),
   toFollowers: integer("to_followers"),
   discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }).notNull(),
@@ -59,7 +60,9 @@ export const campaigns = pgTable("campaigns", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   description: text("description"),
-  status: text("status").notNull().default("active"),
+  status: text("status").notNull().default("draft"),
+  productSelectionType: text("product_selection_type").notNull().default("all"),
+  postingWindowDays: integer("posting_window_days").notNull().default(7),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -96,6 +99,7 @@ export const insertStoreSettingsSchema = createInsertSchema(storeSettings).omit(
 export const insertDiscountTierSchema = createInsertSchema(discountTiers)
   .omit({ id: true })
   .extend({
+    campaignId: z.string().nullable().optional(),
     discountPercent: z.coerce.number().min(2.5, "Minimum discount allowed is 2.5%"),
     fromFollowers: z.number().int().min(0, "Followers must be non-negative"),
     toFollowers: z.number().int().min(0, "Followers must be non-negative").nullable(),

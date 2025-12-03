@@ -23,18 +23,27 @@ Preferred communication style: Simple, everyday language.
 - **Data Layer**: Drizzle ORM with PostgreSQL (Neon serverless) for type-safe operations.
 - **Data Models**:
     - `store_settings`: Shopify and Instagram OAuth data, store configuration, `minFollowers`.
-    - `discount_tiers`: Flexible follower ranges mapped to discount percentages.
+    - `discount_tiers`: Flexible follower ranges mapped to discount percentages, now campaign-scoped with `campaignId` foreign key.
     - `verifications`: Shopper verification records.
-    - `campaigns`: Marketing campaigns with status and description.
+    - `campaigns`: Marketing campaigns with `name`, `status` (draft/active/paused/ended), `productSelectionType` (all/specific/excluded), `postingWindowDays` (3/5/7/14 days), `description`.
     - `shopify_products`: Synced product catalog.
     - `shopify_collections`: Synced collection catalog.
     - `campaign_products`: Many-to-many link between campaigns and products.
     - `campaign_collections`: Many-to-many link between campaigns and collections.
     - `orders`: Shopify order tracking with `customerEmail`, `instagramHandle`, `discountApplied`, `totalPrice`, `fulfillmentStatus`, `fulfilledAt`, `verificationDeadline`, `verificationStatus`.
-- **Discount Rules**: Enforces minimum discount (2.5%), non-negative follower counts, valid range ordering, and automatic final bracket configuration (no upper limit).
-- **Campaign Management**: CRUD operations for campaigns with product/collection targeting, real-time Shopify catalog sync, and a tabbed UI for selection.
-- **API**: RESTful API using `/api` prefix, storage interface abstraction, and PostgreSQL-backed session management.
+- **Discount Rules**: Now campaign-scoped. Each campaign has its own discount brackets. Enforces minimum discount (2.5%), non-negative follower counts, valid range ordering, and automatic final bracket configuration (no upper limit).
+- **Campaign Management**: Full CRUD with product selection modes (all/specific/excluded), embedded discount rules, posting window configuration, and status lifecycle (draft → active → paused → ended).
+- **API**: RESTful API using `/api` prefix, storage interface abstraction, and PostgreSQL-backed session management. New endpoints: `GET/POST /api/campaigns/:id/discount-tiers` for campaign-scoped discount brackets.
 - **Shopify Integration**: Product and collection catalog syncing via Admin REST API, webhook infrastructure for order events.
+
+### Campaign System
+- **Status Workflow**:
+    - Draft: Being edited, not active, Spiral button doesn't appear
+    - Active: Live, checkout button appears, discounts apply
+    - Paused: Temporarily disabled, data preserved
+    - Ended: Completed/expired, read-only
+- **Product Selection**: All products, specific products only, or all except excluded products
+- **Posting Window**: 3, 5, 7, or 14 days for customer story post deadline after delivery
 
 ### Development & Build
 - **TypeScript**: Strict mode, ESNext modules, path aliases.

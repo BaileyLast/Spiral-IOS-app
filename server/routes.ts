@@ -344,6 +344,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Campaign Discount Tiers Routes
+  app.get("/api/campaigns/:id/discount-tiers", async (req, res) => {
+    try {
+      const tiers = await storage.getDiscountTiersByCampaign(req.params.id);
+      res.json(tiers);
+    } catch (error) {
+      console.error("Failed to fetch campaign discount tiers:", error);
+      res.status(500).json({ error: "Failed to fetch campaign discount tiers" });
+    }
+  });
+
+  app.post("/api/campaigns/:id/discount-tiers", async (req, res) => {
+    try {
+      const { tiers } = req.body;
+
+      if (!Array.isArray(tiers)) {
+        return res.status(400).json({ error: "Tiers must be an array" });
+      }
+
+      if (tiers.length > 0 && tiers[tiers.length - 1].toFollowers !== null) {
+        return res.status(400).json({ error: "Final discount bracket must have no upper limit" });
+      }
+
+      const validatedTiers = tiers.map((tier) => {
+        const validated = insertDiscountTierSchema.parse(tier);
+        return validated;
+      });
+
+      const savedTiers = await storage.replaceCampaignDiscountTiers(req.params.id, validatedTiers);
+      res.json(savedTiers);
+    } catch (error) {
+      if (error instanceof Error && error.name === "ZodError") {
+        const zodError = error as any;
+        const firstIssue = zodError.issues?.[0];
+        const errorMessage = firstIssue?.message || "Invalid discount tier data";
+        res.status(400).json({ error: errorMessage });
+      } else {
+        console.error("Failed to save campaign discount tiers:", error);
+        res.status(500).json({ error: "Failed to save campaign discount tiers" });
+      }
+    }
+  });
+
   // Shopify OAuth Routes
   app.get("/auth/shopify", (req, res) => {
     const shop = req.query.shop as string || 'spiral-test.myshopify.com';
