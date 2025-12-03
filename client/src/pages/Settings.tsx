@@ -30,8 +30,13 @@ export default function Settings() {
   if (isLoading) {
     return (
       <div className="p-8">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-2xl font-bold mb-6">Settings</h1>
+        <div className="max-w-7xl mx-auto space-y-8">
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-[#5729a3] to-[#935eb2] bg-clip-text text-transparent">
+              Settings
+            </h1>
+            <p className="text-muted-foreground mt-2">Manage your store connections and preferences</p>
+          </div>
           <div className="grid gap-6">
             {[1, 2, 3].map((i) => (
               <div key={i} className="h-48 bg-muted animate-pulse rounded-xl" />
@@ -44,8 +49,13 @@ export default function Settings() {
 
   return (
     <div className="p-8">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">Settings</h1>
+      <div className="max-w-7xl mx-auto space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-[#5729a3] to-[#935eb2] bg-clip-text text-transparent">
+            Settings
+          </h1>
+          <p className="text-muted-foreground mt-2">Manage your store connections and preferences</p>
+        </div>
         
         <div className="grid gap-6">
           <Card>

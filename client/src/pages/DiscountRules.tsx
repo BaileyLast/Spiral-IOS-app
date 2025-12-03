@@ -142,8 +142,13 @@ export default function DiscountRules() {
   if (isLoading) {
     return (
       <div className="p-8">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-2xl font-bold mb-6">Discount Rules</h1>
+        <div className="max-w-4xl mx-auto space-y-8">
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-[#5729a3] to-[#935eb2] bg-clip-text text-transparent">
+              Discount Rules
+            </h1>
+            <p className="text-muted-foreground mt-2">Set follower thresholds and discounts for Spiral shoppers</p>
+          </div>
           <div className="h-96 bg-muted animate-pulse rounded-xl" />
         </div>
       </div>
@@ -152,11 +157,13 @@ export default function DiscountRules() {
 
   return (
     <div className="p-8">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold mb-2">Discount Rules</h1>
-        <p className="text-muted-foreground mb-6">
-          Set follower thresholds and discounts for Spiral shoppers.
-        </p>
+      <div className="max-w-4xl mx-auto space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-[#5729a3] to-[#935eb2] bg-clip-text text-transparent">
+            Discount Rules
+          </h1>
+          <p className="text-muted-foreground mt-2">Set follower thresholds and discounts for Spiral shoppers</p>
+        </div>
 
         <Card>
           <CardHeader>

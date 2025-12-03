@@ -14,8 +14,14 @@ export default function Campaigns() {
   if (isLoading) {
     return (
       <div className="p-8">
-        <div className="max-w-7xl mx-auto">
-          <p>Loading campaigns...</p>
+        <div className="max-w-7xl mx-auto space-y-8">
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-[#5729a3] to-[#935eb2] bg-clip-text text-transparent">
+              Campaigns
+            </h1>
+            <p className="text-muted-foreground mt-2">Manage your product campaigns and discount offerings</p>
+          </div>
+          <div className="h-48 bg-muted animate-pulse rounded-xl" />
         </div>
       </div>
     );
@@ -23,11 +29,13 @@ export default function Campaigns() {
 
   return (
     <div className="p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="max-w-7xl mx-auto space-y-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Campaigns</h1>
-            <p className="text-muted-foreground">Manage your product campaigns and discount offerings</p>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-[#5729a3] to-[#935eb2] bg-clip-text text-transparent">
+              Campaigns
+            </h1>
+            <p className="text-muted-foreground mt-2">Manage your product campaigns and discount offerings</p>
           </div>
           <Link href="/campaigns/new">
             <Button data-testid="button-create-campaign">

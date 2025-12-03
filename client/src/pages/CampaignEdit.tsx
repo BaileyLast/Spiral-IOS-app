@@ -195,7 +195,7 @@ export default function CampaignEdit() {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Campaigns
           </Button>
-          <h1 className="text-2xl font-bold">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-[#5729a3] to-[#935eb2] bg-clip-text text-transparent">
             {isNew ? "Create Campaign" : "Edit Campaign"}
           </h1>
           <p className="text-muted-foreground">
