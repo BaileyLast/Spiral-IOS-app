@@ -1,11 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Store, Instagram, CreditCard, RefreshCw } from "lucide-react";
+import { CreditCard, RefreshCw } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { StoreSettings } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { StatusBadge } from "@/components/StatusBadge";
+import shopifyIcon from "@assets/Shopify Purple_1763735957080.png";
+import instagramIcon from "@assets/Instagram Purple_1763735981805.png";
 
 export default function Settings() {
   const { toast } = useToast();
@@ -50,7 +52,7 @@ export default function Settings() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Store className="w-5 h-5 text-muted-foreground" />
+                  <img src={shopifyIcon} alt="Shopify" className="h-8 w-auto" />
                   <div>
                     <CardTitle>Shopify Connection</CardTitle>
                     <CardDescription>Manage your Shopify store integration</CardDescription>
@@ -95,8 +97,9 @@ export default function Settings() {
                   <Button 
                     onClick={handleConnectShopify}
                     data-testid="button-connect-shopify"
+                    className="bg-[#5729a3] text-white"
                   >
-                    <Store className="w-4 h-4 mr-2" />
+                    <img src={shopifyIcon} alt="" className="h-4 w-auto mr-2" />
                     Connect to Shopify
                   </Button>
                 </div>
@@ -108,7 +111,7 @@ export default function Settings() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Instagram className="w-5 h-5 text-muted-foreground" />
+                  <img src={instagramIcon} alt="Instagram" className="h-8 w-auto" />
                   <div>
                     <CardTitle>Instagram Connection</CardTitle>
                     <CardDescription>Manage your Instagram Business Account integration</CardDescription>
@@ -159,8 +162,9 @@ export default function Settings() {
                   <Button 
                     onClick={handleConnectInstagram}
                     data-testid="button-connect-instagram"
+                    className="bg-[#5729a3] text-white"
                   >
-                    <Instagram className="w-4 h-4 mr-2" />
+                    <img src={instagramIcon} alt="" className="h-4 w-auto mr-2" />
                     Connect Instagram
                   </Button>
                 </div>
