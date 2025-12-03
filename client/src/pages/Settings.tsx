@@ -99,7 +99,6 @@ export default function Settings() {
                     data-testid="button-connect-shopify"
                     className="bg-[#5729a3] text-white"
                   >
-                    <img src={shopifyIcon} alt="" className="h-4 w-auto mr-2" />
                     Connect to Shopify
                   </Button>
                 </div>
@@ -164,7 +163,6 @@ export default function Settings() {
                     data-testid="button-connect-instagram"
                     className="bg-[#5729a3] text-white"
                   >
-                    <img src={instagramIcon} alt="" className="h-4 w-auto mr-2" />
                     Connect Instagram
                   </Button>
                 </div>
