@@ -2,7 +2,7 @@
 
 ## Overview
 
-Spiral is a Shopify merchant dashboard application designed for Instagram-based discount verification in e-commerce. It allows merchants to set up follower-based discount tiers and manage shopper verifications through Instagram post engagement. The platform serves as an admin interface optimized for embedding within Shopify's admin panel, providing a modern SaaS solution for influencer and follower discount programs.
+Spiral is a Shopify merchant dashboard application designed for Instagram-based discount verification in e-commerce. It allows merchants to configure follower-based discount tiers and manage shopper verifications through Instagram post engagement. The platform serves as an admin interface optimized for embedding within Shopify's admin panel, providing a modern SaaS solution for influencer and follower discount programs.
 
 ## User Preferences
 
@@ -16,33 +16,39 @@ Preferred communication style: Simple, everyday language.
 - **Layout**: Context-based layout with a collapsible sidebar and a fixed-width main content area.
 - **State Management**: React Query for server state, configured to throw on 401 errors.
 - **Theming**: HSL-based color system with CSS custom properties, featuring a branded purple primary color (#5729a3) and secondary purple (#935eb2) with Inter font.
-- **Dashboard Design**: Modernized with gradient accents, animated connection indicators, gradient stat cards, and polished table styling. Connection cards feature top gradient bars (purple for active, yellow for expired), animated status dots, and prominent warning badges for expired tokens. Performance cards use gradient backgrounds with branded purple tones. Activity table includes hover states and modern status pills.
+- **Dashboard Design**: Modernized with gradient accents, animated connection indicators, gradient stat cards, and polished table styling. Connection cards feature top gradient bars (purple for active, yellow for expired), animated status dots, and prominent warning badges for expired tokens.
+
+### Pages
+- **Home**: Dashboard with connection status and performance metrics
+- **Spiral Settings**: Global configuration for discounts, product selection, and posting windows
+- **Verifications**: Shopper verification records
+- **Connections**: OAuth integrations for Shopify and Instagram
 
 ### Backend
 - **Server**: Express.js with middleware for request handling, logging, and JSON body parsing.
 - **Data Layer**: Drizzle ORM with PostgreSQL (Neon serverless) for type-safe operations.
 - **Data Models**:
-    - `store_settings`: Shopify and Instagram OAuth data, store configuration, `minFollowers`.
-    - `discount_tiers`: Flexible follower ranges mapped to discount percentages, now campaign-scoped with `campaignId` foreign key.
+    - `store_settings`: Shopify and Instagram OAuth data, store configuration, plus Spiral settings (`spiralEnabled`, `productSelectionType`, `postingWindowDays`, `minFollowers`).
+    - `discount_tiers`: Global follower ranges mapped to discount percentages.
     - `verifications`: Shopper verification records.
-    - `campaigns`: Marketing campaigns with `name`, `status` (draft/active/paused/ended), `productSelectionType` (all/specific/excluded), `postingWindowDays` (3/5/7/14 days), `description`.
     - `shopify_products`: Synced product catalog.
     - `shopify_collections`: Synced collection catalog.
-    - `campaign_products`: Many-to-many link between campaigns and products.
-    - `campaign_collections`: Many-to-many link between campaigns and collections.
-    - `orders`: Shopify order tracking with `customerEmail`, `instagramHandle`, `discountApplied`, `totalPrice`, `fulfillmentStatus`, `fulfilledAt`, `verificationDeadline`, `verificationStatus`.
-- **Discount Rules**: Now campaign-scoped. Each campaign has its own discount brackets. Enforces minimum discount (2.5%), non-negative follower counts, valid range ordering, and automatic final bracket configuration (no upper limit).
-- **Campaign Management**: Full CRUD with product selection modes (all/specific/excluded), embedded discount rules, posting window configuration, and status lifecycle (draft → active → paused → ended).
-- **API**: RESTful API using `/api` prefix, storage interface abstraction, and PostgreSQL-backed session management. New endpoints: `GET/POST /api/campaigns/:id/discount-tiers` for campaign-scoped discount brackets.
+    - `selected_products`: Products selected for Spiral (when using specific/excluded mode).
+    - `selected_collections`: Collections selected for Spiral (when using specific/excluded mode).
+    - `orders`: Shopify order tracking with `shopperEmail`, `instagramHandle`, `discountApplied`, `totalPrice`, `fulfillmentStatus`, `fulfilledAt`, `verificationDeadline`, `verificationStatus`.
+- **Discount Rules**: Global configuration. Enforces minimum discount (2.5%), non-negative follower counts, valid range ordering, and automatic final bracket configuration (no upper limit).
+- **Spiral Settings**: Single global configuration including:
+    - `spiralEnabled`: On/off toggle for entire store
+    - `productSelectionType`: all/specific/excluded
+    - `postingWindowDays`: 3/5/7/14 days
+    - `discountTiers`: Follower-based discount brackets
+- **API**: RESTful API using `/api` prefix, storage interface abstraction, and PostgreSQL-backed session management. Key endpoints: `GET/POST /api/spiral-settings` for global configuration.
 - **Shopify Integration**: Product and collection catalog syncing via Admin REST API, webhook infrastructure for order events.
 
-### Campaign System
-- **Status Workflow**:
-    - Draft: Being edited, not active, Spiral button doesn't appear
-    - Active: Live, checkout button appears, discounts apply
-    - Paused: Temporarily disabled, data preserved
-    - Ended: Completed/expired, read-only
+### Spiral Settings System
+- **Enable/Disable Toggle**: Turn Spiral on or off for entire store
 - **Product Selection**: All products, specific products only, or all except excluded products
+- **Discount Brackets**: Follower-count-based discount percentages (minimum 2.5%)
 - **Posting Window**: 3, 5, 7, or 14 days for customer story post deadline after delivery
 
 ### Development & Build

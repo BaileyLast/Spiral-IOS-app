@@ -7,18 +7,16 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import Home from "@/pages/Home";
 import Verifications from "@/pages/Verifications";
-import Settings from "@/pages/Settings";
-import Campaigns from "@/pages/Campaigns";
-import CampaignEdit from "@/pages/CampaignEdit";
+import Connections from "@/pages/Connections";
+import SpiralSettings from "@/pages/SpiralSettings";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/verifications" component={Verifications} />
-      <Route path="/campaigns" component={Campaigns} />
-      <Route path="/campaigns/:id" component={CampaignEdit} />
-      <Route path="/settings" component={Settings} />
+      <Route path="/spiral-settings" component={SpiralSettings} />
+      <Route path="/connections" component={Connections} />
     </Switch>
   );
 }

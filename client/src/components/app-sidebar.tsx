@@ -1,4 +1,4 @@
-import { Home, CheckCircle, Settings, Target } from "lucide-react";
+import { Home, CheckCircle, Link2, Sparkles } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -19,9 +19,9 @@ const menuItems = [
     icon: Home,
   },
   {
-    title: "Campaigns",
-    url: "/campaigns",
-    icon: Target,
+    title: "Spiral Settings",
+    url: "/spiral-settings",
+    icon: Sparkles,
   },
   {
     title: "Verifications",
@@ -29,9 +29,9 @@ const menuItems = [
     icon: CheckCircle,
   },
   {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
+    title: "Connections",
+    url: "/connections",
+    icon: Link2,
   },
 ];
 

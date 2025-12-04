@@ -4,25 +4,18 @@ import {
   verifications,
   shopifyProducts,
   shopifyCollections,
-  campaigns,
-  campaignProducts,
-  campaignCollections,
+  selectedProducts,
+  selectedCollections,
   type StoreSettings, 
   type DiscountTier, 
   type Verification,
   type ShopifyProduct,
   type ShopifyCollection,
-  type Campaign,
-  type CampaignProduct,
-  type CampaignCollection,
   type InsertStoreSettings,
   type InsertDiscountTier,
   type InsertVerification,
   type InsertShopifyProduct,
-  type InsertShopifyCollection,
-  type InsertCampaign,
-  type InsertCampaignProduct,
-  type InsertCampaignCollection
+  type InsertShopifyCollection
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, inArray } from "drizzle-orm";
@@ -30,29 +23,23 @@ import { eq, inArray } from "drizzle-orm";
 export interface IStorage {
   getStoreSettings(): Promise<StoreSettings | undefined>;
   updateStoreSettings(settings: InsertStoreSettings): Promise<StoreSettings>;
+  updateSpiralSettings(settings: Partial<InsertStoreSettings>): Promise<StoreSettings>;
   updateMinFollowers(minFollowers: number): Promise<StoreSettings>;
   getDiscountTiers(): Promise<DiscountTier[]>;
-  getDiscountTiersByCampaign(campaignId: string): Promise<DiscountTier[]>;
   createDiscountTier(tier: InsertDiscountTier): Promise<DiscountTier>;
   updateDiscountTier(id: string, tier: InsertDiscountTier): Promise<DiscountTier>;
   deleteDiscountTier(id: string): Promise<void>;
   replaceAllDiscountTiers(tiers: InsertDiscountTier[]): Promise<DiscountTier[]>;
-  replaceCampaignDiscountTiers(campaignId: string, tiers: InsertDiscountTier[]): Promise<DiscountTier[]>;
   getVerifications(): Promise<Verification[]>;
   createVerification(verification: InsertVerification): Promise<Verification>;
   syncProducts(products: InsertShopifyProduct[]): Promise<ShopifyProduct[]>;
   getProducts(): Promise<ShopifyProduct[]>;
   syncCollections(collections: InsertShopifyCollection[]): Promise<ShopifyCollection[]>;
   getCollections(): Promise<ShopifyCollection[]>;
-  getCampaigns(): Promise<Campaign[]>;
-  getCampaign(id: string): Promise<Campaign | undefined>;
-  createCampaign(campaign: InsertCampaign): Promise<Campaign>;
-  updateCampaign(id: string, campaign: Partial<InsertCampaign>): Promise<Campaign>;
-  deleteCampaign(id: string): Promise<void>;
-  getCampaignProducts(campaignId: string): Promise<ShopifyProduct[]>;
-  getCampaignCollections(campaignId: string): Promise<ShopifyCollection[]>;
-  setCampaignProducts(campaignId: string, productIds: string[]): Promise<void>;
-  setCampaignCollections(campaignId: string, collectionIds: string[]): Promise<void>;
+  getSelectedProducts(): Promise<ShopifyProduct[]>;
+  getSelectedCollections(): Promise<ShopifyCollection[]>;
+  setSelectedProducts(productIds: string[]): Promise<void>;
+  setSelectedCollections(collectionIds: string[]): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -80,6 +67,29 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async updateSpiralSettings(settings: Partial<InsertStoreSettings>): Promise<StoreSettings> {
+    const existing = await this.getStoreSettings();
+    
+    if (existing) {
+      const [updated] = await db
+        .update(storeSettings)
+        .set(settings)
+        .where(eq(storeSettings.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(storeSettings)
+        .values({
+          storeName: "My Store",
+          instagramHandle: "",
+          ...settings,
+        })
+        .returning();
+      return created;
+    }
+  }
+
   async updateMinFollowers(minFollowers: number): Promise<StoreSettings> {
     const existing = await this.getStoreSettings();
     
@@ -95,7 +105,7 @@ export class DatabaseStorage implements IStorage {
         .insert(storeSettings)
         .values({
           storeName: "My Store",
-          instagramHandle: "@mystore",
+          instagramHandle: "",
           minFollowers,
         })
         .returning();
@@ -105,13 +115,6 @@ export class DatabaseStorage implements IStorage {
 
   async getDiscountTiers(): Promise<DiscountTier[]> {
     return await db.select().from(discountTiers);
-  }
-
-  async getDiscountTiersByCampaign(campaignId: string): Promise<DiscountTier[]> {
-    return await db
-      .select()
-      .from(discountTiers)
-      .where(eq(discountTiers.campaignId, campaignId));
   }
 
   async createDiscountTier(tier: InsertDiscountTier): Promise<DiscountTier> {
@@ -173,27 +176,6 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async replaceCampaignDiscountTiers(campaignId: string, tiers: InsertDiscountTier[]): Promise<DiscountTier[]> {
-    await db.delete(discountTiers).where(eq(discountTiers.campaignId, campaignId));
-    
-    if (tiers.length === 0) {
-      return [];
-    }
-    
-    const created = await db
-      .insert(discountTiers)
-      .values(
-        tiers.map((tier) => ({
-          ...tier,
-          campaignId,
-          discountPercent: tier.discountPercent.toString(),
-        }))
-      )
-      .returning();
-    
-    return created;
-  }
-
   async getVerifications(): Promise<Verification[]> {
     return await db.select().from(verifications);
   }
@@ -244,114 +226,55 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(shopifyCollections);
   }
 
-  async getCampaigns(): Promise<Campaign[]> {
-    return await db.select().from(campaigns);
-  }
-
-  async getCampaign(id: string): Promise<Campaign | undefined> {
-    const [campaign] = await db
-      .select()
-      .from(campaigns)
-      .where(eq(campaigns.id, id))
-      .limit(1);
-    return campaign || undefined;
-  }
-
-  async createCampaign(campaign: InsertCampaign): Promise<Campaign> {
-    const [created] = await db
-      .insert(campaigns)
-      .values(campaign)
-      .returning();
-    return created;
-  }
-
-  async updateCampaign(id: string, campaign: Partial<InsertCampaign>): Promise<Campaign> {
-    const [updated] = await db
-      .update(campaigns)
-      .set({
-        ...campaign,
-        updatedAt: new Date(),
-      })
-      .where(eq(campaigns.id, id))
-      .returning();
-    
-    if (!updated) {
-      throw new Error("Campaign not found");
-    }
-    
-    return updated;
-  }
-
-  async deleteCampaign(id: string): Promise<void> {
-    await db.delete(campaignProducts).where(eq(campaignProducts.campaignId, id));
-    await db.delete(campaignCollections).where(eq(campaignCollections.campaignId, id));
-    await db.delete(discountTiers).where(eq(discountTiers.campaignId, id));
-    
-    const result = await db
-      .delete(campaigns)
-      .where(eq(campaigns.id, id))
-      .returning();
-    
-    if (result.length === 0) {
-      throw new Error("Campaign not found");
-    }
-  }
-
-  async getCampaignProducts(campaignId: string): Promise<ShopifyProduct[]> {
-    const productLinks = await db
-      .select()
-      .from(campaignProducts)
-      .where(eq(campaignProducts.campaignId, campaignId));
+  async getSelectedProducts(): Promise<ShopifyProduct[]> {
+    const productLinks = await db.select().from(selectedProducts);
     
     if (productLinks.length === 0) {
       return [];
     }
     
-    const productIds = productLinks.map(link => link.productId);
+    const shopifyProductIds = productLinks.map(link => link.productId);
     const products = await db
       .select()
       .from(shopifyProducts)
-      .where(inArray(shopifyProducts.id, productIds));
+      .where(inArray(shopifyProducts.shopifyProductId, shopifyProductIds));
     
     return products;
   }
 
-  async getCampaignCollections(campaignId: string): Promise<ShopifyCollection[]> {
-    const collectionLinks = await db
-      .select()
-      .from(campaignCollections)
-      .where(eq(campaignCollections.campaignId, campaignId));
+  async getSelectedCollections(): Promise<ShopifyCollection[]> {
+    const collectionLinks = await db.select().from(selectedCollections);
     
     if (collectionLinks.length === 0) {
       return [];
     }
     
-    const collectionIds = collectionLinks.map(link => link.collectionId);
+    const shopifyCollectionIds = collectionLinks.map(link => link.collectionId);
     const collections = await db
       .select()
       .from(shopifyCollections)
-      .where(inArray(shopifyCollections.id, collectionIds));
+      .where(inArray(shopifyCollections.shopifyCollectionId, shopifyCollectionIds));
     
     return collections;
   }
 
-  async setCampaignProducts(campaignId: string, productIds: string[]): Promise<void> {
-    await db.delete(campaignProducts).where(eq(campaignProducts.campaignId, campaignId));
+  async setSelectedProducts(shopifyProductIds: string[]): Promise<void> {
+    await db.delete(selectedProducts);
     
-    if (productIds.length > 0) {
+    if (shopifyProductIds.length > 0) {
       await db
-        .insert(campaignProducts)
-        .values(productIds.map(productId => ({ campaignId, productId })));
+        .insert(selectedProducts)
+        .values(shopifyProductIds.map(productId => ({ productId })));
     }
   }
 
-  async setCampaignCollections(campaignId: string, collectionIds: string[]): Promise<void> {
-    await db.delete(campaignCollections).where(eq(campaignCollections.campaignId, campaignId));
+  async setSelectedCollections(shopifyCollectionIds: string[]): Promise<void> {
+    await db.delete(selectedCollections);
     
-    if (collectionIds.length > 0) {
+    if (shopifyCollectionIds.length > 0) {
       await db
-        .insert(campaignCollections)
-        .values(collectionIds.map(collectionId => ({ campaignId, collectionId })));
+        .insert(selectedCollections)
+        .values(shopifyCollectionIds.map(collectionId => ({ collectionId })));
     }
   }
 }

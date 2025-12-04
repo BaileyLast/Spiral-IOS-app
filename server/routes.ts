@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import crypto from "crypto";
 import { storage } from "./storage";
-import { insertStoreSettingsSchema, insertDiscountTierSchema, insertVerificationSchema, insertCampaignSchema } from "@shared/schema";
+import { insertStoreSettingsSchema, insertDiscountTierSchema, insertVerificationSchema } from "@shared/schema";
 import { fetchShopifyProducts, fetchShopifyCollections } from "./shopify";
 
 // Extend session types
@@ -37,6 +37,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         console.error("Failed to update store settings:", error);
         res.status(500).json({ error: "Failed to update store settings" });
+      }
+    }
+  });
+
+  // Spiral Settings Routes
+  app.get("/api/spiral-settings", async (req, res) => {
+    try {
+      const settings = await storage.getStoreSettings();
+      const tiers = await storage.getDiscountTiers();
+      const selectedProducts = await storage.getSelectedProducts();
+      const selectedCollections = await storage.getSelectedCollections();
+      
+      res.json({
+        spiralEnabled: settings?.spiralEnabled ?? false,
+        productSelectionType: settings?.productSelectionType ?? "all",
+        postingWindowDays: settings?.postingWindowDays ?? 7,
+        minFollowers: settings?.minFollowers ?? 0,
+        discountTiers: tiers,
+        selectedProducts: selectedProducts.map(p => p.shopifyProductId),
+        selectedCollections: selectedCollections.map(c => c.shopifyCollectionId),
+      });
+    } catch (error) {
+      console.error("Failed to fetch spiral settings:", error);
+      res.status(500).json({ error: "Failed to fetch spiral settings" });
+    }
+  });
+
+  app.post("/api/spiral-settings", async (req, res) => {
+    try {
+      const { 
+        spiralEnabled, 
+        productSelectionType, 
+        postingWindowDays, 
+        minFollowers,
+        discountTiers: tiers,
+        selectedProducts: productIds,
+        selectedCollections: collectionIds,
+      } = req.body;
+
+      // Validate discount tiers
+      if (tiers && Array.isArray(tiers)) {
+        if (tiers.length > 0 && tiers[tiers.length - 1].toFollowers !== null) {
+          return res.status(400).json({ error: "Final discount bracket must have no upper limit" });
+        }
+
+        if (tiers.length > 0 && tiers[0].fromFollowers < (minFollowers ?? 0)) {
+          return res.status(400).json({ error: `First bracket must start at or above the minimum followers threshold (${minFollowers ?? 0})` });
+        }
+
+        const validatedTiers = tiers.map((tier: any) => {
+          const validated = insertDiscountTierSchema.parse(tier);
+          return validated;
+        });
+
+        await storage.replaceAllDiscountTiers(validatedTiers);
+      }
+
+      // Update store settings
+      await storage.updateSpiralSettings({
+        spiralEnabled: spiralEnabled ?? false,
+        productSelectionType: productSelectionType ?? "all",
+        postingWindowDays: postingWindowDays ?? 7,
+        minFollowers: minFollowers ?? 0,
+      });
+
+      // Update selected products/collections
+      if (Array.isArray(productIds)) {
+        await storage.setSelectedProducts(productIds);
+      }
+      if (Array.isArray(collectionIds)) {
+        await storage.setSelectedCollections(collectionIds);
+      }
+
+      // Return updated settings
+      const updatedSettings = await storage.getStoreSettings();
+      const updatedTiers = await storage.getDiscountTiers();
+      const updatedProducts = await storage.getSelectedProducts();
+      const updatedCollections = await storage.getSelectedCollections();
+
+      res.json({
+        spiralEnabled: updatedSettings?.spiralEnabled ?? false,
+        productSelectionType: updatedSettings?.productSelectionType ?? "all",
+        postingWindowDays: updatedSettings?.postingWindowDays ?? 7,
+        minFollowers: updatedSettings?.minFollowers ?? 0,
+        discountTiers: updatedTiers,
+        selectedProducts: updatedProducts.map(p => p.shopifyProductId),
+        selectedCollections: updatedCollections.map(c => c.shopifyCollectionId),
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === "ZodError") {
+        const zodError = error as any;
+        const firstIssue = zodError.issues?.[0];
+        const errorMessage = firstIssue?.message || "Invalid spiral settings data";
+        res.status(400).json({ error: errorMessage });
+      } else {
+        console.error("Failed to save spiral settings:", error);
+        res.status(500).json({ error: "Failed to save spiral settings" });
       }
     }
   });
@@ -239,151 +336,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Campaign Routes
-  app.get("/api/campaigns", async (req, res) => {
+  // Selected Products/Collections Routes
+  app.get("/api/selected-products", async (req, res) => {
     try {
-      const campaigns = await storage.getCampaigns();
-      res.json(campaigns);
-    } catch (error) {
-      console.error("Failed to fetch campaigns:", error);
-      res.status(500).json({ error: "Failed to fetch campaigns" });
-    }
-  });
-
-  app.get("/api/campaigns/:id", async (req, res) => {
-    try {
-      const campaign = await storage.getCampaign(req.params.id);
-      if (!campaign) {
-        return res.status(404).json({ error: "Campaign not found" });
-      }
-      res.json(campaign);
-    } catch (error) {
-      console.error("Failed to fetch campaign:", error);
-      res.status(500).json({ error: "Failed to fetch campaign" });
-    }
-  });
-
-  app.post("/api/campaigns", async (req, res) => {
-    try {
-      const validated = insertCampaignSchema.parse(req.body);
-      const campaign = await storage.createCampaign(validated);
-      
-      if (req.body.productIds && Array.isArray(req.body.productIds)) {
-        await storage.setCampaignProducts(campaign.id, req.body.productIds);
-      }
-      
-      if (req.body.collectionIds && Array.isArray(req.body.collectionIds)) {
-        await storage.setCampaignCollections(campaign.id, req.body.collectionIds);
-      }
-      
-      res.json(campaign);
-    } catch (error) {
-      if (error instanceof Error && error.name === "ZodError") {
-        res.status(400).json({ error: "Invalid campaign data" });
-      } else {
-        console.error("Failed to create campaign:", error);
-        res.status(500).json({ error: "Failed to create campaign" });
-      }
-    }
-  });
-
-  app.patch("/api/campaigns/:id", async (req, res) => {
-    try {
-      const campaign = await storage.updateCampaign(req.params.id, req.body);
-      
-      if (req.body.productIds && Array.isArray(req.body.productIds)) {
-        await storage.setCampaignProducts(campaign.id, req.body.productIds);
-      }
-      
-      if (req.body.collectionIds && Array.isArray(req.body.collectionIds)) {
-        await storage.setCampaignCollections(campaign.id, req.body.collectionIds);
-      }
-      
-      res.json(campaign);
-    } catch (error) {
-      if (error instanceof Error && error.message === "Campaign not found") {
-        res.status(404).json({ error: "Campaign not found" });
-      } else {
-        console.error("Failed to update campaign:", error);
-        res.status(500).json({ error: "Failed to update campaign" });
-      }
-    }
-  });
-
-  app.delete("/api/campaigns/:id", async (req, res) => {
-    try {
-      await storage.deleteCampaign(req.params.id);
-      res.json({ success: true });
-    } catch (error) {
-      if (error instanceof Error && error.message === "Campaign not found") {
-        res.status(404).json({ error: "Campaign not found" });
-      } else {
-        console.error("Failed to delete campaign:", error);
-        res.status(500).json({ error: "Failed to delete campaign" });
-      }
-    }
-  });
-
-  app.get("/api/campaigns/:id/products", async (req, res) => {
-    try {
-      const products = await storage.getCampaignProducts(req.params.id);
+      const products = await storage.getSelectedProducts();
       res.json(products);
     } catch (error) {
-      console.error("Failed to fetch campaign products:", error);
-      res.status(500).json({ error: "Failed to fetch campaign products" });
+      console.error("Failed to fetch selected products:", error);
+      res.status(500).json({ error: "Failed to fetch selected products" });
     }
   });
 
-  app.get("/api/campaigns/:id/collections", async (req, res) => {
+  app.get("/api/selected-collections", async (req, res) => {
     try {
-      const collections = await storage.getCampaignCollections(req.params.id);
+      const collections = await storage.getSelectedCollections();
       res.json(collections);
     } catch (error) {
-      console.error("Failed to fetch campaign collections:", error);
-      res.status(500).json({ error: "Failed to fetch campaign collections" });
-    }
-  });
-
-  // Campaign Discount Tiers Routes
-  app.get("/api/campaigns/:id/discount-tiers", async (req, res) => {
-    try {
-      const tiers = await storage.getDiscountTiersByCampaign(req.params.id);
-      res.json(tiers);
-    } catch (error) {
-      console.error("Failed to fetch campaign discount tiers:", error);
-      res.status(500).json({ error: "Failed to fetch campaign discount tiers" });
-    }
-  });
-
-  app.post("/api/campaigns/:id/discount-tiers", async (req, res) => {
-    try {
-      const { tiers } = req.body;
-
-      if (!Array.isArray(tiers)) {
-        return res.status(400).json({ error: "Tiers must be an array" });
-      }
-
-      if (tiers.length > 0 && tiers[tiers.length - 1].toFollowers !== null) {
-        return res.status(400).json({ error: "Final discount bracket must have no upper limit" });
-      }
-
-      const validatedTiers = tiers.map((tier) => {
-        const validated = insertDiscountTierSchema.parse(tier);
-        return validated;
-      });
-
-      const savedTiers = await storage.replaceCampaignDiscountTiers(req.params.id, validatedTiers);
-      res.json(savedTiers);
-    } catch (error) {
-      if (error instanceof Error && error.name === "ZodError") {
-        const zodError = error as any;
-        const firstIssue = zodError.issues?.[0];
-        const errorMessage = firstIssue?.message || "Invalid discount tier data";
-        res.status(400).json({ error: errorMessage });
-      } else {
-        console.error("Failed to save campaign discount tiers:", error);
-        res.status(500).json({ error: "Failed to save campaign discount tiers" });
-      }
+      console.error("Failed to fetch selected collections:", error);
+      res.status(500).json({ error: "Failed to fetch selected collections" });
     }
   });
 
@@ -625,47 +595,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         instagramAccessToken: longLivedToken,
       });
 
-      console.log('Instagram connected successfully:', igAccount.username);
-      res.send('✅ Spiral successfully connected to your Instagram Business Account! You can close this window and return to the dashboard.');
+      console.log('Instagram Business Account connected:', igAccount.username);
+      res.send(`✅ Successfully connected Instagram account @${igAccount.username}! You can close this window and return to the dashboard.`);
     } catch (error) {
       console.error("Error during Instagram OAuth:", error);
       res.status(500).send("Failed to complete Instagram authentication");
     }
   });
 
-  // Shopify Webhook Routes
-  app.post("/webhooks/shopify/orders/create", async (req, res) => {
-    try {
-      const order = req.body;
-      console.log("Received order webhook:", order.id);
-      
-      // TODO: Process order and check if Spiral discount was used
-      // Store order details in database for tracking
-      
-      res.status(200).send("Webhook received");
-    } catch (error) {
-      console.error("Error processing order webhook:", error);
-      res.status(500).send("Failed to process webhook");
-    }
-  });
-
-  app.post("/webhooks/shopify/orders/fulfilled", async (req, res) => {
-    try {
-      const fulfillment = req.body;
-      console.log("Received fulfillment webhook:", fulfillment.id);
-      
-      // TODO: Update order fulfillment status
-      // Calculate post deadline (e.g., 7 days from fulfillment)
-      // Send notification to customer
-      
-      res.status(200).send("Webhook received");
-    } catch (error) {
-      console.error("Error processing fulfillment webhook:", error);
-      res.status(500).send("Failed to process webhook");
-    }
-  });
-
   const httpServer = createServer(app);
-
   return httpServer;
 }

@@ -15,11 +15,13 @@ export const storeSettings = pgTable("store_settings", {
   instagramPageId: text("instagram_page_id"),
   instagramUsername: text("instagram_username"),
   instagramAccessToken: text("instagram_access_token"),
+  spiralEnabled: boolean("spiral_enabled").notNull().default(false),
+  productSelectionType: text("product_selection_type").notNull().default("all"),
+  postingWindowDays: integer("posting_window_days").notNull().default(7),
 });
 
 export const discountTiers = pgTable("discount_tiers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  campaignId: varchar("campaign_id"),
   fromFollowers: integer("from_followers").notNull(),
   toFollowers: integer("to_followers"),
   discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }).notNull(),
@@ -56,26 +58,13 @@ export const shopifyCollections = pgTable("shopify_collections", {
   syncedAt: timestamp("synced_at").notNull().defaultNow(),
 });
 
-export const campaigns = pgTable("campaigns", {
+export const selectedProducts = pgTable("selected_products", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull(),
-  description: text("description"),
-  status: text("status").notNull().default("draft"),
-  productSelectionType: text("product_selection_type").notNull().default("all"),
-  postingWindowDays: integer("posting_window_days").notNull().default(7),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
-
-export const campaignProducts = pgTable("campaign_products", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  campaignId: varchar("campaign_id").notNull(),
   productId: varchar("product_id").notNull(),
 });
 
-export const campaignCollections = pgTable("campaign_collections", {
+export const selectedCollections = pgTable("selected_collections", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  campaignId: varchar("campaign_id").notNull(),
   collectionId: varchar("collection_id").notNull(),
 });
 
@@ -99,7 +88,6 @@ export const insertStoreSettingsSchema = createInsertSchema(storeSettings).omit(
 export const insertDiscountTierSchema = createInsertSchema(discountTiers)
   .omit({ id: true })
   .extend({
-    campaignId: z.string().nullable().optional(),
     discountPercent: z.coerce.number().min(2.5, "Minimum discount allowed is 2.5%"),
     fromFollowers: z.number().int().min(0, "Followers must be non-negative"),
     toFollowers: z.number().int().min(0, "Followers must be non-negative").nullable(),
@@ -114,9 +102,8 @@ export const insertDiscountTierSchema = createInsertSchema(discountTiers)
 export const insertVerificationSchema = createInsertSchema(verifications).omit({ id: true, verifiedAt: true });
 export const insertShopifyProductSchema = createInsertSchema(shopifyProducts).omit({ id: true, syncedAt: true });
 export const insertShopifyCollectionSchema = createInsertSchema(shopifyCollections).omit({ id: true, syncedAt: true });
-export const insertCampaignSchema = createInsertSchema(campaigns).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertCampaignProductSchema = createInsertSchema(campaignProducts).omit({ id: true });
-export const insertCampaignCollectionSchema = createInsertSchema(campaignCollections).omit({ id: true });
+export const insertSelectedProductSchema = createInsertSchema(selectedProducts).omit({ id: true });
+export const insertSelectedCollectionSchema = createInsertSchema(selectedCollections).omit({ id: true });
 export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true });
 
 export type InsertStoreSettings = z.infer<typeof insertStoreSettingsSchema>;
@@ -129,11 +116,9 @@ export type InsertShopifyProduct = z.infer<typeof insertShopifyProductSchema>;
 export type ShopifyProduct = typeof shopifyProducts.$inferSelect;
 export type InsertShopifyCollection = z.infer<typeof insertShopifyCollectionSchema>;
 export type ShopifyCollection = typeof shopifyCollections.$inferSelect;
-export type InsertCampaign = z.infer<typeof insertCampaignSchema>;
-export type Campaign = typeof campaigns.$inferSelect;
-export type InsertCampaignProduct = z.infer<typeof insertCampaignProductSchema>;
-export type CampaignProduct = typeof campaignProducts.$inferSelect;
-export type InsertCampaignCollection = z.infer<typeof insertCampaignCollectionSchema>;
-export type CampaignCollection = typeof campaignCollections.$inferSelect;
+export type InsertSelectedProduct = z.infer<typeof insertSelectedProductSchema>;
+export type SelectedProduct = typeof selectedProducts.$inferSelect;
+export type InsertSelectedCollection = z.infer<typeof insertSelectedCollectionSchema>;
+export type SelectedCollection = typeof selectedCollections.$inferSelect;
 export type InsertOrder = z.infer<typeof insertOrderSchema>;
 export type Order = typeof orders.$inferSelect;
