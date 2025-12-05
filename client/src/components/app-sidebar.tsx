@@ -1,4 +1,4 @@
-import { Home, CheckCircle, Link2, Sparkles } from "lucide-react";
+import { Home, CheckCircle, Link2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -11,8 +11,16 @@ import {
   SidebarHeader,
 } from "@/components/ui/sidebar";
 import logoUrl from "@assets/Spiral logo (2)_1763051288266.png";
+import spiralIconUrl from "@assets/Spiral_logo_(1)_1764946021300.png";
 
-const menuItems = [
+type MenuItem = {
+  title: string;
+  url: string;
+  icon?: typeof Home;
+  imageUrl?: string;
+};
+
+const menuItems: MenuItem[] = [
   {
     title: "Home",
     url: "/",
@@ -21,7 +29,7 @@ const menuItems = [
   {
     title: "Spiral Settings",
     url: "/spiral-settings",
-    icon: Sparkles,
+    imageUrl: spiralIconUrl,
   },
   {
     title: "Verifications",
@@ -56,7 +64,11 @@ export function AppSidebar() {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild isActive={location === item.url} data-testid={`link-${item.title.toLowerCase().replace(' ', '-')}`}>
                     <Link href={item.url}>
-                      <item.icon className="w-5 h-5" />
+                      {item.imageUrl ? (
+                        <img src={item.imageUrl} alt="" className="w-5 h-5" />
+                      ) : item.icon ? (
+                        <item.icon className="w-5 h-5" />
+                      ) : null}
                       <span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
