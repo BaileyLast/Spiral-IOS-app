@@ -88,25 +88,6 @@ export default function SpiralSettings() {
     }
   }, [spiralSettings]);
 
-  const syncMutation = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/shopify/sync"),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/collections"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/spiral-settings"] });
-      hasHydratedRef.current = false;
-      toast({
-        description: "Products and collections synced from Shopify",
-      });
-    },
-    onError: () => {
-      toast({
-        description: "Failed to sync from Shopify",
-        variant: "destructive",
-      });
-    },
-  });
-
   const saveMutation = useMutation({
     mutationFn: async () => {
       return await apiRequest("POST", "/api/spiral-settings", {
@@ -279,24 +260,10 @@ export default function SpiralSettings() {
 
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Product Selection</CardTitle>
-                <CardDescription>
-                  Choose which products Spiral discounts apply to
-                </CardDescription>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => syncMutation.mutate()}
-                disabled={syncMutation.isPending}
-                data-testid="button-sync-shopify"
-              >
-                {syncMutation.isPending ? "Syncing..." : "Sync from Shopify"}
-              </Button>
-            </div>
+            <CardTitle>Product Selection</CardTitle>
+            <CardDescription>
+              Choose which products Spiral discounts apply to
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <RadioGroup
@@ -331,7 +298,7 @@ export default function SpiralSettings() {
                 </Label>
                 {products.length === 0 ? (
                   <p className="text-muted-foreground text-sm">
-                    No products found. Sync from Shopify to import your products.
+                    No products found. Connect your Shopify store via the Connections page to import products.
                   </p>
                 ) : (
                   <div className="grid gap-2 max-h-64 overflow-y-auto">
@@ -372,7 +339,7 @@ export default function SpiralSettings() {
                   <Label className="text-sm font-medium mb-3 block">Or select collections:</Label>
                   {collections.length === 0 ? (
                     <p className="text-muted-foreground text-sm">
-                      No collections found. Sync from Shopify to import your collections.
+                      No collections found. Connect your Shopify store via the Connections page to import collections.
                     </p>
                   ) : (
                     <div className="grid gap-2 max-h-48 overflow-y-auto">
