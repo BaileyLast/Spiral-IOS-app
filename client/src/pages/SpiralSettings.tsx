@@ -283,19 +283,35 @@ export default function SpiralSettings() {
                   Specific products only
                 </Label>
               </div>
-              <div className="flex items-center space-x-3">
-                <RadioGroupItem value="excluded" id="excluded-products" data-testid="radio-excluded-products" />
-                <Label htmlFor="excluded-products" className="font-normal cursor-pointer">
-                  All products except specific ones
-                </Label>
-              </div>
             </RadioGroup>
 
-            {productSelectionType !== "all" && (
+            {productSelectionType === "specific" && (
               <div className="border rounded-lg p-4 mt-4">
-                <Label className="text-sm font-medium mb-3 block">
-                  {productSelectionType === "specific" ? "Select products to include:" : "Select products to exclude:"}
-                </Label>
+                <div className="flex items-center justify-between mb-3">
+                  <Label className="text-sm font-medium">Select products to include:</Label>
+                  {products.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedProducts(products.map(p => p.shopifyProductId))}
+                        data-testid="button-select-all-products"
+                      >
+                        Select All
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedProducts([])}
+                        data-testid="button-deselect-all-products"
+                      >
+                        Deselect All
+                      </Button>
+                    </div>
+                  )}
+                </div>
                 {products.length === 0 ? (
                   <p className="text-muted-foreground text-sm">
                     No products found. Connect your Shopify store via the Connections page to import products.
@@ -336,7 +352,31 @@ export default function SpiralSettings() {
                 )}
 
                 <div className="border-t mt-4 pt-4">
-                  <Label className="text-sm font-medium mb-3 block">Or select collections:</Label>
+                  <div className="flex items-center justify-between mb-3">
+                    <Label className="text-sm font-medium">Or select collections:</Label>
+                    {collections.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedCollections(collections.map(c => c.shopifyCollectionId))}
+                          data-testid="button-select-all-collections"
+                        >
+                          Select All
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedCollections([])}
+                          data-testid="button-deselect-all-collections"
+                        >
+                          Deselect All
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                   {collections.length === 0 ? (
                     <p className="text-muted-foreground text-sm">
                       No collections found. Connect your Shopify store via the Connections page to import collections.
