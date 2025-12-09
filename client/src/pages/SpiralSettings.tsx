@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,19 @@ const POSTING_WINDOW_OPTIONS = [
   { value: 7, label: "7 days" },
   { value: 14, label: "14 days" },
 ];
+
+const MIN_STORY_REACH_RATE = 0.05;
+const MAX_STORY_REACH_RATE = 0.15;
+
+function formatImpressions(followers: number | null, isOpenEnded: boolean = false): string {
+  if (followers === null) return "—";
+  const minImpressions = Math.round(followers * MIN_STORY_REACH_RATE);
+  const maxImpressions = Math.round(followers * MAX_STORY_REACH_RATE);
+  if (isOpenEnded) {
+    return `${minImpressions.toLocaleString()}+`;
+  }
+  return `${minImpressions.toLocaleString()}–${maxImpressions.toLocaleString()}`;
+}
 
 export default function SpiralSettings() {
   const { toast } = useToast();
@@ -446,77 +459,90 @@ export default function SpiralSettings() {
                     <th className="w-12 px-4 py-3"></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y">
+                <tbody>
                   {discountBrackets.map((bracket, index) => (
-                    <tr key={index} data-testid={`row-bracket-${index}`}>
-                      <td className="px-4 py-3">
-                        {index === 0 ? (
+                    <Fragment key={index}>
+                      <tr data-testid={`row-bracket-${index}`} className="border-b border-border/50">
+                        <td className="px-4 py-3">
+                          {index === 0 ? (
+                            <Input
+                              type="number"
+                              className="w-32"
+                              value={bracket.fromFollowers}
+                              onChange={(e) =>
+                                handleBracketChange(index, "fromFollowers", Number(e.target.value))
+                              }
+                              min={0}
+                              data-testid={`input-from-${index}`}
+                            />
+                          ) : (
+                            <Input
+                              type="number"
+                              className="w-32"
+                              value={bracket.fromFollowers}
+                              disabled
+                              data-testid={`input-from-${index}`}
+                            />
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {index === discountBrackets.length - 1 ? (
+                            <span className="text-sm text-muted-foreground px-3">No limit</span>
+                          ) : (
+                            <Input
+                              type="number"
+                              className="w-32"
+                              value={bracket.toFollowers || ""}
+                              onChange={(e) =>
+                                handleBracketChange(
+                                  index,
+                                  "toFollowers",
+                                  e.target.value ? Number(e.target.value) : null
+                                )
+                              }
+                              min={bracket.fromFollowers + 1}
+                              data-testid={`input-to-${index}`}
+                            />
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
                           <Input
                             type="number"
-                            className="w-32"
-                            value={bracket.fromFollowers}
+                            className="w-24"
+                            value={bracket.discountPercent}
                             onChange={(e) =>
-                              handleBracketChange(index, "fromFollowers", Number(e.target.value))
+                              handleBracketChange(index, "discountPercent", Number(e.target.value))
                             }
-                            min={0}
-                            data-testid={`input-from-${index}`}
+                            min={2.5}
+                            step={0.5}
+                            data-testid={`input-discount-${index}`}
                           />
-                        ) : (
-                          <Input
-                            type="number"
-                            className="w-32"
-                            value={bracket.fromFollowers}
-                            disabled
-                            data-testid={`input-from-${index}`}
-                          />
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {index === discountBrackets.length - 1 ? (
-                          <span className="text-sm text-muted-foreground px-3">No limit</span>
-                        ) : (
-                          <Input
-                            type="number"
-                            className="w-32"
-                            value={bracket.toFollowers || ""}
-                            onChange={(e) =>
-                              handleBracketChange(
-                                index,
-                                "toFollowers",
-                                e.target.value ? Number(e.target.value) : null
-                              )
-                            }
-                            min={bracket.fromFollowers + 1}
-                            data-testid={`input-to-${index}`}
-                          />
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Input
-                          type="number"
-                          className="w-24"
-                          value={bracket.discountPercent}
-                          onChange={(e) =>
-                            handleBracketChange(index, "discountPercent", Number(e.target.value))
-                          }
-                          min={2.5}
-                          step={0.5}
-                          data-testid={`input-discount-${index}`}
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemoveBracket(index)}
-                          className="text-muted-foreground hover:text-destructive"
-                          data-testid={`button-remove-bracket-${index}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </td>
-                    </tr>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveBracket(index)}
+                            className="text-muted-foreground hover:text-destructive"
+                            data-testid={`button-remove-bracket-${index}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                      <tr className="bg-muted/30 border-b" data-testid={`row-impressions-${index}`}>
+                        <td className="px-4 py-1.5 text-xs text-muted-foreground">
+                          <span className="text-[10px] uppercase tracking-wide">Est. impressions:</span>{" "}
+                          {formatImpressions(bracket.fromFollowers, index === discountBrackets.length - 1)}
+                        </td>
+                        <td className="px-4 py-1.5 text-xs text-muted-foreground">
+                          {bracket.toFollowers !== null && formatImpressions(bracket.toFollowers)}
+                        </td>
+                        <td className="px-4 py-1.5"></td>
+                        <td className="px-4 py-1.5"></td>
+                      </tr>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
