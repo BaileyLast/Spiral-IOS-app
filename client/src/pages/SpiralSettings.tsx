@@ -35,17 +35,22 @@ const POSTING_WINDOW_OPTIONS = [
   { value: 14, label: "14 days" },
 ];
 
-const MIN_STORY_REACH_RATE = 0.05;
-const MAX_STORY_REACH_RATE = 0.15;
+function getReachRate(followers: number): number {
+  if (followers <= 1000) return 0.30;
+  if (followers <= 5000) return 0.25;
+  if (followers <= 20000) return 0.20;
+  if (followers <= 100000) return 0.12;
+  return 0.06;
+}
 
 function formatImpressions(followers: number | null, isOpenEnded: boolean = false): string {
   if (followers === null) return "—";
-  const minImpressions = Math.round(followers * MIN_STORY_REACH_RATE);
-  const maxImpressions = Math.round(followers * MAX_STORY_REACH_RATE);
+  const reachRate = getReachRate(followers);
+  const impressions = Math.round(followers * reachRate);
   if (isOpenEnded) {
-    return `${minImpressions.toLocaleString()}+`;
+    return `${impressions.toLocaleString()}+`;
   }
-  return `${minImpressions.toLocaleString()}–${maxImpressions.toLocaleString()}`;
+  return impressions.toLocaleString();
 }
 
 export default function SpiralSettings() {
@@ -59,10 +64,12 @@ export default function SpiralSettings() {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
   const [discountBrackets, setDiscountBrackets] = useState<BracketFormData[]>([
-    { fromFollowers: 300, toFollowers: 499, discountPercent: 2.5 },
     { fromFollowers: 500, toFollowers: 999, discountPercent: 5 },
-    { fromFollowers: 1000, toFollowers: 1499, discountPercent: 7.5 },
-    { fromFollowers: 1500, toFollowers: null, discountPercent: 10 },
+    { fromFollowers: 1000, toFollowers: 2499, discountPercent: 10 },
+    { fromFollowers: 2500, toFollowers: 4999, discountPercent: 15 },
+    { fromFollowers: 5000, toFollowers: 9999, discountPercent: 20 },
+    { fromFollowers: 10000, toFollowers: 19999, discountPercent: 50 },
+    { fromFollowers: 20000, toFollowers: null, discountPercent: 75 },
   ]);
 
   const { data: spiralSettings, isLoading: isLoadingSettings } = useQuery<SpiralSettingsData>({

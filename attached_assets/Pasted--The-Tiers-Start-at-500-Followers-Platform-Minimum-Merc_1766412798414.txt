@@ -1,0 +1,123 @@
+⭐ The Tiers Start at 500 Followers (Platform Minimum)
+
+Merchant sees something like:
+
+Tier 1
+
+500 – [ input ] followers
+Discount: [ input ] %
+
+Example:
+500 – 999 followers → 2.5%
+
+⭐ When they add the next tier…
+
+You auto-fill the start of the next bracket:
+
+Tier 2
+
+1000 – [ input ] followers
+Discount: [ input ] %
+
+(1000 = previous tier end + 1)
+
+Merchant enters the end (e.g. 1499) and discount.
+
+⭐ Tier 3 auto-starts at 1500
+
+And so on.
+
+This eliminates:
+
+Overlaps
+
+Gaps
+
+Human error
+
+Merchants creating broken logic
+
+You’re basically forcing clean math.
+
+⭐ Final Tier = “X+ followers”
+
+This is the open-ended tier.
+
+Merchant selects:
+
+start value
+
+discount
+
+Example:
+
+50,000+ followers → 75% off
+
+Perfect for:
+
+large creators
+
+VIP customers
+
+hype launch events
+
+The UX should show a toggle saying:
+
+[✓] This is the final tier (no upper limit)
+
+But you can auto-detect it too.
+
+⭐ Why this system is good
+
+You’ve built:
+
+✔ predictable logic
+✔ frictionless UX
+✔ no-risk tier creation
+✔ scalable for both small and huge brands
+✔ intuitive for merchants with no training
+
+This is exactly how Facebook Ads and Google Ads build budget tiers internally — start at a base value and auto-advance.
+
+⭐ What the data model looks like (conceptually)
+
+You’ll store the tiers as an array:
+
+[
+  { min: 500,   max: 999,   discount: 2.5 },
+  { min: 1000,  max: 1499,  discount: 5   },
+  { min: 1500,  max: 49999, discount: 10  },
+  { min: 50000, max: null,  discount: 75  }
+]
+
+
+max: null = final open-ended bracket.
+
+⭐ UI Flow for Merchants
+
+Start at minimum 500
+
+Merchant adds tier
+
+Tier auto-populates next min follower number
+
+Merchant fills the “max followers” + “discount”
+
+Add another tier
+
+Repeat
+
+Last one becomes X+ followers
+
+Smooth, foolproof.
+
+⭐ TL;DR
+
+Yes — your system is exactly the right way to do it.
+
+500 – X (discount)
+(X+1) – Y (discount)
+(Y+1) – Z (discount)
+Z+ (discount)
+
+If you want, I can mock up the exact UI copy text you should use so the merchant instantly understands how to set it up.
