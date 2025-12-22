@@ -35,12 +35,18 @@ const POSTING_WINDOW_OPTIONS = [
   { value: 14, label: "14 days" },
 ];
 
+// Smooth power-law reach rate formula
+// Starts at 30% for 500 followers, tapers to ~12% at 100k, floors at 6%
+// This ensures impressions always INCREASE as followers increase (no cliffs)
+const REACH_ANCHOR = 0.30;      // 30% reach at 500 followers
+const REACH_FLOOR = 0.06;       // Minimum 6% reach for massive accounts
+const REACH_EXPONENT = -0.173;  // Decay rate calibrated for natural engagement curve
+const ANCHOR_FOLLOWERS = 500;   // Minimum follower count
+
 function getReachRate(followers: number): number {
-  if (followers <= 1000) return 0.30;
-  if (followers <= 5000) return 0.25;
-  if (followers <= 20000) return 0.20;
-  if (followers <= 100000) return 0.12;
-  return 0.06;
+  if (followers < ANCHOR_FOLLOWERS) return REACH_ANCHOR;
+  const rate = REACH_ANCHOR * Math.pow(followers / ANCHOR_FOLLOWERS, REACH_EXPONENT);
+  return Math.max(REACH_FLOOR, rate);
 }
 
 function formatImpressions(followers: number | null, isOpenEnded: boolean = false): string {
