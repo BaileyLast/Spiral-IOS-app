@@ -35,7 +35,7 @@ Preferred communication style: Simple, everyday language.
     - `shopify_collections`: Synced collection catalog.
     - `selected_products`: Products selected for Spiral (when using specific/excluded mode).
     - `selected_collections`: Collections selected for Spiral (when using specific/excluded mode).
-    - `orders`: Shopify order tracking with `shopperEmail`, `instagramHandle`, `discountApplied`, `totalPrice`, `fulfillmentStatus`, `fulfilledAt`, `verificationDeadline`, `verificationStatus`.
+    - `orders`: Shopify order tracking with nullable Instagram fields (`instagramHandle`, `instagramUserId`, `followerCount`), discount info, `verificationStatus` (metadata_missing/pending_verification/verified/failed/clawback_complete).
 - **Discount Rules**: Global configuration. Enforces minimum discount (2.5%), non-negative follower counts, valid range ordering, and automatic final bracket configuration (no upper limit).
 - **Spiral Settings**: Single global configuration including:
     - `spiralEnabled`: On/off toggle for entire store
