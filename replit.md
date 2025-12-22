@@ -72,6 +72,39 @@ Preferred communication style: Simple, everyday language.
 - **Drizzle Kit**: Database migration and schema management.
 - **connect-pg-simple**: PostgreSQL session store.
 
+### Verification Lifecycle System
+The verification system tracks Instagram story posts through a multi-stage lifecycle:
+
+1. **pending**: Order placed, awaiting customer to post Instagram story tagging the brand
+2. **story_detected**: Instagram webhook received, story found. 22-hour timer starts.
+3. **verified**: Story confirmed still up after 22 hours. Discount kept.
+4. **failed**: Story removed before 22 hours or never posted. Clawback triggered.
+
+**Key Fields in `verifications` table:**
+- `orderId`: Links to the associated order
+- `instagramUserId`: Unique Instagram ID for matching webhooks
+- `storyMediaId`: Instagram media ID for the detected story
+- `storyDetectedAt`: When the story was first detected
+- `confirmationDueAt`: When the 22-hour check should happen
+- `verifiedAt` / `failedAt`: Final verification timestamps
+- `clawbackTriggered`, `clawbackAmount`, `clawbackRefundId`: Clawback tracking
+
+**Webhook Endpoints:**
+- `GET /webhooks/instagram`: Meta webhook verification (hub.challenge)
+- `POST /webhooks/instagram`: Receives story mention notifications, triggers verification flow
+- `POST /api/verification-check`: Scheduled job to check pending verifications after 22 hours
+
+**Estimated Impressions Formula:**
+Uses smooth power-law curve instead of harsh tiers to ensure impressions always increase with followers:
+- `reachRate = clamp(0.06, 0.30 * (followers/500)^(-0.173))`
+- 30% reach at 500 followers, tapers to ~12% at 100k, floors at 6%
+
 ### Integrations
 - **Shopify OAuth 2.0**: Authorization code grant flow with CSRF protection, HMAC verification, secure token storage, and environment variable configuration.
 - **Instagram OAuth 2.0 (Meta OAuth)**: Three-step authentication for Instagram Business Display API (via Meta for Developers), CSRF protection, automatic Business Account discovery, secure long-lived token storage, and environment variable configuration. Requires `instagram_basic`, `pages_show_list`, `pages_read_engagement` scopes.
+- **Instagram Webhooks**: Story mention detection via Meta webhook subscriptions. Requires webhook URL registration in Meta for Developers console. **Security**: HMAC-SHA256 signature verification using `INSTAGRAM_APP_SECRET` - this secret MUST be configured in production to enforce webhook authentication. Missing signatures or invalid signatures are rejected with 403.
+
+### Production Security Requirements
+- `INSTAGRAM_APP_SECRET`: Required for webhook authentication. When set, all incoming Instagram webhooks must include valid `x-hub-signature-256` headers.
+- `SESSION_SECRET`: Required for secure session management.
+- `SHOPIFY_API_SECRET`: Required for Shopify HMAC verification.

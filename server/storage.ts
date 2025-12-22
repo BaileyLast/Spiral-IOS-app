@@ -6,11 +6,13 @@ import {
   shopifyCollections,
   selectedProducts,
   selectedCollections,
+  orders,
   type StoreSettings, 
   type DiscountTier, 
   type Verification,
   type ShopifyProduct,
   type ShopifyCollection,
+  type Order,
   type InsertStoreSettings,
   type InsertDiscountTier,
   type InsertVerification,
@@ -18,7 +20,7 @@ import {
   type InsertShopifyCollection
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, and, lt, isNull } from "drizzle-orm";
 
 export interface IStorage {
   getStoreSettings(): Promise<StoreSettings | undefined>;
@@ -30,8 +32,20 @@ export interface IStorage {
   updateDiscountTier(id: string, tier: InsertDiscountTier): Promise<DiscountTier>;
   deleteDiscountTier(id: string): Promise<void>;
   replaceAllDiscountTiers(tiers: InsertDiscountTier[]): Promise<DiscountTier[]>;
+  // Verification lifecycle
   getVerifications(): Promise<Verification[]>;
   createVerification(verification: InsertVerification): Promise<Verification>;
+  getVerificationById(id: string): Promise<Verification | undefined>;
+  getVerificationByInstagramUserId(instagramUserId: string, orderId: string): Promise<Verification | undefined>;
+  getPendingVerificationsForCheck(): Promise<Verification[]>;
+  markStoryDetected(verificationId: string, storyMediaId: string, storyUrl: string): Promise<Verification>;
+  markVerified(verificationId: string): Promise<Verification>;
+  markFailed(verificationId: string, reason: string): Promise<Verification>;
+  triggerClawback(verificationId: string, refundId: string): Promise<Verification>;
+  // Orders
+  getOrderByInstagramUserId(instagramUserId: string): Promise<Order | undefined>;
+  updateOrderVerificationStatus(orderId: string, status: string, verificationId?: string): Promise<void>;
+  // Products and Collections
   syncProducts(products: InsertShopifyProduct[]): Promise<ShopifyProduct[]>;
   getProducts(): Promise<ShopifyProduct[]>;
   syncCollections(collections: InsertShopifyCollection[]): Promise<ShopifyCollection[]>;
@@ -186,6 +200,127 @@ export class DatabaseStorage implements IStorage {
       .values(verification)
       .returning();
     return created;
+  }
+
+  async getVerificationById(id: string): Promise<Verification | undefined> {
+    const [verification] = await db
+      .select()
+      .from(verifications)
+      .where(eq(verifications.id, id));
+    return verification;
+  }
+
+  async getVerificationByInstagramUserId(instagramUserId: string, orderId: string): Promise<Verification | undefined> {
+    const [verification] = await db
+      .select()
+      .from(verifications)
+      .where(
+        and(
+          eq(verifications.instagramUserId, instagramUserId),
+          eq(verifications.orderId, orderId)
+        )
+      );
+    return verification;
+  }
+
+  async getPendingVerificationsForCheck(): Promise<Verification[]> {
+    const now = new Date();
+    return await db
+      .select()
+      .from(verifications)
+      .where(
+        and(
+          eq(verifications.status, "story_detected"),
+          lt(verifications.confirmationDueAt, now),
+          isNull(verifications.verifiedAt),
+          isNull(verifications.failedAt)
+        )
+      );
+  }
+
+  async markStoryDetected(verificationId: string, storyMediaId: string, storyUrl: string): Promise<Verification> {
+    const now = new Date();
+    const confirmationDueAt = new Date(now.getTime() + 22 * 60 * 60 * 1000); // 22 hours from now
+    
+    const [updated] = await db
+      .update(verifications)
+      .set({
+        status: "story_detected",
+        storyMediaId,
+        storyUrl,
+        storyDetectedAt: now,
+        confirmationDueAt,
+      })
+      .where(eq(verifications.id, verificationId))
+      .returning();
+    
+    return updated;
+  }
+
+  async markVerified(verificationId: string): Promise<Verification> {
+    const [updated] = await db
+      .update(verifications)
+      .set({
+        status: "verified",
+        verifiedAt: new Date(),
+      })
+      .where(eq(verifications.id, verificationId))
+      .returning();
+    
+    return updated;
+  }
+
+  async markFailed(verificationId: string, reason: string): Promise<Verification> {
+    const [updated] = await db
+      .update(verifications)
+      .set({
+        status: "failed",
+        failedAt: new Date(),
+        failureReason: reason,
+      })
+      .where(eq(verifications.id, verificationId))
+      .returning();
+    
+    return updated;
+  }
+
+  async triggerClawback(verificationId: string, refundId: string): Promise<Verification> {
+    const verification = await this.getVerificationById(verificationId);
+    
+    const [updated] = await db
+      .update(verifications)
+      .set({
+        clawbackTriggered: true,
+        clawbackAmount: verification?.discountAmount || "0",
+        clawbackRefundId: refundId,
+      })
+      .where(eq(verifications.id, verificationId))
+      .returning();
+    
+    return updated;
+  }
+
+  async getOrderByInstagramUserId(instagramUserId: string): Promise<Order | undefined> {
+    const [order] = await db
+      .select()
+      .from(orders)
+      .where(
+        and(
+          eq(orders.instagramUserId, instagramUserId),
+          eq(orders.verificationStatus, "pending_verification")
+        )
+      );
+    return order;
+  }
+
+  async updateOrderVerificationStatus(orderId: string, status: string, verificationId?: string): Promise<void> {
+    await db
+      .update(orders)
+      .set({
+        verificationStatus: status,
+        ...(verificationId && { verificationId }),
+      })
+      .where(eq(orders.id, orderId));
   }
 
   async syncProducts(products: InsertShopifyProduct[]): Promise<ShopifyProduct[]> {

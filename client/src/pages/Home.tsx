@@ -81,9 +81,16 @@ export default function Home() {
   const totalAudienceReach = verifications.reduce((sum, v) => sum + (v.followerCount || 0), 0);
   const totalPosts = verifications.length;
   
-  // Get recent activity (last 5 verifications)
+  // Get recent activity (last 5 verifications) - sort by most recent date available
+  const getVerificationDate = (v: Verification) => {
+    if (v.verifiedAt) return new Date(v.verifiedAt).getTime();
+    if (v.failedAt) return new Date(v.failedAt).getTime();
+    if (v.storyDetectedAt) return new Date(v.storyDetectedAt).getTime();
+    return new Date(v.createdAt).getTime();
+  };
+  
   const recentActivity = [...verifications]
-    .sort((a, b) => new Date(b.verifiedAt).getTime() - new Date(a.verifiedAt).getTime())
+    .sort((a, b) => getVerificationDate(b) - getVerificationDate(a))
     .slice(0, 5);
 
   const getShopifyStatus = () => {
@@ -297,17 +304,22 @@ export default function Home() {
                         </TableCell>
                         <TableCell>
                           <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                            verification.status === "approved" 
+                            verification.status === "verified" 
                               ? "bg-green-100 text-green-700 border border-green-200" 
+                              : verification.status === "story_detected"
+                              ? "bg-blue-100 text-blue-700 border border-blue-200"
                               : verification.status === "pending"
                               ? "bg-yellow-100 text-yellow-700 border border-yellow-200"
                               : "bg-red-100 text-red-700 border border-red-200"
                           }`}>
-                            {verification.status === "approved" ? "Approved" : verification.status === "pending" ? "Pending" : "Rejected"}
+                            {verification.status === "verified" ? "Verified" 
+                              : verification.status === "story_detected" ? "Story Detected"
+                              : verification.status === "pending" ? "Awaiting Story" 
+                              : "Failed"}
                           </span>
                         </TableCell>
                         <TableCell className="text-right text-sm text-muted-foreground" data-testid={`text-time-${verification.id}`}>
-                          {formatDistanceToNow(new Date(verification.verifiedAt), { addSuffix: true })}
+                          {formatDistanceToNow(new Date(getVerificationDate(verification)), { addSuffix: true })}
                         </TableCell>
                       </TableRow>
                     ))}

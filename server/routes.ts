@@ -603,6 +603,307 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============================================
+  // Instagram/Meta Webhook Routes for Story Mentions
+  // ============================================
+
+  // Webhook verification endpoint (Meta requires this for setup)
+  app.get("/webhooks/instagram", (req, res) => {
+    const VERIFY_TOKEN = process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN || 'spiral_verify_token';
+    
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+
+    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+      console.log('Instagram webhook verified successfully');
+      res.status(200).send(challenge);
+    } else {
+      console.error('Instagram webhook verification failed');
+      res.status(403).send('Verification failed');
+    }
+  });
+
+  // Webhook endpoint for receiving story mention notifications
+  app.post("/webhooks/instagram", async (req, res) => {
+    try {
+      // Verify webhook signature using raw body (captured in express.json verify callback)
+      const signature = req.headers['x-hub-signature-256'] as string;
+      const appSecret = process.env.INSTAGRAM_APP_SECRET;
+      
+      // If app secret is configured, signature is REQUIRED
+      if (appSecret) {
+        if (!signature) {
+          console.error('Instagram webhook missing required signature header');
+          return res.status(403).json({ error: 'Missing signature' });
+        }
+        
+        const rawBody = (req as any).rawBody;
+        
+        if (!rawBody) {
+          console.error('Raw body not available for signature verification');
+          return res.status(500).json({ error: 'Server configuration error' });
+        }
+        
+        const expectedSignature = 'sha256=' + crypto
+          .createHmac('sha256', appSecret)
+          .update(rawBody)
+          .digest('hex');
+        
+        // Timing-safe comparison
+        const signatureBuffer = Buffer.from(signature, 'utf8');
+        const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
+        
+        if (signatureBuffer.length !== expectedBuffer.length || 
+            !crypto.timingSafeEqual(signatureBuffer, expectedBuffer)) {
+          console.error('Invalid Instagram webhook signature');
+          console.error('  Received:', signature.substring(0, 30) + '...');
+          console.error('  Expected:', expectedSignature.substring(0, 30) + '...');
+          return res.status(403).json({ error: 'Invalid signature' });
+        }
+        
+        console.log('Instagram webhook signature verified successfully');
+      } else {
+        console.warn('INSTAGRAM_APP_SECRET not configured - skipping signature verification (DEV MODE)');
+      }
+
+      const body = req.body;
+      console.log('Instagram webhook received:', JSON.stringify(body, null, 2));
+
+      // Process story_mentions events
+      if (body.object === 'instagram' && body.entry) {
+        for (const entry of body.entry) {
+          if (entry.messaging) {
+            for (const event of entry.messaging) {
+              // Handle story mention
+              if (event.message?.attachments?.[0]?.type === 'story_mention') {
+                const senderInstagramId = event.sender?.id;
+                const storyMediaId = event.message.attachments[0].payload?.url;
+                
+                if (senderInstagramId) {
+                  await handleStoryMention(senderInstagramId, storyMediaId || '');
+                }
+              }
+            }
+          }
+          
+          // Handle mention events (alternative webhook format)
+          if (entry.changes) {
+            for (const change of entry.changes) {
+              if (change.field === 'mentions' || change.field === 'story_insights') {
+                const mentionData = change.value;
+                const mentionerId = mentionData?.from?.id || mentionData?.media_creator_id;
+                const mediaId = mentionData?.media_id;
+                
+                if (mentionerId) {
+                  await handleStoryMention(mentionerId, mediaId || '');
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Always respond with 200 to acknowledge receipt
+      res.status(200).json({ received: true });
+    } catch (error) {
+      console.error('Error processing Instagram webhook:', error);
+      // Still respond 200 to prevent Meta from retrying
+      res.status(200).json({ received: true });
+    }
+  });
+
+  // Helper function to handle story mentions
+  async function handleStoryMention(instagramUserId: string, storyMediaId: string) {
+    try {
+      console.log(`Processing story mention from Instagram user: ${instagramUserId}`);
+      
+      // Find pending order for this Instagram user
+      const order = await storage.getOrderByInstagramUserId(instagramUserId);
+      
+      if (!order) {
+        console.log(`No pending order found for Instagram user: ${instagramUserId}`);
+        return;
+      }
+
+      // Check if verification already exists for this order
+      const existingVerification = await storage.getVerificationByInstagramUserId(instagramUserId, order.id);
+      
+      // Skip if already processed (story_detected, verified, or failed)
+      if (existingVerification && existingVerification.status !== 'pending') {
+        console.log(`Verification already in progress/completed for order: ${order.id}, status: ${existingVerification.status}`);
+        return;
+      }
+      
+      // Also check order verification status to prevent reprocessing
+      if (order.verificationStatus !== 'pending_verification') {
+        console.log(`Order ${order.id} already has verification status: ${order.verificationStatus}`);
+        return;
+      }
+
+      let verificationId: string;
+      
+      if (existingVerification) {
+        // Update existing verification
+        const updated = await storage.markStoryDetected(
+          existingVerification.id,
+          storyMediaId,
+          `https://instagram.com/stories/${instagramUserId}/${storyMediaId}`
+        );
+        verificationId = updated.id;
+      } else {
+        // Create new verification record
+        const verification = await storage.createVerification({
+          orderId: order.id,
+          shopperEmail: order.shopperEmail,
+          instagramHandle: order.instagramHandle,
+          instagramUserId: order.instagramUserId,
+          followerCount: order.followerCount,
+          discountAmount: order.discountAmount,
+          status: 'pending',
+        });
+        
+        // Mark story detected and start 22-hour timer
+        const updated = await storage.markStoryDetected(
+          verification.id,
+          storyMediaId,
+          `https://instagram.com/stories/${instagramUserId}/${storyMediaId}`
+        );
+        verificationId = updated.id;
+      }
+
+      // Update order to link verification (keep order status as pending_verification until final check)
+      await storage.updateOrderVerificationStatus(order.id, 'pending_verification', verificationId);
+      
+      console.log(`Story detected for order ${order.id}, verification ${verificationId}. 22-hour timer started.`);
+    } catch (error) {
+      console.error('Error handling story mention:', error);
+    }
+  }
+
+  // ============================================
+  // Verification Check Job (run periodically)
+  // ============================================
+  
+  // Endpoint to trigger verification checks (call via cron/scheduler)
+  app.post("/api/verification-check", async (req, res) => {
+    try {
+      const pendingVerifications = await storage.getPendingVerificationsForCheck();
+      console.log(`Found ${pendingVerifications.length} verifications to check`);
+      
+      const results = {
+        checked: 0,
+        verified: 0,
+        failed: 0,
+      };
+
+      for (const verification of pendingVerifications) {
+        results.checked++;
+        
+        // Check if story still exists on Instagram
+        const storyExists = await checkStoryExists(verification);
+        
+        if (storyExists) {
+          await storage.markVerified(verification.id);
+          await storage.updateOrderVerificationStatus(verification.orderId, 'verified');
+          results.verified++;
+          console.log(`Verification ${verification.id} VERIFIED - story still up after 22 hours`);
+        } else {
+          await storage.markFailed(verification.id, 'Story removed before 22-hour verification window');
+          await storage.updateOrderVerificationStatus(verification.orderId, 'failed');
+          
+          // Trigger clawback
+          const refundId = await triggerClawback(verification);
+          if (refundId) {
+            await storage.triggerClawback(verification.id, refundId);
+            await storage.updateOrderVerificationStatus(verification.orderId, 'clawback_complete');
+          }
+          
+          results.failed++;
+          console.log(`Verification ${verification.id} FAILED - story was removed`);
+        }
+      }
+
+      res.json({ success: true, results });
+    } catch (error) {
+      console.error('Error running verification checks:', error);
+      res.status(500).json({ error: 'Failed to run verification checks' });
+    }
+  });
+
+  // Check if Instagram story still exists
+  async function checkStoryExists(verification: any): Promise<boolean> {
+    try {
+      const settings = await storage.getStoreSettings();
+      
+      if (!settings?.instagramAccessToken || !verification.storyMediaId) {
+        console.log('Missing Instagram access token or story media ID');
+        return false;
+      }
+
+      // Use Instagram Graph API to check if story exists
+      const url = `https://graph.instagram.com/${verification.storyMediaId}?fields=id,media_type&access_token=${settings.instagramAccessToken}`;
+      
+      const response = await fetch(url);
+      
+      if (response.ok) {
+        const data = await response.json();
+        return !!data.id;
+      } else {
+        // 404 or error means story no longer exists
+        const errorData = await response.json().catch(() => ({}));
+        console.log('Story check API response:', response.status, errorData);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error checking story existence:', error);
+      return false;
+    }
+  }
+
+  // Trigger Shopify clawback/refund
+  // NOTE: This is a placeholder implementation. Full Shopify refund integration requires:
+  // 1. Storing the Shopify order ID in the orders table
+  // 2. Using the Shopify Admin API to create a refund or adjustment
+  // 3. Handling refund failures and retries
+  async function triggerClawback(verification: any): Promise<string | null> {
+    try {
+      const settings = await storage.getStoreSettings();
+      
+      if (!settings?.shopDomain || !settings?.accessToken) {
+        console.error('Shopify not connected - cannot trigger clawback');
+        return null;
+      }
+
+      const discountAmount = parseFloat(verification.discountAmount || '0');
+      
+      if (discountAmount <= 0) {
+        console.log('No discount amount to claw back');
+        return null;
+      }
+
+      // Log the clawback for now - actual Shopify refund API requires order ID lookup
+      console.log(`CLAWBACK TRIGGERED for verification ${verification.id}`);
+      console.log(`  - Order ID: ${verification.orderId}`);
+      console.log(`  - Amount: $${discountAmount.toFixed(2)}`);
+      console.log(`  - Reason: Story removed before 22-hour verification`);
+      
+      // Generate tracking ID for the clawback record
+      const clawbackId = `clawback_${verification.id}_${Date.now()}`;
+      console.log(`  - Clawback ID: ${clawbackId}`);
+      
+      // TODO: Full Shopify refund implementation
+      // 1. Look up Shopify order by orderId
+      // 2. POST to /admin/api/2024-01/orders/{shopify_order_id}/refunds.json
+      // 3. Handle response and store refund ID
+      
+      return clawbackId;
+    } catch (error) {
+      console.error('Error triggering clawback:', error);
+      return null;
+    }
+  }
+
   const httpServer = createServer(app);
   return httpServer;
 }

@@ -27,14 +27,36 @@ export const discountTiers = pgTable("discount_tiers", {
   discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }).notNull(),
 });
 
+// Verification status lifecycle:
+// - pending: Order placed, waiting for customer to post story
+// - story_detected: Story found tagging brand, 22-hour timer started
+// - verified: Story confirmed still up after 22 hours, discount kept
+// - failed: Story not found or removed before 22 hours, clawback triggered
 export const verifications = pgTable("verifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").notNull(),
   shopperEmail: text("shopper_email").notNull(),
   instagramHandle: text("instagram_handle").notNull(),
+  instagramUserId: text("instagram_user_id").notNull(),
   followerCount: integer("follower_count").notNull(),
-  postUrl: text("post_url").notNull(),
-  status: text("status").notNull(),
-  verifiedAt: timestamp("verified_at").notNull().defaultNow(),
+  discountAmount: numeric("discount_amount", { precision: 10, scale: 2 }).notNull(),
+  // Verification lifecycle status
+  status: text("status").notNull().default("pending"),
+  // Story tracking
+  storyMediaId: text("story_media_id"),
+  storyUrl: text("story_url"),
+  storyDetectedAt: timestamp("story_detected_at"),
+  confirmationDueAt: timestamp("confirmation_due_at"),
+  // Final verification
+  verifiedAt: timestamp("verified_at"),
+  failedAt: timestamp("failed_at"),
+  failureReason: text("failure_reason"),
+  // Clawback tracking
+  clawbackTriggered: boolean("clawback_triggered").notNull().default(false),
+  clawbackAmount: numeric("clawback_amount", { precision: 10, scale: 2 }),
+  clawbackRefundId: text("clawback_refund_id"),
+  // Timestamps
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const shopifyProducts = pgTable("shopify_products", {
@@ -73,14 +95,19 @@ export const orders = pgTable("orders", {
   shopifyOrderId: text("shopify_order_id").notNull().unique(),
   shopperEmail: text("shopper_email").notNull(),
   instagramHandle: text("instagram_handle").notNull(),
+  instagramUserId: text("instagram_user_id").notNull(),
   followerCount: integer("follower_count").notNull(),
   discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }).notNull(),
   orderTotal: numeric("order_total", { precision: 10, scale: 2 }).notNull(),
   discountAmount: numeric("discount_amount", { precision: 10, scale: 2 }).notNull(),
+  // Order status: pending, fulfilled, delivered
   status: text("status").notNull().default("pending"),
   fulfilledAt: timestamp("fulfilled_at"),
+  deliveredAt: timestamp("delivered_at"),
   postDeadline: timestamp("post_deadline"),
-  postedAt: timestamp("posted_at"),
+  // Verification status: pending_verification, verified, failed, clawback_complete
+  verificationStatus: text("verification_status").notNull().default("pending_verification"),
+  verificationId: varchar("verification_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -99,7 +126,14 @@ export const insertDiscountTierSchema = createInsertSchema(discountTiers)
       path: ["toFollowers"],
     }
   );
-export const insertVerificationSchema = createInsertSchema(verifications).omit({ id: true, verifiedAt: true });
+export const insertVerificationSchema = createInsertSchema(verifications).omit({ 
+  id: true, 
+  createdAt: true,
+  verifiedAt: true,
+  failedAt: true,
+  storyDetectedAt: true,
+  confirmationDueAt: true,
+});
 export const insertShopifyProductSchema = createInsertSchema(shopifyProducts).omit({ id: true, syncedAt: true });
 export const insertShopifyCollectionSchema = createInsertSchema(shopifyCollections).omit({ id: true, syncedAt: true });
 export const insertSelectedProductSchema = createInsertSchema(selectedProducts).omit({ id: true });
