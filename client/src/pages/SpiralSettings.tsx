@@ -59,6 +59,20 @@ function formatImpressions(followers: number | null, isOpenEnded: boolean = fals
   return impressions.toLocaleString();
 }
 
+// Format number with commas (e.g., 1000 -> "1,000")
+function formatWithCommas(value: number | null): string {
+  if (value === null || value === undefined) return "";
+  return value.toLocaleString();
+}
+
+// Parse comma-formatted string to number (e.g., "1,000" -> 1000)
+function parseCommaNumber(value: string): number | null {
+  const cleaned = value.replace(/,/g, "").trim();
+  if (cleaned === "") return null;
+  const num = parseInt(cleaned, 10);
+  return isNaN(num) ? null : num;
+}
+
 export default function SpiralSettings() {
   const { toast } = useToast();
   const hasHydratedRef = useRef(false);
@@ -479,20 +493,22 @@ export default function SpiralSettings() {
                         <td className="px-4 py-3">
                           {index === 0 ? (
                             <Input
-                              type="number"
+                              type="text"
                               className="w-32"
-                              value={bracket.fromFollowers}
-                              onChange={(e) =>
-                                handleBracketChange(index, "fromFollowers", Number(e.target.value))
-                              }
-                              min={0}
+                              value={formatWithCommas(bracket.fromFollowers)}
+                              onChange={(e) => {
+                                const num = parseCommaNumber(e.target.value);
+                                if (num !== null) {
+                                  handleBracketChange(index, "fromFollowers", num);
+                                }
+                              }}
                               data-testid={`input-from-${index}`}
                             />
                           ) : (
                             <Input
-                              type="number"
+                              type="text"
                               className="w-32"
-                              value={bracket.fromFollowers}
+                              value={formatWithCommas(bracket.fromFollowers)}
                               disabled
                               data-testid={`input-from-${index}`}
                             />
@@ -503,17 +519,13 @@ export default function SpiralSettings() {
                             <span className="text-sm text-muted-foreground px-3">No limit</span>
                           ) : (
                             <Input
-                              type="number"
+                              type="text"
                               className="w-32"
-                              value={bracket.toFollowers || ""}
-                              onChange={(e) =>
-                                handleBracketChange(
-                                  index,
-                                  "toFollowers",
-                                  e.target.value ? Number(e.target.value) : null
-                                )
-                              }
-                              min={bracket.fromFollowers + 1}
+                              value={formatWithCommas(bracket.toFollowers)}
+                              onChange={(e) => {
+                                const num = parseCommaNumber(e.target.value);
+                                handleBracketChange(index, "toFollowers", num);
+                              }}
                               data-testid={`input-to-${index}`}
                             />
                           )}
