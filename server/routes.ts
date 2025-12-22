@@ -460,6 +460,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       console.log('Shopify access token obtained for shop:', shop);
+      
+      // Register webhooks for order tracking
+      // Use dedicated base URL or derive from redirect URI
+      const baseUrl = process.env.SHOPIFY_APP_BASE_URL || 
+        process.env.SHOPIFY_REDIRECT_URI?.replace('/shopify/callback', '');
+      
+      if (baseUrl) {
+        try {
+          // Register orders/create webhook
+          const ordersWebhookRes = await fetch(`https://${shop}/admin/api/2024-01/webhooks.json`, {
+            method: 'POST',
+            headers: {
+              'X-Shopify-Access-Token': data.access_token,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              webhook: {
+                topic: 'orders/create',
+                address: `${baseUrl}/webhooks/shopify/orders-create`,
+                format: 'json',
+              }
+            }),
+          });
+          
+          if (ordersWebhookRes.ok) {
+            console.log('Registered orders/create webhook');
+          } else {
+            const errorText = await ordersWebhookRes.text();
+            console.error('Failed to register orders/create webhook:', ordersWebhookRes.status, errorText);
+          }
+          
+          // Register fulfillments/create webhook
+          const fulfillmentsWebhookRes = await fetch(`https://${shop}/admin/api/2024-01/webhooks.json`, {
+            method: 'POST',
+            headers: {
+              'X-Shopify-Access-Token': data.access_token,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              webhook: {
+                topic: 'fulfillments/create',
+                address: `${baseUrl}/webhooks/shopify/fulfillments-create`,
+                format: 'json',
+              }
+            }),
+          });
+          
+          if (fulfillmentsWebhookRes.ok) {
+            console.log('Registered fulfillments/create webhook');
+          } else {
+            const errorText = await fulfillmentsWebhookRes.text();
+            console.error('Failed to register fulfillments/create webhook:', fulfillmentsWebhookRes.status, errorText);
+          }
+        } catch (webhookError) {
+          console.error('Failed to register webhooks (non-fatal):', webhookError);
+        }
+      } else {
+        console.warn('No base URL configured for webhook registration');
+      }
+      
       res.send('✅ Spiral successfully connected to your Shopify store! You can close this window and return to the dashboard.');
     } catch (error) {
       console.error("Error during Shopify OAuth:", error);
@@ -600,6 +660,208 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error during Instagram OAuth:", error);
       res.status(500).send("Failed to complete Instagram authentication");
+    }
+  });
+
+  // ============================================
+  // Shopify Webhook Routes for Order Tracking
+  // ============================================
+
+  // Verify Shopify webhook HMAC signature
+  function verifyShopifyWebhook(req: any): boolean {
+    const hmac = req.headers['x-shopify-hmac-sha256'] as string;
+    const secret = process.env.SHOPIFY_API_SECRET;
+    
+    if (!secret) {
+      console.warn('SHOPIFY_API_SECRET not configured - skipping webhook verification (DEV MODE)');
+      return true;
+    }
+    
+    if (!hmac) {
+      console.error('Shopify webhook missing HMAC header');
+      return false;
+    }
+    
+    const rawBody = req.rawBody;
+    if (!rawBody) {
+      console.error('Raw body not available for Shopify webhook verification');
+      return false;
+    }
+    
+    const computedHmac = crypto
+      .createHmac('sha256', secret)
+      .update(rawBody)
+      .digest('base64');
+    
+    // Timing-safe comparison
+    const hmacBuffer = Buffer.from(hmac, 'utf8');
+    const computedBuffer = Buffer.from(computedHmac, 'utf8');
+    
+    if (hmacBuffer.length !== computedBuffer.length ||
+        !crypto.timingSafeEqual(hmacBuffer, computedBuffer)) {
+      console.error('Invalid Shopify webhook HMAC');
+      return false;
+    }
+    
+    return true;
+  }
+
+  // Webhook endpoint for Shopify order creation
+  app.post("/webhooks/shopify/orders-create", async (req, res) => {
+    try {
+      // Verify webhook signature (403 per Shopify webhook docs)
+      if (!verifyShopifyWebhook(req)) {
+        return res.status(403).json({ error: 'Invalid webhook signature' });
+      }
+      
+      const order = req.body;
+      console.log('Shopify order webhook received:', order.id, order.name);
+      
+      // Check if this order already exists (idempotency)
+      const existingOrder = await storage.getOrderByShopifyOrderId(order.id.toString());
+      if (existingOrder) {
+        console.log('Order already processed:', order.id);
+        return res.status(200).json({ status: 'already_processed' });
+      }
+      
+      // Check if this order has a Spiral discount applied
+      // Look for discount codes or line item properties that indicate Spiral
+      const spiralDiscount = order.discount_codes?.find((dc: any) => 
+        dc.code?.toLowerCase().includes('spiral') || 
+        dc.code?.toLowerCase().includes('instagram')
+      );
+      
+      // Also check for note attributes or line item properties
+      const spiralNote = order.note_attributes?.find((attr: any) =>
+        attr.name?.toLowerCase().includes('spiral') ||
+        attr.name?.toLowerCase().includes('instagram')
+      );
+      
+      // Extract Instagram info from note attributes or metafields
+      const instagramHandleAttr = order.note_attributes?.find((attr: any) =>
+        attr.name?.toLowerCase() === 'instagram_handle' ||
+        attr.name?.toLowerCase() === 'instagram'
+      );
+      
+      const instagramUserIdAttr = order.note_attributes?.find((attr: any) =>
+        attr.name?.toLowerCase() === 'instagram_user_id'
+      );
+      
+      const followerCountAttr = order.note_attributes?.find((attr: any) =>
+        attr.name?.toLowerCase() === 'follower_count'
+      );
+      
+      // Skip if no Spiral-related data found
+      if (!spiralDiscount && !spiralNote && !instagramHandleAttr) {
+        console.log('No Spiral discount detected for order:', order.id);
+        return res.status(200).json({ status: 'not_spiral_order' });
+      }
+      
+      // Extract and validate Instagram fields
+      const instagramHandle = instagramHandleAttr?.value;
+      const instagramUserId = instagramUserIdAttr?.value;
+      
+      // Require complete Instagram data for Spiral orders
+      // The checkout extension should ensure this data is present
+      if (!instagramHandle || !instagramUserId) {
+        console.warn('Spiral order missing required Instagram data - skipping:', order.id, {
+          hasHandle: !!instagramHandle,
+          hasUserId: !!instagramUserId,
+          note: 'Checkout extension should ensure Instagram data is collected before discount is applied'
+        });
+        return res.status(200).json({ 
+          status: 'skipped_missing_instagram_data',
+          orderId: order.id,
+          message: 'Order has Spiral discount but missing required Instagram handle or user ID'
+        });
+      }
+      
+      // Extract discount amount
+      const discountAmount = parseFloat(order.total_discounts || '0');
+      const orderTotal = parseFloat(order.total_price || '0');
+      const discountPercent = orderTotal > 0 
+        ? (discountAmount / (orderTotal + discountAmount)) * 100 
+        : 0;
+      
+      // Get store settings for posting window
+      const settings = await storage.getStoreSettings();
+      const postingWindowDays = settings?.postingWindowDays || 7;
+      
+      // Calculate post deadline (from estimated delivery or order date)
+      const orderDate = new Date(order.created_at);
+      const postDeadline = new Date(orderDate);
+      postDeadline.setDate(postDeadline.getDate() + postingWindowDays);
+      
+      // Create order record with proper types
+      const newOrder = await storage.createOrder({
+        shopifyOrderId: order.id.toString(),
+        shopperEmail: order.email || order.contact_email || '',
+        instagramHandle: instagramHandle,
+        instagramUserId: instagramUserId,
+        followerCount: parseInt(followerCountAttr?.value || '0', 10),
+        discountPercent: String(discountPercent.toFixed(2)),
+        orderTotal: String(orderTotal.toFixed(2)),
+        discountAmount: String(discountAmount.toFixed(2)),
+        status: 'pending',
+        postDeadline: postDeadline,
+        verificationStatus: 'pending_verification',
+      });
+      
+      console.log('Created Spiral order:', newOrder.id, 'for Shopify order:', order.id);
+      
+      // Create verification record
+      const verification = await storage.createVerification({
+        orderId: newOrder.id,
+        shopperEmail: order.email || order.contact_email || '',
+        instagramHandle: instagramHandle,
+        instagramUserId: instagramUserId,
+        followerCount: parseInt(followerCountAttr?.value || '0', 10),
+        discountAmount: String(discountAmount.toFixed(2)),
+        status: 'pending',
+      });
+      
+      // Link verification to order
+      await storage.updateOrderVerificationStatus(newOrder.id, 'pending_verification', verification.id);
+      
+      console.log('Created verification record:', verification.id);
+      
+      res.status(200).json({ status: 'processed', orderId: newOrder.id });
+    } catch (error) {
+      console.error('Error processing Shopify order webhook:', error);
+      res.status(500).json({ error: 'Failed to process order' });
+    }
+  });
+
+  // Webhook for order fulfillment updates
+  // TODO: Implement full order status and postDeadline updates when fulfillment is created
+  app.post("/webhooks/shopify/fulfillments-create", async (req, res) => {
+    try {
+      if (!verifyShopifyWebhook(req)) {
+        return res.status(403).json({ error: 'Invalid webhook signature' });
+      }
+      
+      const fulfillment = req.body;
+      console.log('Shopify fulfillment webhook received:', fulfillment.order_id);
+      
+      // Find the order and update its status
+      const order = await storage.getOrderByShopifyOrderId(fulfillment.order_id?.toString());
+      if (order) {
+        // Update order status and recalculate post deadline based on delivery
+        const settings = await storage.getStoreSettings();
+        const postingWindowDays = settings?.postingWindowDays || 7;
+        const now = new Date();
+        const postDeadline = new Date(now);
+        postDeadline.setDate(postDeadline.getDate() + postingWindowDays);
+        
+        // Update order with fulfillment info
+        // Note: Would need to add updateOrder method for full implementation
+        console.log('Order fulfilled:', order.id, 'New post deadline:', postDeadline);
+      }
+      
+      res.status(200).json({ status: 'processed' });
+    } catch (error) {
+      console.error('Error processing fulfillment webhook:', error);
+      res.status(500).json({ error: 'Failed to process fulfillment' });
     }
   });
 

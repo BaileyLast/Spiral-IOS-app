@@ -17,7 +17,8 @@ import {
   type InsertDiscountTier,
   type InsertVerification,
   type InsertShopifyProduct,
-  type InsertShopifyCollection
+  type InsertShopifyCollection,
+  type InsertOrder
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, inArray, and, lt, isNull } from "drizzle-orm";
@@ -43,6 +44,8 @@ export interface IStorage {
   markFailed(verificationId: string, reason: string): Promise<Verification>;
   triggerClawback(verificationId: string, refundId: string): Promise<Verification>;
   // Orders
+  createOrder(order: InsertOrder): Promise<Order>;
+  getOrderByShopifyOrderId(shopifyOrderId: string): Promise<Order | undefined>;
   getOrderByInstagramUserId(instagramUserId: string): Promise<Order | undefined>;
   updateOrderVerificationStatus(orderId: string, status: string, verificationId?: string): Promise<void>;
   // Products and Collections
@@ -298,6 +301,22 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     return updated;
+  }
+
+  async createOrder(order: InsertOrder): Promise<Order> {
+    const [created] = await db
+      .insert(orders)
+      .values(order)
+      .returning();
+    return created;
+  }
+
+  async getOrderByShopifyOrderId(shopifyOrderId: string): Promise<Order | undefined> {
+    const [order] = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.shopifyOrderId, shopifyOrderId));
+    return order;
   }
 
   async getOrderByInstagramUserId(instagramUserId: string): Promise<Order | undefined> {

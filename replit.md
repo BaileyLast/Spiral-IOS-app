@@ -92,7 +92,16 @@ The verification system tracks Instagram story posts through a multi-stage lifec
 **Webhook Endpoints:**
 - `GET /webhooks/instagram`: Meta webhook verification (hub.challenge)
 - `POST /webhooks/instagram`: Receives story mention notifications, triggers verification flow
+- `POST /webhooks/shopify/orders-create`: Receives Shopify order creation events, creates order and verification records
+- `POST /webhooks/shopify/fulfillments-create`: Receives fulfillment events (TODO: update post deadline based on delivery)
 - `POST /api/verification-check`: Scheduled job to check pending verifications after 22 hours
+
+**Shopify Order Flow:**
+1. Customer checks out with Spiral discount (discount code containing "spiral" or "instagram")
+2. Shopify sends order webhook with note_attributes containing Instagram data
+3. Spiral creates order record and verification record (if Instagram data present)
+4. System awaits customer Instagram story post
+5. Instagram webhook detects story mention → 22-hour verification timer starts
 
 **Estimated Impressions Formula:**
 Uses smooth power-law curve instead of harsh tiers to ensure impressions always increase with followers:
