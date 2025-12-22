@@ -757,24 +757,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(200).json({ status: 'not_spiral_order' });
       }
       
-      // Extract and validate Instagram fields
-      const instagramHandle = instagramHandleAttr?.value;
-      const instagramUserId = instagramUserIdAttr?.value;
-      
-      // Require complete Instagram data for Spiral orders
-      // The checkout extension should ensure this data is present
-      if (!instagramHandle || !instagramUserId) {
-        console.warn('Spiral order missing required Instagram data - skipping:', order.id, {
-          hasHandle: !!instagramHandle,
-          hasUserId: !!instagramUserId,
-          note: 'Checkout extension should ensure Instagram data is collected before discount is applied'
-        });
-        return res.status(200).json({ 
-          status: 'skipped_missing_instagram_data',
-          orderId: order.id,
-          message: 'Order has Spiral discount but missing required Instagram handle or user ID'
-        });
-      }
+      // Extract Instagram fields (nullable - may be missing for orders needing remediation)
+      const instagramHandle = instagramHandleAttr?.value || null;
+      const instagramUserId = instagramUserIdAttr?.value || null;
+      const followerCount = followerCountAttr?.value ? parseInt(followerCountAttr.value, 10) : null;
+      const hasCompleteInstagramData = !!instagramHandle && !!instagramUserId;
       
       // Extract discount amount
       const discountAmount = parseFloat(order.total_discounts || '0');
@@ -792,38 +779,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const postDeadline = new Date(orderDate);
       postDeadline.setDate(postDeadline.getDate() + postingWindowDays);
       
-      // Create order record with proper types
+      // Determine initial verification status based on available metadata
+      const initialVerificationStatus = hasCompleteInstagramData 
+        ? 'pending_verification' 
+        : 'metadata_missing';
+      
+      // Create order record (always persist, even without complete Instagram data)
       const newOrder = await storage.createOrder({
         shopifyOrderId: order.id.toString(),
         shopperEmail: order.email || order.contact_email || '',
         instagramHandle: instagramHandle,
         instagramUserId: instagramUserId,
-        followerCount: parseInt(followerCountAttr?.value || '0', 10),
+        followerCount: followerCount,
         discountPercent: String(discountPercent.toFixed(2)),
         orderTotal: String(orderTotal.toFixed(2)),
         discountAmount: String(discountAmount.toFixed(2)),
         status: 'pending',
         postDeadline: postDeadline,
-        verificationStatus: 'pending_verification',
+        verificationStatus: initialVerificationStatus,
       });
       
-      console.log('Created Spiral order:', newOrder.id, 'for Shopify order:', order.id);
+      console.log('Created Spiral order:', newOrder.id, 'for Shopify order:', order.id, 
+        hasCompleteInstagramData ? '(with Instagram data)' : '(MISSING Instagram data - needs remediation)');
       
-      // Create verification record
-      const verification = await storage.createVerification({
-        orderId: newOrder.id,
-        shopperEmail: order.email || order.contact_email || '',
-        instagramHandle: instagramHandle,
-        instagramUserId: instagramUserId,
-        followerCount: parseInt(followerCountAttr?.value || '0', 10),
-        discountAmount: String(discountAmount.toFixed(2)),
-        status: 'pending',
-      });
-      
-      // Link verification to order
-      await storage.updateOrderVerificationStatus(newOrder.id, 'pending_verification', verification.id);
-      
-      console.log('Created verification record:', verification.id);
+      // Create verification record only if we have complete Instagram data
+      if (hasCompleteInstagramData) {
+        const verification = await storage.createVerification({
+          orderId: newOrder.id,
+          shopperEmail: order.email || order.contact_email || '',
+          instagramHandle: instagramHandle,
+          instagramUserId: instagramUserId,
+          followerCount: followerCount || 0,
+          discountAmount: String(discountAmount.toFixed(2)),
+          status: 'pending',
+        });
+        
+        // Link verification to order
+        await storage.updateOrderVerificationStatus(newOrder.id, 'pending_verification', verification.id);
+        
+        console.log('Created verification record:', verification.id);
+      } else {
+        console.warn('Order requires manual remediation to collect Instagram data:', newOrder.id);
+      }
       
       res.status(200).json({ status: 'processed', orderId: newOrder.id });
     } catch (error) {

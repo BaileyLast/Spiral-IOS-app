@@ -94,9 +94,9 @@ export const orders = pgTable("orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   shopifyOrderId: text("shopify_order_id").notNull().unique(),
   shopperEmail: text("shopper_email").notNull(),
-  instagramHandle: text("instagram_handle").notNull(),
-  instagramUserId: text("instagram_user_id").notNull(),
-  followerCount: integer("follower_count").notNull(),
+  instagramHandle: text("instagram_handle"),
+  instagramUserId: text("instagram_user_id"),
+  followerCount: integer("follower_count"),
   discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }).notNull(),
   orderTotal: numeric("order_total", { precision: 10, scale: 2 }).notNull(),
   discountAmount: numeric("discount_amount", { precision: 10, scale: 2 }).notNull(),
@@ -105,8 +105,8 @@ export const orders = pgTable("orders", {
   fulfilledAt: timestamp("fulfilled_at"),
   deliveredAt: timestamp("delivered_at"),
   postDeadline: timestamp("post_deadline"),
-  // Verification status: pending_verification, verified, failed, clawback_complete
-  verificationStatus: text("verification_status").notNull().default("pending_verification"),
+  // Verification status: metadata_missing, pending_verification, verified, failed, clawback_complete
+  verificationStatus: text("verification_status").notNull().default("metadata_missing"),
   verificationId: varchar("verification_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
