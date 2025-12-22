@@ -6,18 +6,21 @@ import {
   shopifyCollections,
   selectedProducts,
   selectedCollections,
+  spiralCustomers,
   orders,
   type StoreSettings, 
   type DiscountTier, 
   type Verification,
   type ShopifyProduct,
   type ShopifyCollection,
+  type SpiralCustomer,
   type Order,
   type InsertStoreSettings,
   type InsertDiscountTier,
   type InsertVerification,
   type InsertShopifyProduct,
   type InsertShopifyCollection,
+  type InsertSpiralCustomer,
   type InsertOrder
 } from "@shared/schema";
 import { db } from "./db";
@@ -48,6 +51,7 @@ export interface IStorage {
   getOrderByShopifyOrderId(shopifyOrderId: string): Promise<Order | undefined>;
   getOrderByInstagramUserId(instagramUserId: string): Promise<Order | undefined>;
   updateOrderVerificationStatus(orderId: string, status: string, verificationId?: string): Promise<void>;
+  updateOrderFulfillment(orderId: string, fulfilledAt: Date, postDeadline: Date): Promise<Order>;
   // Products and Collections
   syncProducts(products: InsertShopifyProduct[]): Promise<ShopifyProduct[]>;
   getProducts(): Promise<ShopifyProduct[]>;
@@ -57,6 +61,12 @@ export interface IStorage {
   getSelectedCollections(): Promise<ShopifyCollection[]>;
   setSelectedProducts(productIds: string[]): Promise<void>;
   setSelectedCollections(collectionIds: string[]): Promise<void>;
+  // Spiral Customers
+  createSpiralCustomer(customer: InsertSpiralCustomer): Promise<SpiralCustomer>;
+  getSpiralCustomerByEmail(email: string): Promise<SpiralCustomer | undefined>;
+  getSpiralCustomerById(id: string): Promise<SpiralCustomer | undefined>;
+  updateSpiralCustomerFollowerCount(id: string, followerCount: number): Promise<SpiralCustomer>;
+  updateSpiralCustomerLastLogin(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -342,6 +352,19 @@ export class DatabaseStorage implements IStorage {
       .where(eq(orders.id, orderId));
   }
 
+  async updateOrderFulfillment(orderId: string, fulfilledAt: Date, postDeadline: Date): Promise<Order> {
+    const [updated] = await db
+      .update(orders)
+      .set({
+        status: 'fulfilled',
+        fulfilledAt,
+        postDeadline,
+      })
+      .where(eq(orders.id, orderId))
+      .returning();
+    return updated;
+  }
+
   async syncProducts(products: InsertShopifyProduct[]): Promise<ShopifyProduct[]> {
     await db.delete(shopifyProducts);
     
@@ -430,6 +453,49 @@ export class DatabaseStorage implements IStorage {
         .insert(selectedCollections)
         .values(shopifyCollectionIds.map(collectionId => ({ collectionId })));
     }
+  }
+
+  async createSpiralCustomer(customer: InsertSpiralCustomer): Promise<SpiralCustomer> {
+    const [created] = await db
+      .insert(spiralCustomers)
+      .values(customer)
+      .returning();
+    return created;
+  }
+
+  async getSpiralCustomerByEmail(email: string): Promise<SpiralCustomer | undefined> {
+    const [customer] = await db
+      .select()
+      .from(spiralCustomers)
+      .where(eq(spiralCustomers.email, email.toLowerCase()));
+    return customer;
+  }
+
+  async getSpiralCustomerById(id: string): Promise<SpiralCustomer | undefined> {
+    const [customer] = await db
+      .select()
+      .from(spiralCustomers)
+      .where(eq(spiralCustomers.id, id));
+    return customer;
+  }
+
+  async updateSpiralCustomerFollowerCount(id: string, followerCount: number): Promise<SpiralCustomer> {
+    const [updated] = await db
+      .update(spiralCustomers)
+      .set({
+        followerCount,
+        followerCountUpdatedAt: new Date(),
+      })
+      .where(eq(spiralCustomers.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateSpiralCustomerLastLogin(id: string): Promise<void> {
+    await db
+      .update(spiralCustomers)
+      .set({ lastLoginAt: new Date() })
+      .where(eq(spiralCustomers.id, id));
   }
 }
 

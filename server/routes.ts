@@ -751,16 +751,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         attr.name?.toLowerCase() === 'follower_count'
       );
       
+      // Extract Spiral customer ID (from checkout extension)
+      const spiralCustomerIdAttr = order.note_attributes?.find((attr: any) =>
+        attr.name?.toLowerCase() === 'spiral_customer_id'
+      );
+      
       // Skip if no Spiral-related data found
-      if (!spiralDiscount && !spiralNote && !instagramHandleAttr) {
+      if (!spiralDiscount && !spiralNote && !instagramHandleAttr && !spiralCustomerIdAttr) {
         console.log('No Spiral discount detected for order:', order.id);
         return res.status(200).json({ status: 'not_spiral_order' });
       }
       
+      // Extract Spiral customer ID if available
+      const spiralCustomerId = spiralCustomerIdAttr?.value || null;
+      
       // Extract Instagram fields (nullable - may be missing for orders needing remediation)
-      const instagramHandle = instagramHandleAttr?.value || null;
-      const instagramUserId = instagramUserIdAttr?.value || null;
-      const followerCount = followerCountAttr?.value ? parseInt(followerCountAttr.value, 10) : null;
+      let instagramHandle = instagramHandleAttr?.value || null;
+      let instagramUserId = instagramUserIdAttr?.value || null;
+      let followerCount = followerCountAttr?.value ? parseInt(followerCountAttr.value, 10) : null;
+      
+      // If we have a Spiral customer ID, fetch their data
+      if (spiralCustomerId && (!instagramHandle || !instagramUserId)) {
+        const customer = await storage.getSpiralCustomerById(spiralCustomerId);
+        if (customer) {
+          instagramHandle = instagramHandle || customer.instagramHandle;
+          instagramUserId = instagramUserId || customer.instagramUserId;
+          followerCount = followerCount ?? customer.followerCount;
+        }
+      }
+      
       const hasCompleteInstagramData = !!instagramHandle && !!instagramUserId;
       
       // Extract discount amount
@@ -788,6 +807,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const newOrder = await storage.createOrder({
         shopifyOrderId: order.id.toString(),
         shopperEmail: order.email || order.contact_email || '',
+        spiralCustomerId: spiralCustomerId,
         instagramHandle: instagramHandle,
         instagramUserId: instagramUserId,
         followerCount: followerCount,
@@ -830,7 +850,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Webhook for order fulfillment updates
-  // TODO: Implement full order status and postDeadline updates when fulfillment is created
+  // Updates order status and recalculates post deadline based on fulfillment date
   app.post("/webhooks/shopify/fulfillments-create", async (req, res) => {
     try {
       if (!verifyShopifyWebhook(req)) {
@@ -842,20 +862,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Find the order and update its status
       const order = await storage.getOrderByShopifyOrderId(fulfillment.order_id?.toString());
-      if (order) {
-        // Update order status and recalculate post deadline based on delivery
-        const settings = await storage.getStoreSettings();
-        const postingWindowDays = settings?.postingWindowDays || 7;
-        const now = new Date();
-        const postDeadline = new Date(now);
-        postDeadline.setDate(postDeadline.getDate() + postingWindowDays);
-        
-        // Update order with fulfillment info
-        // Note: Would need to add updateOrder method for full implementation
-        console.log('Order fulfilled:', order.id, 'New post deadline:', postDeadline);
+      if (!order) {
+        console.log('No Spiral order found for Shopify order:', fulfillment.order_id);
+        return res.status(200).json({ status: 'not_spiral_order' });
       }
       
-      res.status(200).json({ status: 'processed' });
+      // Get store settings for posting window
+      const settings = await storage.getStoreSettings();
+      const postingWindowDays = settings?.postingWindowDays || 7;
+      
+      // Use fulfillment created date as the "shipped" date
+      const fulfilledAt = new Date(fulfillment.created_at || new Date());
+      
+      // Calculate new post deadline from fulfillment date
+      // Customers get X days after shipment to post their story
+      const postDeadline = new Date(fulfilledAt);
+      postDeadline.setDate(postDeadline.getDate() + postingWindowDays);
+      
+      // Update order with fulfillment info
+      const updatedOrder = await storage.updateOrderFulfillment(order.id, fulfilledAt, postDeadline);
+      
+      console.log(`Order ${order.id} fulfilled. Post deadline updated to: ${postDeadline.toISOString()}`);
+      
+      res.status(200).json({ 
+        status: 'processed', 
+        orderId: updatedOrder.id,
+        postDeadline: postDeadline.toISOString(),
+      });
     } catch (error) {
       console.error('Error processing fulfillment webhook:', error);
       res.status(500).json({ error: 'Failed to process fulfillment' });
@@ -1012,12 +1045,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         verificationId = updated.id;
       } else {
         // Create new verification record
+        // Note: order.instagramHandle/instagramUserId must exist since we looked up by instagramUserId
         const verification = await storage.createVerification({
           orderId: order.id,
           shopperEmail: order.shopperEmail,
-          instagramHandle: order.instagramHandle,
-          instagramUserId: order.instagramUserId,
-          followerCount: order.followerCount,
+          instagramHandle: order.instagramHandle || instagramUserId,
+          instagramUserId: order.instagramUserId || instagramUserId,
+          followerCount: order.followerCount || 0,
           discountAmount: order.discountAmount,
           status: 'pending',
         });
@@ -1162,6 +1196,214 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return null;
     }
   }
+
+  // ============================================
+  // Checkout API (for Shopify Checkout Extension)
+  // ============================================
+
+  // Authenticate Spiral customer and get their discount entitlement
+  // Called by checkout extension when customer logs in
+  app.post("/api/checkout/authenticate", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password required' });
+      }
+      
+      const customer = await storage.getSpiralCustomerByEmail(email);
+      
+      if (!customer) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+      
+      // Verify password (simple comparison for now - iOS app handles actual hashing)
+      // In production, use bcrypt or similar
+      const passwordValid = customer.passwordHash === password; // Placeholder - iOS app sends hashed password
+      
+      if (!passwordValid) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+      
+      if (!customer.isActive) {
+        return res.status(403).json({ error: 'Account is deactivated' });
+      }
+      
+      // Update last login
+      await storage.updateSpiralCustomerLastLogin(customer.id);
+      
+      // Return customer info (without password)
+      res.json({
+        customerId: customer.id,
+        email: customer.email,
+        instagramHandle: customer.instagramHandle,
+        instagramUserId: customer.instagramUserId,
+        followerCount: customer.followerCount,
+        followerCountUpdatedAt: customer.followerCountUpdatedAt,
+      });
+    } catch (error) {
+      console.error('Checkout authentication error:', error);
+      res.status(500).json({ error: 'Authentication failed' });
+    }
+  });
+
+  // Calculate discount for a customer based on merchant's tiers
+  // Called by checkout extension after customer authenticates
+  app.post("/api/checkout/calculate-discount", async (req, res) => {
+    try {
+      const { customerId, shopDomain } = req.body;
+      
+      if (!customerId) {
+        return res.status(400).json({ error: 'Customer ID required' });
+      }
+      
+      // Get customer
+      const customer = await storage.getSpiralCustomerById(customerId);
+      
+      if (!customer) {
+        return res.status(404).json({ error: 'Customer not found' });
+      }
+      
+      // Get store settings and discount tiers
+      const settings = await storage.getStoreSettings();
+      const tiers = await storage.getDiscountTiers();
+      
+      // Check if Spiral is enabled for this store
+      if (!settings?.spiralEnabled) {
+        return res.json({
+          eligible: false,
+          reason: 'Spiral discounts not enabled for this store',
+        });
+      }
+      
+      // Check minimum follower requirement
+      const followerCount = customer.followerCount || 0;
+      const minFollowers = settings?.minFollowers || 0;
+      
+      if (followerCount < minFollowers) {
+        return res.json({
+          eligible: false,
+          reason: `Minimum ${minFollowers.toLocaleString()} followers required`,
+          followerCount,
+          minFollowers,
+        });
+      }
+      
+      // Find matching tier
+      const matchingTier = tiers
+        .sort((a, b) => a.fromFollowers - b.fromFollowers)
+        .find(tier => {
+          const from = tier.fromFollowers;
+          const to = tier.toFollowers;
+          return followerCount >= from && (to === null || followerCount <= to);
+        });
+      
+      if (!matchingTier) {
+        return res.json({
+          eligible: false,
+          reason: 'No discount tier matches your follower count',
+          followerCount,
+        });
+      }
+      
+      // Calculate estimated impressions using power-law curve
+      const reachRate = Math.max(0.06, Math.min(0.30, 0.30 * Math.pow(followerCount / 500, -0.173)));
+      const estimatedImpressions = Math.round(followerCount * reachRate);
+      
+      res.json({
+        eligible: true,
+        discountPercent: parseFloat(matchingTier.discountPercent),
+        followerCount,
+        tier: {
+          from: matchingTier.fromFollowers,
+          to: matchingTier.toFollowers,
+        },
+        estimatedImpressions,
+        postingWindowDays: settings?.postingWindowDays || 7,
+        instagramHandle: customer.instagramHandle,
+      });
+    } catch (error) {
+      console.error('Discount calculation error:', error);
+      res.status(500).json({ error: 'Failed to calculate discount' });
+    }
+  });
+
+  // Confirm discount was applied to order
+  // Called by checkout extension after discount is applied
+  app.post("/api/checkout/confirm-discount", async (req, res) => {
+    try {
+      const { 
+        customerId, 
+        shopifyOrderId, 
+        discountPercent, 
+        discountAmount, 
+        orderTotal 
+      } = req.body;
+      
+      if (!customerId || !shopifyOrderId) {
+        return res.status(400).json({ error: 'Customer ID and Shopify Order ID required' });
+      }
+      
+      // Get customer
+      const customer = await storage.getSpiralCustomerById(customerId);
+      
+      if (!customer) {
+        return res.status(404).json({ error: 'Customer not found' });
+      }
+      
+      // Get store settings for posting window
+      const settings = await storage.getStoreSettings();
+      const postingWindowDays = settings?.postingWindowDays || 7;
+      
+      // Calculate post deadline
+      const now = new Date();
+      const postDeadline = new Date(now);
+      postDeadline.setDate(postDeadline.getDate() + postingWindowDays);
+      
+      // Create order record
+      const order = await storage.createOrder({
+        shopifyOrderId: shopifyOrderId.toString(),
+        shopperEmail: customer.email,
+        spiralCustomerId: customer.id,
+        instagramHandle: customer.instagramHandle,
+        instagramUserId: customer.instagramUserId,
+        followerCount: customer.followerCount,
+        discountPercent: discountPercent?.toString() || '0',
+        orderTotal: orderTotal?.toString() || '0',
+        discountAmount: discountAmount?.toString() || '0',
+        status: 'pending',
+        postDeadline,
+        verificationStatus: 'pending_verification',
+      });
+      
+      // Create verification record
+      const verification = await storage.createVerification({
+        orderId: order.id,
+        shopperEmail: customer.email,
+        instagramHandle: customer.instagramHandle || '',
+        instagramUserId: customer.instagramUserId || '',
+        followerCount: customer.followerCount || 0,
+        discountAmount: discountAmount?.toString() || '0',
+        status: 'pending',
+      });
+      
+      // Link verification to order
+      await storage.updateOrderVerificationStatus(order.id, 'pending_verification', verification.id);
+      
+      console.log(`Checkout confirmed: Order ${order.id} for customer ${customer.email}, ${customer.followerCount} followers, ${discountPercent}% discount`);
+      
+      res.json({
+        success: true,
+        orderId: order.id,
+        verificationId: verification.id,
+        postDeadline,
+        message: 'Discount confirmed. Customer must post Instagram story within posting window.',
+      });
+    } catch (error) {
+      console.error('Discount confirmation error:', error);
+      res.status(500).json({ error: 'Failed to confirm discount' });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

@@ -90,10 +90,25 @@ export const selectedCollections = pgTable("selected_collections", {
   collectionId: varchar("collection_id").notNull(),
 });
 
+// Spiral customers - synced from iOS app, used for checkout authentication
+export const spiralCustomers = pgTable("spiral_customers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  instagramHandle: text("instagram_handle"),
+  instagramUserId: text("instagram_user_id"),
+  followerCount: integer("follower_count"),
+  followerCountUpdatedAt: timestamp("follower_count_updated_at"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  lastLoginAt: timestamp("last_login_at"),
+});
+
 export const orders = pgTable("orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   shopifyOrderId: text("shopify_order_id").notNull().unique(),
   shopperEmail: text("shopper_email").notNull(),
+  spiralCustomerId: varchar("spiral_customer_id"),
   instagramHandle: text("instagram_handle"),
   instagramUserId: text("instagram_user_id"),
   followerCount: integer("follower_count"),
@@ -138,6 +153,7 @@ export const insertShopifyProductSchema = createInsertSchema(shopifyProducts).om
 export const insertShopifyCollectionSchema = createInsertSchema(shopifyCollections).omit({ id: true, syncedAt: true });
 export const insertSelectedProductSchema = createInsertSchema(selectedProducts).omit({ id: true });
 export const insertSelectedCollectionSchema = createInsertSchema(selectedCollections).omit({ id: true });
+export const insertSpiralCustomerSchema = createInsertSchema(spiralCustomers).omit({ id: true, createdAt: true, lastLoginAt: true });
 export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true });
 
 export type InsertStoreSettings = z.infer<typeof insertStoreSettingsSchema>;
@@ -154,5 +170,7 @@ export type InsertSelectedProduct = z.infer<typeof insertSelectedProductSchema>;
 export type SelectedProduct = typeof selectedProducts.$inferSelect;
 export type InsertSelectedCollection = z.infer<typeof insertSelectedCollectionSchema>;
 export type SelectedCollection = typeof selectedCollections.$inferSelect;
+export type InsertSpiralCustomer = z.infer<typeof insertSpiralCustomerSchema>;
+export type SpiralCustomer = typeof spiralCustomers.$inferSelect;
 export type InsertOrder = z.infer<typeof insertOrderSchema>;
 export type Order = typeof orders.$inferSelect;

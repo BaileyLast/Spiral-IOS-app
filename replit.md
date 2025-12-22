@@ -35,7 +35,8 @@ Preferred communication style: Simple, everyday language.
     - `shopify_collections`: Synced collection catalog.
     - `selected_products`: Products selected for Spiral (when using specific/excluded mode).
     - `selected_collections`: Collections selected for Spiral (when using specific/excluded mode).
-    - `orders`: Shopify order tracking with nullable Instagram fields (`instagramHandle`, `instagramUserId`, `followerCount`), discount info, `verificationStatus` (metadata_missing/pending_verification/verified/failed/clawback_complete).
+    - `spiral_customers`: Customer accounts synced from iOS app with Instagram credentials (`email`, `passwordHash`, `instagramHandle`, `instagramUserId`, `followerCount`).
+    - `orders`: Shopify order tracking with `spiralCustomerId` link, nullable Instagram fields, discount info, `verificationStatus` (metadata_missing/pending_verification/verified/failed/clawback_complete).
 - **Discount Rules**: Global configuration. Enforces minimum discount (2.5%), non-negative follower counts, valid range ordering, and automatic final bracket configuration (no upper limit).
 - **Spiral Settings**: Single global configuration including:
     - `spiralEnabled`: On/off toggle for entire store
@@ -93,15 +94,28 @@ The verification system tracks Instagram story posts through a multi-stage lifec
 - `GET /webhooks/instagram`: Meta webhook verification (hub.challenge)
 - `POST /webhooks/instagram`: Receives story mention notifications, triggers verification flow
 - `POST /webhooks/shopify/orders-create`: Receives Shopify order creation events, creates order and verification records
-- `POST /webhooks/shopify/fulfillments-create`: Receives fulfillment events (TODO: update post deadline based on delivery)
+- `POST /webhooks/shopify/fulfillments-create`: Receives fulfillment events, updates order status and recalculates post deadline from shipment date
 - `POST /api/verification-check`: Scheduled job to check pending verifications after 22 hours
 
-**Shopify Order Flow:**
-1. Customer checks out with Spiral discount (discount code containing "spiral" or "instagram")
-2. Shopify sends order webhook with note_attributes containing Instagram data
-3. Spiral creates order record and verification record (if Instagram data present)
-4. System awaits customer Instagram story post
-5. Instagram webhook detects story mention → 22-hour verification timer starts
+**Checkout API (for Shopify Checkout Extension):**
+- `POST /api/checkout/authenticate`: Authenticate Spiral customer, return Instagram data
+- `POST /api/checkout/calculate-discount`: Look up customer followers + merchant tiers = discount percentage
+- `POST /api/checkout/confirm-discount`: Record discount was applied, create order/verification records
+
+**Checkout Flow (via Shopify Extension):**
+1. Customer sees "Login with Spiral" button at checkout
+2. Customer logs into their Spiral account (created via iOS app)
+3. Backend retrieves customer's follower count from `spiral_customers` table
+4. Backend matches followers to merchant's discount tiers → returns discount percentage
+5. Checkout extension applies discount and records order via `/api/checkout/confirm-discount`
+
+**Shopify Order Webhook Flow:**
+1. Order placed with Spiral discount (discount code or note_attributes with spiral_customer_id)
+2. Shopify sends order webhook with note_attributes containing customer/Instagram data
+3. Spiral creates order record linked to spiral_customer_id
+4. Verification record created with Instagram data
+5. Fulfillment webhook updates post deadline when order ships
+6. Instagram webhook detects story mention → 22-hour verification timer starts
 
 **Estimated Impressions Formula:**
 Uses smooth power-law curve instead of harsh tiers to ensure impressions always increase with followers:
