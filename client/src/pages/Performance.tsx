@@ -224,9 +224,9 @@ export default function Performance() {
                 icon={Users}
               />
               <StatCard
-                title="Unique Customers"
+                title="Spiral Customers"
                 value={data.customerInsights.uniqueCustomers}
-                subtitle={`${data.customerInsights.repeatCustomers} repeat`}
+                subtitle={`${data.customerInsights.repeatCustomers} returning customers`}
                 icon={ShoppingCart}
                 gradient="from-pink-500 to-rose-500"
               />

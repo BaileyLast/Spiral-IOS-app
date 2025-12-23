@@ -19,9 +19,9 @@ Preferred communication style: Simple, everyday language.
 - **Dashboard Design**: Modernized with gradient accents, animated connection indicators, gradient stat cards, and polished table styling. Connection cards feature top gradient bars (purple for active, yellow for expired), animated status dots, and prominent warning badges for expired tokens.
 
 ### Pages
-- **Home**: Dashboard with connection status and performance metrics
+- **Home**: Dashboard with connection status and recent activity
 - **Spiral Settings**: Global configuration for discounts, product selection, and posting windows
-- **Verifications**: Shopper verification records
+- **Performance**: Analytics dashboard showing marketing ROI, impressions, creator distribution, and top performers
 - **Connections**: OAuth integrations for Shopify and Instagram
 
 ### Backend

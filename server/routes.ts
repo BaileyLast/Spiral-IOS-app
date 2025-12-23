@@ -272,16 +272,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const verifications = await storage.getVerifications();
       const orders = await storage.getOrders();
       
+      // Safe number parsing helper
+      const safeParseFloat = (val: string | null | undefined): number => {
+        if (!val) return 0;
+        const parsed = parseFloat(val);
+        return isNaN(parsed) ? 0 : parsed;
+      };
+      
       // Calculate metrics
       const totalVerifications = verifications.length;
-      const verifiedPosts = verifications.filter(v => v.status === 'verified').length;
+      const verifiedVerifications = verifications.filter(v => v.status === 'verified');
+      const verifiedPosts = verifiedVerifications.length;
       const failedPosts = verifications.filter(v => v.status === 'failed').length;
       const pendingPosts = verifications.filter(v => v.status === 'pending' || v.status === 'story_detected').length;
       const completionRate = totalVerifications > 0 ? (verifiedPosts / totalVerifications) * 100 : 0;
       
-      // Calculate discount metrics
-      const totalDiscountsGiven = verifications.reduce((sum, v) => sum + parseFloat(v.discountAmount || '0'), 0);
-      const avgDiscountAmount = totalVerifications > 0 ? totalDiscountsGiven / totalVerifications : 0;
+      // Calculate discount metrics (only from verified posts - actual discounts kept)
+      const totalDiscountsGiven = verifiedVerifications.reduce(
+        (sum, v) => sum + safeParseFloat(v.discountAmount), 0
+      );
+      const avgDiscountAmount = verifiedPosts > 0 ? totalDiscountsGiven / verifiedPosts : 0;
       
       // Calculate impressions estimate using power-law curve
       // reachRate = clamp(0.06, 0.30 * (followers/500)^(-0.173))
@@ -291,14 +301,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return Math.round(followers * reachRate);
       };
       
-      const totalEstimatedImpressions = verifications
-        .filter(v => v.status === 'verified')
+      const totalEstimatedImpressions = verifiedVerifications
         .reduce((sum, v) => sum + calculateEstimatedReach(v.followerCount || 0), 0);
       
       // Calculate ROI (impressions per £1 spent)
       const impressionsPerPound = totalDiscountsGiven > 0 ? totalEstimatedImpressions / totalDiscountsGiven : 0;
       
-      // Follower distribution for histogram
+      // Follower distribution for histogram (verified posts only)
       const followerBuckets = [
         { label: '0-1K', min: 0, max: 1000, count: 0 },
         { label: '1K-5K', min: 1000, max: 5000, count: 0 },
@@ -308,21 +317,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { label: '100K+', min: 100000, max: Infinity, count: 0 },
       ];
       
-      verifications.forEach(v => {
+      verifiedVerifications.forEach(v => {
         const followers = v.followerCount || 0;
         const bucket = followerBuckets.find(b => followers >= b.min && followers < b.max);
         if (bucket) bucket.count++;
       });
       
-      // Average follower count
-      const avgFollowerCount = totalVerifications > 0
-        ? verifications.reduce((sum, v) => sum + (v.followerCount || 0), 0) / totalVerifications
+      // Average follower count (verified posts only)
+      const avgFollowerCount = verifiedPosts > 0
+        ? verifiedVerifications.reduce((sum, v) => sum + (v.followerCount || 0), 0) / verifiedPosts
         : 0;
       
-      // Top performers (verified posts only, sorted by follower count)
-      const topPerformers = verifications
-        .filter(v => v.status === 'verified')
-        .sort((a, b) => (b.followerCount || 0) - (a.followerCount || 0))
+      // Top performers (verified posts only, sorted by estimated reach)
+      const topPerformers = verifiedVerifications
+        .sort((a, b) => calculateEstimatedReach(b.followerCount || 0) - calculateEstimatedReach(a.followerCount || 0))
         .slice(0, 10)
         .map(v => ({
           id: v.id,
@@ -333,16 +341,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           verifiedAt: v.verifiedAt,
         }));
       
-      // Customer insights
-      const uniqueCustomers = new Set(orders.map(o => o.spiralCustomerId || o.shopperEmail)).size;
-      const repeatCustomers = orders.length - uniqueCustomers;
-      const totalOrderValue = orders.reduce((sum, o) => sum + parseFloat(o.orderTotal || '0'), 0);
+      // Customer insights - count customers who have ordered more than once
+      const customerOrderCounts = new Map<string, number>();
+      orders.forEach(o => {
+        const customerId = o.spiralCustomerId || o.shopperEmail;
+        customerOrderCounts.set(customerId, (customerOrderCounts.get(customerId) || 0) + 1);
+      });
+      const uniqueCustomers = customerOrderCounts.size;
+      const repeatCustomers = Array.from(customerOrderCounts.values()).filter(count => count > 1).length;
+      
+      const totalOrderValue = orders.reduce((sum, o) => sum + safeParseFloat(o.orderTotal), 0);
       const avgOrderValue = orders.length > 0 ? totalOrderValue / orders.length : 0;
       
       // Verifications over time (last 30 days, grouped by day)
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      
       const verificationsOverTime: { date: string; count: number; impressions: number }[] = [];
       for (let i = 29; i >= 0; i--) {
         const date = new Date();
@@ -350,8 +361,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const dateStr = date.toISOString().split('T')[0];
         
         const dayVerifications = verifications.filter(v => {
-          const vDate = new Date(v.createdAt).toISOString().split('T')[0];
-          return vDate === dateStr;
+          if (!v.createdAt) return false;
+          try {
+            const vDate = new Date(v.createdAt).toISOString().split('T')[0];
+            return vDate === dateStr;
+          } catch {
+            return false;
+          }
         });
         
         const dayImpressions = dayVerifications
