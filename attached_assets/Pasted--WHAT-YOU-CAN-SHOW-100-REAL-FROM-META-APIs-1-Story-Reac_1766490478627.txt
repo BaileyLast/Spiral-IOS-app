@@ -1,0 +1,130 @@
+⭐ WHAT YOU CAN SHOW (100% REAL, FROM META APIs)
+1. Story Reach (Impressions)
+
+From the merchant’s business account — NOT from the shopper’s account.
+
+When a user tags the merchant, that mention comes into the merchant’s Media Insights.
+
+You get:
+
+reach
+
+impressions
+
+taps forward/back
+
+exits
+
+This is big enough to prove “This campaign generated X total reach.”
+
+✓ Totally real
+✓ Merchants will love it
+✓ No permission issues
+
+2. Total Verified Posts
+
+Count of how many Stories were actually posted and verified.
+
+You can show:
+
+total Stories posted
+
+completion rate
+
+missed-post rate
+
+average discount vs completion
+
+Basic but valuable.
+
+3. Aggregated Reach Per Day / Week / Month
+
+Just sum all impressions across all verified Stories.
+
+This becomes your core graph.
+
+4. Savings vs Exposure
+
+Brands love this formula:
+
+“You gave away £1,200 in discounts and got 184,000 impressions back.”
+
+It’s ROI porn.
+
+5. Average Creator Size
+
+Because you store follower count at checkout.
+
+Show:
+
+average follower count
+
+distribution (histogram)
+
+top-tier creators
+
+Easy to generate, nice to display.
+
+6. Top Performing Customer Posts
+
+You cannot show the story media itself (privacy),
+BUT you can show:
+
+IG username
+
+reach/impressions
+
+timestamp
+
+Looks professional without breaking rules.
+
+7. Followers Gained by the Merchant
+
+This one is very possible.
+
+You have merchant’s IG Business Account ID, so you can track:
+
+followers count each day
+
+increases during Spiral activity
+
+correlation with Story posting volume
+
+This becomes a sexy graph.
+
+8. New Customers → Returning via Spiral
+
+Since you store Spiral user IDs, you can show:
+
+repeat Spiral shoppers
+
+avg spend from Spiral users
+
+lifetime value vs non-Spiral customers
+
+Merchants eat that up.
+
+⭐ WHAT YOU CAN SHOW BUT WITH CONDITIONS
+
+These are possible but require careful compliance.
+
+9. Clicks on Merchant’s Profile (from the Story mention)
+
+Instagram Business Insights gives you:
+
+profile visits from tagged mentions
+
+So you can show:
+
+“Spiral Stories drove 312 profile visits.”
+
+Merchants will cry with happiness.
+
+10. Website taps from tagged Stories
+
+You get:
+
+“website clicks” on merchant profile
+NOT from the shopper’s story directly.
+
+Still very valuable.

@@ -257,8 +257,8 @@ export default function Home() {
             <Button 
               variant="outline" 
               size="sm"
-              onClick={() => setLocation("/verifications")}
-              data-testid="button-view-all-verifications"
+              onClick={() => setLocation("/performance")}
+              data-testid="button-view-performance"
             >
               View All
             </Button>

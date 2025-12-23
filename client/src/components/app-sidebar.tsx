@@ -1,4 +1,4 @@
-import { Home, CheckCircle, Link2 } from "lucide-react";
+import { Home, BarChart3, Link2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -32,9 +32,9 @@ const menuItems: MenuItem[] = [
     imageUrl: spiralIconUrl,
   },
   {
-    title: "Verifications",
-    url: "/verifications",
-    icon: CheckCircle,
+    title: "Performance",
+    url: "/performance",
+    icon: BarChart3,
   },
   {
     title: "Connections",

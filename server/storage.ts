@@ -342,6 +342,10 @@ export class DatabaseStorage implements IStorage {
     return order;
   }
 
+  async getOrders(): Promise<Order[]> {
+    return await db.select().from(orders);
+  }
+
   async updateOrderVerificationStatus(orderId: string, status: string, verificationId?: string): Promise<void> {
     await db
       .update(orders)

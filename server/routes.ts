@@ -266,6 +266,134 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Performance Analytics API
+  app.get("/api/performance", async (req, res) => {
+    try {
+      const verifications = await storage.getVerifications();
+      const orders = await storage.getOrders();
+      
+      // Calculate metrics
+      const totalVerifications = verifications.length;
+      const verifiedPosts = verifications.filter(v => v.status === 'verified').length;
+      const failedPosts = verifications.filter(v => v.status === 'failed').length;
+      const pendingPosts = verifications.filter(v => v.status === 'pending' || v.status === 'story_detected').length;
+      const completionRate = totalVerifications > 0 ? (verifiedPosts / totalVerifications) * 100 : 0;
+      
+      // Calculate discount metrics
+      const totalDiscountsGiven = verifications.reduce((sum, v) => sum + parseFloat(v.discountAmount || '0'), 0);
+      const avgDiscountAmount = totalVerifications > 0 ? totalDiscountsGiven / totalVerifications : 0;
+      
+      // Calculate impressions estimate using power-law curve
+      // reachRate = clamp(0.06, 0.30 * (followers/500)^(-0.173))
+      const calculateEstimatedReach = (followers: number) => {
+        if (followers <= 0) return 0;
+        const reachRate = Math.min(0.30, Math.max(0.06, 0.30 * Math.pow(followers / 500, -0.173)));
+        return Math.round(followers * reachRate);
+      };
+      
+      const totalEstimatedImpressions = verifications
+        .filter(v => v.status === 'verified')
+        .reduce((sum, v) => sum + calculateEstimatedReach(v.followerCount || 0), 0);
+      
+      // Calculate ROI (impressions per £1 spent)
+      const impressionsPerPound = totalDiscountsGiven > 0 ? totalEstimatedImpressions / totalDiscountsGiven : 0;
+      
+      // Follower distribution for histogram
+      const followerBuckets = [
+        { label: '0-1K', min: 0, max: 1000, count: 0 },
+        { label: '1K-5K', min: 1000, max: 5000, count: 0 },
+        { label: '5K-10K', min: 5000, max: 10000, count: 0 },
+        { label: '10K-50K', min: 10000, max: 50000, count: 0 },
+        { label: '50K-100K', min: 50000, max: 100000, count: 0 },
+        { label: '100K+', min: 100000, max: Infinity, count: 0 },
+      ];
+      
+      verifications.forEach(v => {
+        const followers = v.followerCount || 0;
+        const bucket = followerBuckets.find(b => followers >= b.min && followers < b.max);
+        if (bucket) bucket.count++;
+      });
+      
+      // Average follower count
+      const avgFollowerCount = totalVerifications > 0
+        ? verifications.reduce((sum, v) => sum + (v.followerCount || 0), 0) / totalVerifications
+        : 0;
+      
+      // Top performers (verified posts only, sorted by follower count)
+      const topPerformers = verifications
+        .filter(v => v.status === 'verified')
+        .sort((a, b) => (b.followerCount || 0) - (a.followerCount || 0))
+        .slice(0, 10)
+        .map(v => ({
+          id: v.id,
+          instagramHandle: v.instagramHandle,
+          followerCount: v.followerCount,
+          estimatedReach: calculateEstimatedReach(v.followerCount || 0),
+          discountAmount: v.discountAmount,
+          verifiedAt: v.verifiedAt,
+        }));
+      
+      // Customer insights
+      const uniqueCustomers = new Set(orders.map(o => o.spiralCustomerId || o.shopperEmail)).size;
+      const repeatCustomers = orders.length - uniqueCustomers;
+      const totalOrderValue = orders.reduce((sum, o) => sum + parseFloat(o.orderTotal || '0'), 0);
+      const avgOrderValue = orders.length > 0 ? totalOrderValue / orders.length : 0;
+      
+      // Verifications over time (last 30 days, grouped by day)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const verificationsOverTime: { date: string; count: number; impressions: number }[] = [];
+      for (let i = 29; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        
+        const dayVerifications = verifications.filter(v => {
+          const vDate = new Date(v.createdAt).toISOString().split('T')[0];
+          return vDate === dateStr;
+        });
+        
+        const dayImpressions = dayVerifications
+          .filter(v => v.status === 'verified')
+          .reduce((sum, v) => sum + calculateEstimatedReach(v.followerCount || 0), 0);
+        
+        verificationsOverTime.push({
+          date: dateStr,
+          count: dayVerifications.length,
+          impressions: dayImpressions,
+        });
+      }
+      
+      res.json({
+        summary: {
+          totalVerifications,
+          verifiedPosts,
+          failedPosts,
+          pendingPosts,
+          completionRate: Math.round(completionRate * 10) / 10,
+          totalDiscountsGiven: Math.round(totalDiscountsGiven * 100) / 100,
+          avgDiscountAmount: Math.round(avgDiscountAmount * 100) / 100,
+          totalEstimatedImpressions,
+          impressionsPerPound: Math.round(impressionsPerPound),
+          avgFollowerCount: Math.round(avgFollowerCount),
+        },
+        followerDistribution: followerBuckets,
+        topPerformers,
+        customerInsights: {
+          uniqueCustomers,
+          repeatCustomers,
+          totalOrderValue: Math.round(totalOrderValue * 100) / 100,
+          avgOrderValue: Math.round(avgOrderValue * 100) / 100,
+        },
+        verificationsOverTime,
+      });
+    } catch (error) {
+      console.error("Failed to fetch performance metrics:", error);
+      res.status(500).json({ error: "Failed to fetch performance metrics" });
+    }
+  });
+
   // Shopify Product & Collection Routes
   app.post("/api/shopify/sync", async (req, res) => {
     try {
