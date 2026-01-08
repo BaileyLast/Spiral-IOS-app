@@ -88,7 +88,7 @@ export default function Login() {
             <img 
               src={spiralLogoUrl} 
               alt="Spiral" 
-              className="h-10 mx-auto mb-6 object-contain brightness-0 invert"
+              className="h-40 mx-auto mb-6 object-contain brightness-0 invert"
               data-testid="img-spiral-logo"
             />
             <h1 className="text-3xl font-bold text-white mb-2">
