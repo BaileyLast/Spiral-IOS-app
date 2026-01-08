@@ -1,89 +1,152 @@
-# Spiral Merchant Dashboard - Design Guidelines
+# Spiral Customer App - Design Guidelines
 
 ## Design Approach
-**System-Based with Shopify Context**: Clean admin interface optimized for iframe embedding within Shopify admin, using modern SaaS dashboard patterns inspired by Linear, Stripe Dashboard, and Notion.
+**Minimal, Calm, Trust-Led**: Consumer mobile-first application inspired by Klarna, Apple, and modern fintech apps. The experience should feel rewarding, not transactional. No gamification noise, no influencer cringe.
+
+## Core Design Principles
+- **Minimal**: Clean layouts with generous white space, focused content
+- **Calm**: Soft transitions, no aggressive animations, passive encouragement
+- **Trust-led**: Clear status indicators, honest language, no dark patterns
+- **Mobile-first**: Touch-friendly targets, thumb-zone navigation, single-column layouts
 
 ## Core Design Elements
 
 ### Typography
-- **Headings**: Inter or DM Sans, bold (font-bold), sizes: text-2xl for page titles, text-xl for section headers, text-lg for card titles
-- **Body**: Same font family, regular weight (font-normal), text-base for primary content, text-sm for secondary info
-- **Data/Numbers**: font-semibold for metrics and statistics
-- **Hierarchy**: Use bold typography as specified - make headings stand out with strong weight contrast
+- **Headings**: Inter, semibold (font-semibold), sizes: text-2xl for page titles, text-xl for section headers
+- **Body**: Inter, regular weight (font-normal), text-base for primary content, text-sm for secondary info
+- **Data/Numbers**: font-semibold for discounts and key metrics
+- **Tone**: Rewarding language, calm and supportive, never pushy or transactional
+
+### Color Palette
+- **Primary**: Purple (brand color from merchant app) - used sparingly for key actions and accents
+- **Success**: Soft green for verified status, discounts earned
+- **Warning**: Soft amber for pending actions, deadlines
+- **Error**: Soft red for failed verifications (used calmly, not alarming)
+- **Backgrounds**: Clean white primary, soft gray-50 secondary
+- **Text**: gray-900 primary, gray-500 secondary, gray-400 tertiary
 
 ### Layout System
-**Spacing Units**: Tailwind units of 3, 4, 6, 8, 12 (p-4, mb-6, gap-8, etc.)
-- Sidebar: Fixed width w-64, full height
-- Main content: p-8 padding, max-w-7xl container
-- Cards: p-6 internal padding, mb-6 spacing between
-- Component spacing: gap-4 for tight grouping, gap-6 for section separation
+**Mobile-First Spacing**: Tailwind units of 4, 6, 8, 12
+- Main content: px-6 padding on mobile, max-w-md container centered
+- Cards: p-5 internal padding, rounded-2xl for soft appearance
+- Component spacing: gap-4 for groupings, gap-6 for sections
+- Bottom navigation: Fixed, h-16, with safe area padding
 
 ### Component Library
 
-**Sidebar Navigation**
-- White background (bg-white), subtle right border (border-r)
-- Logo/branding at top (mb-8)
-- Navigation items: px-4 py-3, rounded-lg, hover:bg-gray-50 transition
-- Active state: bg-blue-50 with text-blue-600
-- Icons: 20px (w-5 h-5) from Heroicons, positioned left of text
+**Bottom Navigation**
+- Fixed at bottom, full width
+- 4-5 items max: Home, Orders, Profile
+- Active state: Primary color with filled icon
+- Inactive: Gray muted icons
+- Touch targets: min 44px
 
-**Cards**
-- White background (bg-white), rounded-xl, shadow-sm
-- Consistent p-6 padding
-- Subtle border (border border-gray-100) for definition
+**Cards (Order Cards, Status Cards)**
+- White background (bg-white), rounded-2xl, subtle shadow-sm
+- Consistent p-5 padding
+- Soft border (border border-gray-100)
+- Brand/Store name prominent at top
+- Status badge aligned right
 
-**Status Indicators**
-- Token health: Inline flex items (flex items-center gap-2)
-- ✅ Active: Green badge (bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium)
-- ❌ Expired: Red badge (bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium)
-
-**Tables (Verifications Page)**
-- Minimal styling: border-collapse, border border-gray-200
-- Headers: bg-gray-50, font-semibold, text-left, px-4 py-3
-- Rows: hover:bg-gray-50 for interactivity, px-4 py-3
-- Alternating rows optional for readability
-
-**Form Controls (Discount Rules)**
-- Input fields: border border-gray-300, rounded-lg, px-4 py-2, focus:ring-2 focus:ring-blue-500
-- Labels: text-sm font-medium text-gray-700, mb-2
-- Tier editor: Grid layout (grid grid-cols-3 gap-4) for follower range, discount %, and actions
+**Status Badges**
+- Rounded-full pills
+- Status colors:
+  - Ordered: bg-gray-100 text-gray-600
+  - Delivered: bg-blue-100 text-blue-600
+  - Awaiting Story: bg-amber-100 text-amber-700
+  - Verified: bg-green-100 text-green-700
+  - Reversed: bg-red-100 text-red-600
 
 **Buttons**
-- Primary: bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700
-- Secondary: border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50
-- Sizes: Standard py-2 px-4, Small py-1.5 px-3 text-sm
+- Primary: bg-primary text-white rounded-xl py-4 font-medium (full width on mobile)
+- Secondary: bg-gray-100 text-gray-700 rounded-xl py-4
+- Ghost: text-primary for text links
+- All buttons: min-h-12 for touch targets
 
-### Color Palette (Reference Only for Structure)
-- Primary action: Blue (Tailwind blue-600)
-- Success: Green (green-600)
-- Error: Red (red-600)
-- Backgrounds: White primary, gray-50 secondary
-- Text: gray-900 primary, gray-600 secondary, gray-400 tertiary
-- Borders: gray-200 standard, gray-300 inputs
+**Progress Indicators**
+- Countdown timers: Soft, not alarming
+- Progress bars: Rounded, primary color fill
+- Step indicators: Minimal dots or subtle line
 
-### Page-Specific Layouts
+**Profile Elements**
+- Avatar: Rounded-full, with IG profile photo if connected
+- Stats: Simple number + label pairs
+- Settings items: Full-width touch rows with chevron
 
-**Home Dashboard**
-- Three-card grid: grid grid-cols-1 md:grid-cols-3 gap-6
-- Each card shows: Icon, label (text-sm text-gray-600), value (text-xl font-bold)
-- Store name card, Instagram handle card, Token health card
+### Onboarding Flow
+- Full-screen pages with centered content
+- Large friendly illustrations or icons (not images)
+- Single primary CTA per screen
+- Progress dots if multi-step
+- Skip option visible but subtle
 
-**Discount Rules**
-- Header with "Add Tier" button (top-right)
-- Each tier as a card with editable inputs in three-column layout
-- Clear visual separation between tiers (mb-4)
-- Save button at bottom-right of each tier card
-
-**Verifications**
-- Table with columns: Shopper Email, Instagram Handle, Follower Count, Post Link, Status, Date
-- Status badges using same pattern as token health
-- Pagination controls at bottom (if needed)
+### Order Flow States
+1. **Ordered** - Neutral, waiting for delivery
+2. **Delivered** - Active, prompting to share
+3. **Awaiting Story** - Countdown visible, gentle reminder
+4. **Verified** - Celebration moment, discount confirmed
+5. **Reversed** - Calm explanation, no blame
 
 ### Animations
-**Minimal and Functional Only**
-- Hover transitions: transition-colors duration-150
-- No page transitions, no scroll animations, no complex effects
-- Focus on instant, responsive feel
+**Subtle and Purposeful Only**
+- Page transitions: Gentle fade or slide
+- Success states: Soft scale-up with checkmark
+- Loading: Simple spinner or skeleton
+- No bouncy animations, no confetti
 
-## Images
-No hero images needed - this is an admin dashboard. Use Heroicons for all iconography (Home, Settings, CheckCircle, XCircle, Users, etc.)
+### Safe Areas
+- Top: Account for notch/dynamic island
+- Bottom: Account for home indicator + nav bar
+
+### Accessibility
+- Touch targets: 44px minimum
+- Color contrast: WCAG AA compliant
+- Clear focus states
+- Readable font sizes (16px base minimum)
+
+## Page-Specific Guidelines
+
+### Onboarding
+- Center-aligned content
+- Illustration/icon at top (40% of screen)
+- Headline + supporting text (rewarding tone)
+- Single CTA button at bottom
+
+### Login/Signup
+- Email-first, minimal friction
+- Social sign-in options if available
+- Password field with show/hide toggle
+- Friendly error messages
+
+### Instagram Connection
+- Explain value proposition clearly
+- Show what data is accessed (follower count only)
+- Connected state shows handle + follower band
+- Easy disconnect option in settings
+
+### Orders List
+- Simple list of order cards
+- Most recent at top
+- Tap to expand/view details
+- Empty state with friendly message
+
+### Order Detail
+- Brand at top with logo if available
+- Discount amount prominent
+- Timeline/status progress
+- Action buttons contextual to status
+- Posting instructions clear but calm
+
+### Profile
+- Connected IG at top with handle
+- Follower band (not exact number)
+- Stats: Discounts earned, orders completed
+- Settings: Notifications, Disconnect IG, Delete account
+- Version number at bottom
+
+## Language Guidelines
+- **Rewarding**: "You saved $12" not "Discount applied"
+- **Calm**: "Your order is on the way" not "ORDER SHIPPED!"
+- **Trust**: "We only check your follower count" not "Connect Instagram"
+- **Encouraging**: "Almost there!" not "ACTION REQUIRED"
+- **Honest**: "The discount was reversed" not "You lost your discount"

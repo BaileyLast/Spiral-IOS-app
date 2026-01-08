@@ -1,47 +1,94 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/app-sidebar";
-import Home from "@/pages/Home";
-import Performance from "@/pages/Performance";
-import Connections from "@/pages/Connections";
-import SpiralSettings from "@/pages/SpiralSettings";
+import { Home, ShoppingBag, User } from "lucide-react";
+import { Link } from "wouter";
+import Onboarding from "@/pages/Onboarding";
+import Login from "@/pages/Login";
+import InstagramConnect from "@/pages/InstagramConnect";
+import Orders from "@/pages/Orders";
+import OrderDetail from "@/pages/OrderDetail";
+import Profile from "@/pages/Profile";
+import CustomerHome from "@/pages/CustomerHome";
+
+function BottomNav() {
+  const [location] = useLocation();
+  
+  const navItems = [
+    { path: "/home", icon: Home, label: "Home" },
+    { path: "/orders", icon: ShoppingBag, label: "Orders" },
+    { path: "/profile", icon: User, label: "Profile" },
+  ];
+
+  const isActive = (path: string) => {
+    if (path === "/orders") {
+      return location === "/orders" || location.startsWith("/orders/");
+    }
+    return location === path;
+  };
+
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border safe-bottom z-50">
+      <div className="flex items-center justify-around h-16 max-w-md mx-auto">
+        {navItems.map((item) => {
+          const active = isActive(item.path);
+          return (
+            <Link key={item.path} href={item.path}>
+              <button
+                className={`flex flex-col items-center justify-center w-20 h-full gap-1 transition-colors ${
+                  active 
+                    ? "text-primary" 
+                    : "text-muted-foreground"
+                }`}
+                data-testid={`nav-${item.label.toLowerCase()}`}
+              >
+                <item.icon className={`w-5 h-5 ${active ? "stroke-[2.5]" : "stroke-[1.5]"}`} />
+                <span className="text-xs font-medium">{item.label}</span>
+              </button>
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/performance" component={Performance} />
-      <Route path="/spiral-settings" component={SpiralSettings} />
-      <Route path="/connections" component={Connections} />
+      <Route path="/" component={Onboarding} />
+      <Route path="/login" component={Login} />
+      <Route path="/connect-instagram" component={InstagramConnect} />
+      <Route path="/home" component={CustomerHome} />
+      <Route path="/orders" component={Orders} />
+      <Route path="/orders/:id" component={OrderDetail} />
+      <Route path="/profile" component={Profile} />
     </Switch>
   );
 }
 
-export default function App() {
-  const style = {
-    "--sidebar-width": "16rem",
-  };
+function AppContent() {
+  const [location] = useLocation();
+  
+  const hideBottomNav = location === "/" || location === "/login" || location === "/connect-instagram";
+  
+  return (
+    <div className="min-h-screen bg-background">
+      <main className={`${hideBottomNav ? "" : "pb-20"}`}>
+        <Router />
+      </main>
+      {!hideBottomNav && <BottomNav />}
+    </div>
+  );
+}
 
+export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <SidebarProvider style={style as React.CSSProperties}>
-          <div className="flex h-screen w-full">
-            <AppSidebar />
-            <div className="flex flex-col flex-1">
-              <header className="flex items-center p-4 border-b bg-sidebar text-sidebar-foreground border-sidebar-border">
-                <SidebarTrigger data-testid="button-sidebar-toggle" />
-              </header>
-              <main className="flex-1 overflow-auto bg-background">
-                <Router />
-              </main>
-            </div>
-          </div>
-        </SidebarProvider>
+        <AppContent />
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
