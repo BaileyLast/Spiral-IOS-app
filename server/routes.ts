@@ -11,6 +11,7 @@ declare module 'express-session' {
     oauthState?: string;
     oauthShop?: string;
     instagramOauthState?: string;
+    customerId?: string;
   }
 }
 
@@ -1546,6 +1547,241 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Discount confirmation error:', error);
       res.status(500).json({ error: 'Failed to confirm discount' });
+    }
+  });
+
+  // ============================================
+  // CUSTOMER APP API ROUTES
+  // ============================================
+
+  // Customer Signup
+  app.post("/api/customer/signup", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password required" });
+      }
+
+      if (password.length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      }
+
+      // Normalize email
+      const normalizedEmail = email.toLowerCase().trim();
+
+      // Check if customer already exists
+      const existing = await storage.getSpiralCustomerByEmail(normalizedEmail);
+      if (existing) {
+        return res.status(400).json({ error: "An account with this email already exists" });
+      }
+
+      // Hash password with salt (using simple approach for demo - use bcrypt in production)
+      const salt = crypto.randomBytes(16).toString("hex");
+      const passwordHash = crypto.createHash("sha256").update(salt + password).digest("hex") + ":" + salt;
+
+      // Create customer
+      const customer = await storage.createSpiralCustomer({
+        email: normalizedEmail,
+        passwordHash,
+        isActive: true,
+      });
+
+      // Set session
+      req.session.customerId = customer.id;
+
+      res.json({
+        id: customer.id,
+        email: customer.email,
+        instagramHandle: customer.instagramHandle,
+        followerCount: customer.followerCount,
+      });
+    } catch (error) {
+      console.error("Customer signup error:", error);
+      res.status(500).json({ error: "Failed to create account" });
+    }
+  });
+
+  // Customer Login
+  app.post("/api/customer/login", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password required" });
+      }
+
+      const normalizedEmail = email.toLowerCase().trim();
+      const customer = await storage.getSpiralCustomerByEmail(normalizedEmail);
+      if (!customer) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      // Verify password with salt
+      const [storedHash, salt] = customer.passwordHash.split(":");
+      let isValid = false;
+      
+      if (salt) {
+        // New salted format
+        const passwordHash = crypto.createHash("sha256").update(salt + password).digest("hex");
+        isValid = storedHash === passwordHash;
+      } else {
+        // Legacy format (unsalted)
+        const passwordHash = crypto.createHash("sha256").update(password).digest("hex");
+        isValid = customer.passwordHash === passwordHash;
+      }
+
+      if (!isValid) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      // Update last login
+      await storage.updateSpiralCustomerLastLogin(customer.id);
+
+      // Set session
+      req.session.customerId = customer.id;
+
+      res.json({
+        id: customer.id,
+        email: customer.email,
+        instagramHandle: customer.instagramHandle,
+        followerCount: customer.followerCount,
+      });
+    } catch (error) {
+      console.error("Customer login error:", error);
+      res.status(500).json({ error: "Failed to login" });
+    }
+  });
+
+  // Customer Logout
+  app.post("/api/customer/logout", async (req, res) => {
+    req.session.customerId = undefined;
+    res.json({ success: true });
+  });
+
+  // Connect Instagram (mock for demo - in production would use OAuth)
+  app.post("/api/customer/connect-instagram", async (req, res) => {
+    try {
+      const customerId = req.session.customerId;
+      if (!customerId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      // Generate mock Instagram data for demo
+      // In production, this would be called after Instagram OAuth flow
+      const mockHandle = `user_${Math.random().toString(36).substring(7)}`;
+      const mockUserId = `17841${Math.floor(Math.random() * 100000000)}`;
+      const mockFollowers = Math.floor(Math.random() * 50000) + 500;
+
+      // Persist to storage
+      const updated = await storage.updateSpiralCustomerInstagram(
+        customerId,
+        mockHandle,
+        mockUserId,
+        mockFollowers
+      );
+
+      res.json({
+        instagramHandle: updated.instagramHandle,
+        instagramUserId: updated.instagramUserId,
+        followerCount: updated.followerCount,
+      });
+    } catch (error) {
+      console.error("Instagram connect error:", error);
+      res.status(500).json({ error: "Failed to connect Instagram" });
+    }
+  });
+
+  // Disconnect Instagram
+  app.post("/api/customer/disconnect-instagram", async (req, res) => {
+    try {
+      const customerId = req.session.customerId;
+      if (!customerId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      // Clear Instagram data in storage
+      const updated = await storage.updateSpiralCustomerInstagram(
+        customerId,
+        null,
+        null,
+        null
+      );
+
+      res.json({
+        instagramHandle: updated.instagramHandle,
+        instagramUserId: updated.instagramUserId,
+        followerCount: updated.followerCount,
+      });
+    } catch (error) {
+      console.error("Instagram disconnect error:", error);
+      res.status(500).json({ error: "Failed to disconnect Instagram" });
+    }
+  });
+
+  // Get customer orders (scoped to authenticated customer)
+  app.get("/api/customer/orders", async (req, res) => {
+    try {
+      const customerId = req.session.customerId;
+      if (!customerId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const orders = await storage.getOrdersByCustomerId(customerId);
+      res.json(orders);
+    } catch (error) {
+      console.error("Failed to fetch customer orders:", error);
+      res.status(500).json({ error: "Failed to fetch orders" });
+    }
+  });
+
+  // Get single order (scoped to authenticated customer)
+  app.get("/api/customer/orders/:id", async (req, res) => {
+    try {
+      const customerId = req.session.customerId;
+      if (!customerId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const orderId = req.params.id;
+      const order = await storage.getOrderById(orderId);
+      
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      // Verify order belongs to authenticated customer
+      if (order.spiralCustomerId !== customerId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      res.json(order);
+    } catch (error) {
+      console.error("Failed to fetch order:", error);
+      res.status(500).json({ error: "Failed to fetch order" });
+    }
+  });
+
+  // Get customer stats (scoped to authenticated customer)
+  app.get("/api/customer/stats", async (req, res) => {
+    try {
+      const customerId = req.session.customerId;
+      if (!customerId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const orders = await storage.getOrdersByCustomerId(customerId);
+      
+      const verifiedOrders = orders.filter(o => o.verificationStatus === "verified");
+      const totalSaved = verifiedOrders.reduce((sum, o) => sum + parseFloat(o.discountAmount || "0"), 0);
+      
+      res.json({
+        totalSaved,
+        ordersCompleted: verifiedOrders.length,
+      });
+    } catch (error) {
+      console.error("Failed to fetch customer stats:", error);
+      res.status(500).json({ error: "Failed to fetch stats" });
     }
   });
 

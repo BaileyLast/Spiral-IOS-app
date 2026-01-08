@@ -23,14 +23,10 @@ export default function Login() {
   const authMutation = useMutation({
     mutationFn: async (data: { email: string; password: string }) => {
       const endpoint = mode === "login" ? "/api/customer/login" : "/api/customer/signup";
-      const response = await apiRequest(endpoint, { 
-        method: "POST",
-        body: JSON.stringify(data),
-        headers: { "Content-Type": "application/json" }
-      });
-      return response;
+      const response = await apiRequest("POST", endpoint, data);
+      return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: (data: { id: string; email: string; instagramHandle?: string }) => {
       localStorage.setItem("spiral_customer", JSON.stringify(data));
       if (data.instagramHandle) {
         setLocation("/home");

@@ -12,11 +12,8 @@ export default function InstagramConnect() {
 
   const connectMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("/api/customer/connect-instagram", { 
-        method: "POST",
-        headers: { "Content-Type": "application/json" }
-      });
-      return response;
+      const response = await apiRequest("POST", "/api/customer/connect-instagram");
+      return response.json();
     },
     onSuccess: (data) => {
       const customer = JSON.parse(localStorage.getItem("spiral_customer") || "{}");

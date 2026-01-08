@@ -1,8 +1,8 @@
-# Spiral Merchant Dashboard
+# Spiral Customer App
 
 ## Overview
 
-Spiral is a Shopify merchant dashboard application designed for Instagram-based discount verification in e-commerce. It allows merchants to configure follower-based discount tiers and manage shopper verifications through Instagram post engagement. The platform serves as an admin interface optimized for embedding within Shopify's admin panel, providing a modern SaaS solution for influencer and follower discount programs.
+Spiral is a customer-facing mobile application that allows shoppers to earn instant discounts at checkout by agreeing to post one Instagram Story after delivery. The app handles login & identity, Instagram connection, follower verification, order tracking, posting reminders, and post verification status. Designed with minimal, calm, trust-led principles inspired by Klarna and Apple.
 
 ## User Preferences
 
@@ -12,45 +12,54 @@ Preferred communication style: Simple, everyday language.
 
 ### Frontend
 - **Framework**: React 18 with TypeScript, Vite for build and development.
-- **UI/UX**: shadcn/ui component system built on Radix UI primitives, styled with Tailwind CSS. Features a "new-york" style variant, neutral color scheme, and a clean, minimalist design inspired by Linear and Stripe.
-- **Layout**: Context-based layout with a collapsible sidebar and a fixed-width main content area.
-- **State Management**: React Query for server state, configured to throw on 401 errors.
-- **Theming**: HSL-based color system with CSS custom properties, featuring a branded purple primary color (#5729a3) and secondary purple (#935eb2) with Inter font.
-- **Dashboard Design**: Modernized with gradient accents, animated connection indicators, gradient stat cards, and polished table styling. Connection cards feature top gradient bars (purple for active, yellow for expired), animated status dots, and prominent warning badges for expired tokens.
+- **UI/UX**: Mobile-first design with shadcn/ui components, Tailwind CSS. Minimal, calm aesthetic with trust-led interactions.
+- **Layout**: Bottom navigation bar with Home, Orders, Profile tabs. Single-column mobile layouts.
+- **State Management**: React Query for server state, localStorage for customer session.
+- **Theming**: HSL-based color system with CSS custom properties, branded purple primary color, soft status colors for order states.
+- **Design**: Rounded cards (rounded-2xl), generous padding, soft shadows, mobile-safe areas.
 
 ### Pages
-- **Home**: Dashboard with connection status and recent activity
-- **Spiral Settings**: Global configuration for discounts, product selection, and posting windows
-- **Performance**: Analytics dashboard showing marketing ROI, impressions, creator distribution, and top performers
-- **Connections**: OAuth integrations for Shopify and Instagram
+- **Onboarding** (`/`): Welcome screen explaining value proposition with Get Started CTA
+- **Login** (`/login`): Email/password authentication with signup toggle
+- **Instagram Connect** (`/connect-instagram`): Connect Instagram to verify follower count
+- **Home** (`/home`): Dashboard with stats, pending actions, recent orders
+- **Orders** (`/orders`): List of all orders with status badges and deadlines
+- **Order Detail** (`/orders/:id`): Progress timeline, discount info, posting instructions
+- **Profile** (`/profile`): Account info, Instagram status, settings, logout
 
 ### Backend
 - **Server**: Express.js with middleware for request handling, logging, and JSON body parsing.
 - **Data Layer**: Drizzle ORM with PostgreSQL (Neon serverless) for type-safe operations.
 - **Data Models**:
-    - `store_settings`: Shopify and Instagram OAuth data, store configuration, plus Spiral settings (`spiralEnabled`, `productSelectionType`, `postingWindowDays`, `minFollowers`).
-    - `discount_tiers`: Global follower ranges mapped to discount percentages.
-    - `verifications`: Shopper verification records.
-    - `shopify_products`: Synced product catalog.
-    - `shopify_collections`: Synced collection catalog.
-    - `selected_products`: Products selected for Spiral (when using specific/excluded mode).
-    - `selected_collections`: Collections selected for Spiral (when using specific/excluded mode).
-    - `spiral_customers`: Customer accounts synced from iOS app with Instagram credentials (`email`, `passwordHash`, `instagramHandle`, `instagramUserId`, `followerCount`).
-    - `orders`: Shopify order tracking with `spiralCustomerId` link, nullable Instagram fields, discount info, `verificationStatus` (metadata_missing/pending_verification/verified/failed/clawback_complete).
-- **Discount Rules**: Global configuration. Enforces minimum discount (2.5%), non-negative follower counts, valid range ordering, and automatic final bracket configuration (no upper limit).
-- **Spiral Settings**: Single global configuration including:
-    - `spiralEnabled`: On/off toggle for entire store
-    - `productSelectionType`: all/specific/excluded
-    - `postingWindowDays`: 3/5/7/14 days
-    - `discountTiers`: Follower-based discount brackets
-- **API**: RESTful API using `/api` prefix, storage interface abstraction, and PostgreSQL-backed session management. Key endpoints: `GET/POST /api/spiral-settings` for global configuration.
-- **Shopify Integration**: Product and collection catalog syncing via Admin REST API, webhook infrastructure for order events.
+    - `store_settings`: Shopify and Instagram OAuth data, store configuration, Spiral settings.
+    - `discount_tiers`: Follower ranges mapped to discount percentages.
+    - `verifications`: Story post verification records.
+    - `spiral_customers`: Customer accounts with Instagram credentials.
+    - `orders`: Order tracking with discount info and verification status.
 
-### Spiral Settings System
-- **Enable/Disable Toggle**: Turn Spiral on or off for entire store
-- **Product Selection**: All products, specific products only, or all except excluded products
-- **Discount Brackets**: Follower-count-based discount percentages (minimum 2.5%)
-- **Posting Window**: 3, 5, 7, or 14 days for customer story post deadline after delivery
+### Customer API Endpoints
+- `POST /api/customer/signup`: Create new customer account
+- `POST /api/customer/login`: Authenticate customer
+- `POST /api/customer/logout`: End session
+- `POST /api/customer/connect-instagram`: Link Instagram account (mock for demo)
+- `POST /api/customer/disconnect-instagram`: Unlink Instagram account
+- `GET /api/customer/orders`: Get customer's orders
+- `GET /api/customer/orders/:id`: Get single order details
+- `GET /api/customer/stats`: Get total saved and orders completed
+
+### Order Status Flow
+1. **Ordered** - Order placed, waiting for delivery
+2. **Fulfilled/Shipped** - On the way to customer
+3. **Delivered** - Arrived, prompting customer to share story
+4. **Awaiting Story** - Countdown timer active, customer needs to post
+5. **Verified** - Story confirmed, discount kept
+6. **Reversed** - Story not detected, clawback triggered
+
+### Verification Lifecycle
+1. **pending**: Order delivered, awaiting customer to post Instagram story
+2. **story_detected**: Story found tagging brand, 22-hour timer starts
+3. **verified**: Story confirmed still up after 22 hours, discount confirmed
+4. **failed**: Story removed or never posted, clawback triggered
 
 ### Development & Build
 - **TypeScript**: Strict mode, ESNext modules, path aliases.
@@ -60,74 +69,41 @@ Preferred communication style: Simple, everyday language.
 ## External Dependencies
 
 ### UI & Forms
-- **Radix UI**: Accessible component primitives.
-- **Lucide React**: Icon library.
-- **React Hook Form**: Form state management.
-- **Zod**: Schema validation.
-- **CVA, clsx, tailwind-merge**: Styling utilities.
-- **date-fns**: Date manipulation.
-- **nanoid**: Unique ID generation.
+- **Radix UI**: Accessible component primitives
+- **Lucide React**: Icon library
+- **React Hook Form**: Form state management
+- **Zod**: Schema validation
+- **date-fns**: Date manipulation
 
-### Database & Backend Services
-- **Neon Serverless PostgreSQL**: Cloud-native PostgreSQL.
-- **Drizzle Kit**: Database migration and schema management.
-- **connect-pg-simple**: PostgreSQL session store.
+### Database & Backend
+- **Neon Serverless PostgreSQL**: Cloud-native PostgreSQL
+- **Drizzle ORM**: Type-safe database operations
 
-### Verification Lifecycle System
-The verification system tracks Instagram story posts through a multi-stage lifecycle:
+## Design Principles
 
-1. **pending**: Order placed, awaiting customer to post Instagram story tagging the brand
-2. **story_detected**: Instagram webhook received, story found. 22-hour timer starts.
-3. **verified**: Story confirmed still up after 22 hours. Discount kept.
-4. **failed**: Story removed before 22 hours or never posted. Clawback triggered.
+- **Minimal**: Clean layouts with generous white space
+- **Calm**: Soft transitions, no aggressive animations
+- **Trust-led**: Clear status indicators, honest language
+- **Mobile-first**: Touch-friendly targets, thumb-zone navigation
+- **Rewarding tone**: "You saved $12" not "Discount applied"
 
-**Key Fields in `verifications` table:**
-- `orderId`: Links to the associated order
-- `instagramUserId`: Unique Instagram ID for matching webhooks
-- `storyMediaId`: Instagram media ID for the detected story
-- `storyDetectedAt`: When the story was first detected
-- `confirmationDueAt`: When the 22-hour check should happen
-- `verifiedAt` / `failedAt`: Final verification timestamps
-- `clawbackTriggered`, `clawbackAmount`, `clawbackRefundId`: Clawback tracking
+## Key User Flows
 
-**Webhook Endpoints:**
-- `GET /webhooks/instagram`: Meta webhook verification (hub.challenge)
-- `POST /webhooks/instagram`: Receives story mention notifications, triggers verification flow
-- `POST /webhooks/shopify/orders-create`: Receives Shopify order creation events, creates order and verification records
-- `POST /webhooks/shopify/fulfillments-create`: Receives fulfillment events, updates order status and recalculates post deadline from shipment date
-- `POST /api/verification-check`: Scheduled job to check pending verifications after 22 hours
+### First Launch / Onboarding
+1. Welcome screen with value proposition
+2. Continue to login/signup
+3. Connect Instagram (optional, can skip)
+4. Land on home dashboard
 
-**Checkout API (for Shopify Checkout Extension):**
-- `POST /api/checkout/authenticate`: Authenticate Spiral customer, return Instagram data
-- `POST /api/checkout/calculate-discount`: Look up customer followers + merchant tiers = discount percentage
-- `POST /api/checkout/confirm-discount`: Record discount was applied, create order/verification records
+### Checkout Deep Link Flow
+1. Customer taps "Check your Spiral discount" at checkout
+2. App opens with checkout session token
+3. Displays brand name and maximum discount
+4. After confirmation, returns calculated discount to checkout
 
-**Checkout Flow (via Shopify Extension):**
-1. Customer sees "Login with Spiral" button at checkout
-2. Customer logs into their Spiral account (created via iOS app)
-3. Backend retrieves customer's follower count from `spiral_customers` table
-4. Backend matches followers to merchant's discount tiers → returns discount percentage
-5. Checkout extension applies discount and records order via `/api/checkout/confirm-discount`
-
-**Shopify Order Webhook Flow:**
-1. Order placed with Spiral discount (discount code or note_attributes with spiral_customer_id)
-2. Shopify sends order webhook with note_attributes containing customer/Instagram data
-3. Spiral creates order record linked to spiral_customer_id
-4. Verification record created with Instagram data
-5. Fulfillment webhook updates post deadline when order ships
-6. Instagram webhook detects story mention → 22-hour verification timer starts
-
-**Estimated Impressions Formula:**
-Uses smooth power-law curve instead of harsh tiers to ensure impressions always increase with followers:
-- `reachRate = clamp(0.06, 0.30 * (followers/500)^(-0.173))`
-- 30% reach at 500 followers, tapers to ~12% at 100k, floors at 6%
-
-### Integrations
-- **Shopify OAuth 2.0**: Authorization code grant flow with CSRF protection, HMAC verification, secure token storage, and environment variable configuration.
-- **Instagram OAuth 2.0 (Meta OAuth)**: Three-step authentication for Instagram Business Display API (via Meta for Developers), CSRF protection, automatic Business Account discovery, secure long-lived token storage, and environment variable configuration. Requires `instagram_basic`, `pages_show_list`, `pages_read_engagement` scopes.
-- **Instagram Webhooks**: Story mention detection via Meta webhook subscriptions. Requires webhook URL registration in Meta for Developers console. **Security**: HMAC-SHA256 signature verification using `INSTAGRAM_APP_SECRET` - this secret MUST be configured in production to enforce webhook authentication. Missing signatures or invalid signatures are rejected with 403.
-
-### Production Security Requirements
-- `INSTAGRAM_APP_SECRET`: Required for webhook authentication. When set, all incoming Instagram webhooks must include valid `x-hub-signature-256` headers.
-- `SESSION_SECRET`: Required for secure session management.
-- `SHOPIFY_API_SECRET`: Required for Shopify HMAC verification.
+### Post-Delivery Verification
+1. Delivery notification triggers "Share your story" prompt
+2. Customer posts Instagram Story tagging brand
+3. Story detected, 22-hour verification timer starts
+4. If verified: discount confirmed, celebration state
+5. If failed: calm explanation of reversal

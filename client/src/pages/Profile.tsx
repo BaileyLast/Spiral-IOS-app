@@ -38,7 +38,7 @@ export default function Profile() {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("/api/customer/logout", { method: "POST" });
+      await apiRequest("POST", "/api/customer/logout");
     },
     onSuccess: () => {
       localStorage.removeItem("spiral_customer");
@@ -49,8 +49,8 @@ export default function Profile() {
 
   const disconnectMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("/api/customer/disconnect-instagram", { method: "POST" });
-      return response;
+      const response = await apiRequest("POST", "/api/customer/disconnect-instagram");
+      return response.json();
     },
     onSuccess: () => {
       const updated = { ...customer, instagramHandle: null, followerCount: null };

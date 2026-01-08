@@ -48,6 +48,8 @@ export interface IStorage {
   triggerClawback(verificationId: string, refundId: string): Promise<Verification>;
   // Orders
   createOrder(order: InsertOrder): Promise<Order>;
+  getOrders(): Promise<Order[]>;
+  getOrderById(id: string): Promise<Order | undefined>;
   getOrderByShopifyOrderId(shopifyOrderId: string): Promise<Order | undefined>;
   getOrderByInstagramUserId(instagramUserId: string): Promise<Order | undefined>;
   updateOrderVerificationStatus(orderId: string, status: string, verificationId?: string): Promise<void>;
@@ -67,6 +69,8 @@ export interface IStorage {
   getSpiralCustomerById(id: string): Promise<SpiralCustomer | undefined>;
   updateSpiralCustomerFollowerCount(id: string, followerCount: number): Promise<SpiralCustomer>;
   updateSpiralCustomerLastLogin(id: string): Promise<void>;
+  updateSpiralCustomerInstagram(id: string, instagramHandle: string | null, instagramUserId: string | null, followerCount: number | null): Promise<SpiralCustomer>;
+  getOrdersByCustomerId(customerId: string): Promise<Order[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -346,6 +350,14 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(orders);
   }
 
+  async getOrderById(id: string): Promise<Order | undefined> {
+    const [order] = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, id));
+    return order;
+  }
+
   async updateOrderVerificationStatus(orderId: string, status: string, verificationId?: string): Promise<void> {
     await db
       .update(orders)
@@ -500,6 +512,32 @@ export class DatabaseStorage implements IStorage {
       .update(spiralCustomers)
       .set({ lastLoginAt: new Date() })
       .where(eq(spiralCustomers.id, id));
+  }
+
+  async updateSpiralCustomerInstagram(
+    id: string, 
+    instagramHandle: string | null, 
+    instagramUserId: string | null, 
+    followerCount: number | null
+  ): Promise<SpiralCustomer> {
+    const [updated] = await db
+      .update(spiralCustomers)
+      .set({
+        instagramHandle,
+        instagramUserId,
+        followerCount,
+        followerCountUpdatedAt: instagramHandle ? new Date() : null,
+      })
+      .where(eq(spiralCustomers.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getOrdersByCustomerId(customerId: string): Promise<Order[]> {
+    return await db
+      .select()
+      .from(orders)
+      .where(eq(orders.spiralCustomerId, customerId));
   }
 }
 
