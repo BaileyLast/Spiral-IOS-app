@@ -67,15 +67,7 @@ export default function Login() {
       });
       return;
     }
-    if (mode === "signup" && !name.trim()) {
-      toast({
-        title: "Missing information",
-        description: "Please enter your name",
-        variant: "destructive",
-      });
-      return;
-    }
-    authMutation.mutate({ 
+        authMutation.mutate({ 
       email, 
       password,
       ...(mode === "signup" && { name: name.trim() })
@@ -132,7 +124,7 @@ export default function Login() {
             {mode === "signup" && (
               <div className="space-y-2">
                 <Label htmlFor="name" className="text-white/90 text-sm font-medium">
-                  Name
+                  Name <span className="text-white/50">(optional)</span>
                 </Label>
                 <Input
                   id="name"
