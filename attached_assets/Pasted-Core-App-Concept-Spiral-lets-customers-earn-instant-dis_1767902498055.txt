@@ -1,0 +1,188 @@
+Core App Concept
+
+Spiral lets customers earn instant discounts at checkout by agreeing to post one Instagram Story after delivery.
+
+The app handles:
+
+login & identity
+
+Instagram connection
+
+follower verification
+
+order tracking notifications
+
+posting reminders
+
+post verification status
+
+Key User Flows
+1. First Launch / Onboarding
+
+Simple intro explaining:
+
+“Earn discounts by sharing your purchase”
+
+CTA: Continue
+
+Login options:
+
+Email
+
+Apple Sign-In
+
+No password complexity. Frictionless.
+
+2. Instagram Connection
+
+Prompt user to connect Instagram (Creator or Business account)
+
+Explain:
+
+Used only to verify follower count and Story tags
+
+Once connected:
+
+Store Instagram ID
+
+Store follower count snapshot
+
+Show connection status clearly
+
+3. Checkout Deep Link Flow
+
+The app must support deep links from checkout.
+
+Example:
+
+Customer taps “Check your Spiral discount” at checkout
+
+App opens via deep link with a checkout session token
+
+App displays:
+
+Brand name
+
+Maximum possible discount
+
+“Confirm to check your discount”
+
+After confirmation:
+
+App sends authentication confirmation to backend
+
+Backend calculates discount
+
+App closes or returns user to browser checkout
+
+4. Orders Screen
+
+A simple list view showing:
+
+Brand name
+
+Order status:
+
+Ordered
+
+Delivered
+
+Awaiting Story
+
+Verified
+
+Discount Reversed (if missed)
+
+Each order card shows:
+
+Discount earned
+
+Posting deadline (if applicable)
+
+5. Delivery & Posting Reminder
+
+When backend marks an order as delivered:
+
+Push notification:
+
+“Your order has arrived — share a Story to keep your discount”
+
+In-app banner explaining:
+
+What to post
+
+How long they have
+
+That it must tag the brand
+
+6. Story Verification Status
+
+After the user posts:
+
+App shows:
+
+“Story detected”
+
+“Verification in progress”
+
+“Verified ✅”
+
+If not detected:
+
+Friendly reminder
+
+Countdown timer
+
+If missed:
+
+Explain discount reversal calmly
+
+7. Account / Profile
+
+Simple profile page showing:
+
+Connected Instagram handle
+
+Follower count band (not exact number if you prefer)
+
+Number of discounts earned
+
+Settings:
+
+Notifications on/off
+
+Disconnect Instagram
+
+Delete account
+
+Design Principles
+
+Minimal
+
+Calm
+
+Trust-led
+
+No gamification noise
+
+No influencer cringe
+
+Feels like Klarna / Apple-level polish
+
+Important Notes
+
+App must support deep links reliably
+
+App must be usable even if user only opens it once
+
+App should never feel like “work”
+
+Language should feel rewarding, not transactional
+
+The app is the trust layer, not the selling surface
+
+Positioning Reminder
+
+This app exists to:
+
+Turn existing customers into a brand’s most effective marketing channel.
