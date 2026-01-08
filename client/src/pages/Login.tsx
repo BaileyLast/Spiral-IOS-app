@@ -6,8 +6,7 @@ import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Eye, EyeOff, Loader2 } from "lucide-react";
-import { Link } from "wouter";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import spiralLogoUrl from "@assets/Spiral logo (2)_1763051288266.png";
 
 type AuthMode = "login" | "signup";
@@ -57,49 +56,71 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <header className="flex items-center px-4 h-14 safe-top">
-        <Link href="/">
-          <Button variant="ghost" size="icon" data-testid="button-back">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-        </Link>
-      </header>
+    <div className="min-h-screen flex flex-col relative overflow-hidden">
+      <div 
+        className="absolute inset-0 z-0"
+        style={{
+          background: `
+            linear-gradient(135deg, 
+              hsl(265, 60%, 20%) 0%, 
+              hsl(280, 55%, 30%) 25%, 
+              hsl(290, 50%, 35%) 50%, 
+              hsl(320, 45%, 30%) 75%, 
+              hsl(340, 40%, 25%) 100%
+            )
+          `,
+        }}
+      />
+      
+      <div 
+        className="absolute inset-0 z-0 opacity-30"
+        style={{
+          background: `
+            radial-gradient(ellipse at 30% 20%, hsl(270, 70%, 50%) 0%, transparent 50%),
+            radial-gradient(ellipse at 80% 80%, hsl(320, 60%, 45%) 0%, transparent 40%)
+          `,
+        }}
+      />
 
-      <div className="flex-1 flex flex-col px-6 py-8">
-        <div className="w-full max-w-sm mx-auto">
-          <img 
-            src={spiralLogoUrl} 
-            alt="Spiral" 
-            className="h-8 mb-8 object-contain"
-            data-testid="img-spiral-logo"
-          />
+      <div className="relative z-10 flex-1 flex flex-col px-6 py-12 safe-top safe-bottom">
+        <div className="w-full max-w-sm mx-auto flex-1 flex flex-col justify-center">
+          <div className="text-center mb-10">
+            <img 
+              src={spiralLogoUrl} 
+              alt="Spiral" 
+              className="h-10 mx-auto mb-6 object-contain brightness-0 invert"
+              data-testid="img-spiral-logo"
+            />
+            <h1 className="text-3xl font-bold text-white mb-2">
+              {mode === "login" ? "Welcome back" : "Get started"}
+            </h1>
+            <p className="text-white/70">
+              {mode === "login" 
+                ? "Sign in to view your discounts" 
+                : "Create an account to start saving"}
+            </p>
+          </div>
 
-          <h1 className="text-2xl font-semibold text-foreground mb-2">
-            {mode === "login" ? "Welcome back" : "Create your account"}
-          </h1>
-          <p className="text-muted-foreground mb-8">
-            {mode === "login" 
-              ? "Sign in to view your orders and discounts" 
-              : "Start earning discounts on your purchases"}
-          </p>
-
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-white/90 text-sm font-medium">
+                Email
+              </Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-12 rounded-xl"
+                className="h-14 rounded-2xl bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:bg-white/15 focus:border-white/40 backdrop-blur-sm"
                 data-testid="input-email"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password" className="text-white/90 text-sm font-medium">
+                Password
+              </Label>
               <div className="relative">
                 <Input
                   id="password"
@@ -107,25 +128,25 @@ export default function Login() {
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="h-12 rounded-xl pr-12"
+                  className="h-14 rounded-2xl bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:bg-white/15 focus:border-white/40 backdrop-blur-sm pr-12"
                   data-testid="input-password"
                 />
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="absolute right-1 top-1/2 -translate-y-1/2"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-white/60 hover:text-white hover:bg-white/10"
                   onClick={() => setShowPassword(!showPassword)}
                   data-testid="button-toggle-password"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </Button>
               </div>
             </div>
 
             <Button 
               type="submit"
-              className="w-full h-14 text-base font-medium rounded-xl mt-6"
+              className="w-full h-14 text-base font-semibold rounded-2xl mt-6 bg-white text-gray-900 hover:bg-white/90 shadow-lg shadow-black/20"
               disabled={authMutation.isPending}
               data-testid="button-submit"
             >
@@ -139,21 +160,25 @@ export default function Login() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-8 text-center">
             <button
               type="button"
               onClick={() => setMode(mode === "login" ? "signup" : "login")}
-              className="text-sm text-muted-foreground"
+              className="text-sm text-white/70"
               data-testid="button-toggle-mode"
             >
               {mode === "login" ? (
-                <>Don't have an account? <span className="text-primary font-medium">Sign up</span></>
+                <>Don't have an account? <span className="text-white font-medium">Sign up</span></>
               ) : (
-                <>Already have an account? <span className="text-primary font-medium">Sign in</span></>
+                <>Already have an account? <span className="text-white font-medium">Sign in</span></>
               )}
             </button>
           </div>
         </div>
+
+        <p className="text-xs text-white/40 text-center mt-auto pt-8">
+          By continuing, you agree to our Terms of Service and Privacy Policy
+        </p>
       </div>
     </div>
   );

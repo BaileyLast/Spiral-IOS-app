@@ -5,7 +5,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Home, ShoppingBag, User } from "lucide-react";
 import { Link } from "wouter";
-import Onboarding from "@/pages/Onboarding";
 import Login from "@/pages/Login";
 import InstagramConnect from "@/pages/InstagramConnect";
 import Orders from "@/pages/Orders";
@@ -58,7 +57,7 @@ function BottomNav() {
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Onboarding} />
+      <Route path="/" component={Login} />
       <Route path="/login" component={Login} />
       <Route path="/connect-instagram" component={InstagramConnect} />
       <Route path="/home" component={CustomerHome} />
