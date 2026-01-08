@@ -94,7 +94,11 @@ export const selectedCollections = pgTable("selected_collections", {
 export const spiralCustomers = pgTable("spiral_customers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: text("email").notNull().unique(),
+  name: text("name"),
   passwordHash: text("password_hash").notNull(),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  emailVerificationCode: text("email_verification_code"),
+  emailVerificationExpiresAt: timestamp("email_verification_expires_at"),
   instagramHandle: text("instagram_handle"),
   instagramUserId: text("instagram_user_id"),
   followerCount: integer("follower_count"),

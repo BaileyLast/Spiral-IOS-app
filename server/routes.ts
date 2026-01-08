@@ -1,9 +1,41 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import crypto from "crypto";
+import { Resend } from "resend";
 import { storage } from "./storage";
 import { insertStoreSettingsSchema, insertDiscountTierSchema, insertVerificationSchema } from "@shared/schema";
 import { fetchShopifyProducts, fetchShopifyCollections } from "./shopify";
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+function generateVerificationCode(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+async function sendVerificationEmail(email: string, code: string, name?: string): Promise<boolean> {
+  try {
+    await resend.emails.send({
+      from: "Spiral <onboarding@resend.dev>",
+      to: email,
+      subject: "Verify your Spiral account",
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
+          <h1 style="color: #5729a3; font-size: 28px; margin-bottom: 8px;">Spiral</h1>
+          <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">Hey${name ? ` ${name}` : ""},</p>
+          <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">Enter this code to verify your email address:</p>
+          <div style="background: linear-gradient(135deg, #5729a3 0%, #8b5cf6 100%); border-radius: 16px; padding: 32px; text-align: center; margin-bottom: 24px;">
+            <span style="font-size: 36px; font-weight: bold; color: white; letter-spacing: 8px;">${code}</span>
+          </div>
+          <p style="color: #6b7280; font-size: 14px;">This code expires in 10 minutes. If you didn't request this, you can safely ignore this email.</p>
+        </div>
+      `,
+    });
+    return true;
+  } catch (error) {
+    console.error("Failed to send verification email:", error);
+    return false;
+  }
+}
 
 // Extend session types
 declare module 'express-session' {
@@ -1557,10 +1589,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Customer Signup
   app.post("/api/customer/signup", async (req, res) => {
     try {
-      const { email, password } = req.body;
+      const { email, password, name } = req.body;
 
       if (!email || !password) {
         return res.status(400).json({ error: "Email and password required" });
+      }
+
+      if (!name || name.trim().length < 2) {
+        return res.status(400).json({ error: "Please enter your name" });
       }
 
       if (password.length < 6) {
@@ -1569,6 +1605,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Normalize email
       const normalizedEmail = email.toLowerCase().trim();
+      const trimmedName = name.trim();
 
       // Check if customer already exists
       const existing = await storage.getSpiralCustomerByEmail(normalizedEmail);
@@ -1580,12 +1617,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const salt = crypto.randomBytes(16).toString("hex");
       const passwordHash = crypto.createHash("sha256").update(salt + password).digest("hex") + ":" + salt;
 
+      // Generate verification code
+      const verificationCode = generateVerificationCode();
+      const verificationExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
       // Create customer
       const customer = await storage.createSpiralCustomer({
         email: normalizedEmail,
+        name: trimmedName,
         passwordHash,
         isActive: true,
+        emailVerified: false,
+        emailVerificationCode: verificationCode,
+        emailVerificationExpiresAt: verificationExpiry,
       });
+
+      // Send verification email
+      const emailSent = await sendVerificationEmail(normalizedEmail, verificationCode, trimmedName);
+      if (!emailSent) {
+        console.warn("Failed to send verification email to:", normalizedEmail);
+      }
 
       // Set session
       req.session.customerId = customer.id;
@@ -1593,12 +1644,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         id: customer.id,
         email: customer.email,
+        name: customer.name,
+        emailVerified: customer.emailVerified,
         instagramHandle: customer.instagramHandle,
         followerCount: customer.followerCount,
       });
     } catch (error) {
       console.error("Customer signup error:", error);
       res.status(500).json({ error: "Failed to create account" });
+    }
+  });
+
+  // Verify email with 6-digit code
+  app.post("/api/customer/verify-email", async (req, res) => {
+    try {
+      const customerId = req.session.customerId;
+      if (!customerId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const { code } = req.body;
+      if (!code || code.length !== 6) {
+        return res.status(400).json({ error: "Please enter the 6-digit code" });
+      }
+
+      const customer = await storage.getSpiralCustomerById(customerId);
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+
+      if (customer.emailVerified) {
+        return res.json({ success: true, message: "Email already verified" });
+      }
+
+      // Check if code is expired
+      if (!customer.emailVerificationExpiresAt || new Date() > customer.emailVerificationExpiresAt) {
+        return res.status(400).json({ error: "Verification code has expired. Please request a new one." });
+      }
+
+      // Verify code
+      if (customer.emailVerificationCode !== code) {
+        return res.status(400).json({ error: "Invalid verification code" });
+      }
+
+      // Mark as verified
+      await storage.updateSpiralCustomerEmailVerified(customerId, true);
+
+      res.json({ success: true, message: "Email verified successfully" });
+    } catch (error) {
+      console.error("Email verification error:", error);
+      res.status(500).json({ error: "Failed to verify email" });
+    }
+  });
+
+  // Resend verification code
+  app.post("/api/customer/resend-code", async (req, res) => {
+    try {
+      const customerId = req.session.customerId;
+      if (!customerId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const customer = await storage.getSpiralCustomerById(customerId);
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+
+      if (customer.emailVerified) {
+        return res.json({ success: true, message: "Email already verified" });
+      }
+
+      // Generate new code
+      const verificationCode = generateVerificationCode();
+      const verificationExpiry = new Date(Date.now() + 10 * 60 * 1000);
+
+      // Update customer with new code
+      await storage.updateSpiralCustomerVerificationCode(customerId, verificationCode, verificationExpiry);
+
+      // Send email
+      const emailSent = await sendVerificationEmail(customer.email, verificationCode, customer.name || undefined);
+      if (!emailSent) {
+        return res.status(500).json({ error: "Failed to send verification email" });
+      }
+
+      res.json({ success: true, message: "Verification code sent" });
+    } catch (error) {
+      console.error("Resend code error:", error);
+      res.status(500).json({ error: "Failed to resend code" });
     }
   });
 
@@ -1644,6 +1776,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         id: customer.id,
         email: customer.email,
+        name: customer.name,
+        emailVerified: customer.emailVerified,
         instagramHandle: customer.instagramHandle,
         followerCount: customer.followerCount,
       });

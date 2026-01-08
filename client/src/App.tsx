@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Home, ShoppingBag, User } from "lucide-react";
 import { Link } from "wouter";
 import Login from "@/pages/Login";
+import VerifyEmail from "@/pages/VerifyEmail";
 import InstagramConnect from "@/pages/InstagramConnect";
 import Orders from "@/pages/Orders";
 import OrderDetail from "@/pages/OrderDetail";
@@ -59,6 +60,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Login} />
       <Route path="/login" component={Login} />
+      <Route path="/verify-email" component={VerifyEmail} />
       <Route path="/connect-instagram" component={InstagramConnect} />
       <Route path="/home" component={CustomerHome} />
       <Route path="/orders" component={Orders} />
@@ -71,7 +73,7 @@ function Router() {
 function AppContent() {
   const [location] = useLocation();
   
-  const hideBottomNav = location === "/" || location === "/login" || location === "/connect-instagram";
+  const hideBottomNav = location === "/" || location === "/login" || location === "/verify-email" || location === "/connect-instagram";
   
   return (
     <div className="min-h-screen bg-background">

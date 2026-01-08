@@ -70,6 +70,8 @@ export interface IStorage {
   updateSpiralCustomerFollowerCount(id: string, followerCount: number): Promise<SpiralCustomer>;
   updateSpiralCustomerLastLogin(id: string): Promise<void>;
   updateSpiralCustomerInstagram(id: string, instagramHandle: string | null, instagramUserId: string | null, followerCount: number | null): Promise<SpiralCustomer>;
+  updateSpiralCustomerEmailVerified(id: string, verified: boolean): Promise<SpiralCustomer>;
+  updateSpiralCustomerVerificationCode(id: string, code: string, expiresAt: Date): Promise<SpiralCustomer>;
   getOrdersByCustomerId(customerId: string): Promise<Order[]>;
 }
 
@@ -538,6 +540,31 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(orders)
       .where(eq(orders.spiralCustomerId, customerId));
+  }
+
+  async updateSpiralCustomerEmailVerified(id: string, verified: boolean): Promise<SpiralCustomer> {
+    const [updated] = await db
+      .update(spiralCustomers)
+      .set({
+        emailVerified: verified,
+        emailVerificationCode: null,
+        emailVerificationExpiresAt: null,
+      })
+      .where(eq(spiralCustomers.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateSpiralCustomerVerificationCode(id: string, code: string, expiresAt: Date): Promise<SpiralCustomer> {
+    const [updated] = await db
+      .update(spiralCustomers)
+      .set({
+        emailVerificationCode: code,
+        emailVerificationExpiresAt: expiresAt,
+      })
+      .where(eq(spiralCustomers.id, id))
+      .returning();
+    return updated;
   }
 }
 

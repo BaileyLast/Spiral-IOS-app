@@ -11,23 +11,38 @@ import spiralLogoUrl from "@assets/Spiral logo (2)_1763051288266.png";
 
 type AuthMode = "login" | "signup";
 
+interface AuthResponse {
+  id: string;
+  email: string;
+  name?: string;
+  emailVerified?: boolean;
+  instagramHandle?: string;
+  followerCount?: number;
+}
+
 export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [mode, setMode] = useState<AuthMode>("login");
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   const authMutation = useMutation({
-    mutationFn: async (data: { email: string; password: string }) => {
+    mutationFn: async (data: { email: string; password: string; name?: string }) => {
       const endpoint = mode === "login" ? "/api/customer/login" : "/api/customer/signup";
       const response = await apiRequest("POST", endpoint, data);
       return response.json();
     },
-    onSuccess: (data: { id: string; email: string; instagramHandle?: string }) => {
+    onSuccess: (data: AuthResponse) => {
       localStorage.setItem("spiral_customer", JSON.stringify(data));
-      if (data.instagramHandle) {
+      
+      if (mode === "signup") {
+        setLocation("/verify-email");
+      } else if (!data.emailVerified) {
+        setLocation("/verify-email");
+      } else if (data.instagramHandle) {
         setLocation("/home");
       } else {
         setLocation("/connect-instagram");
@@ -52,7 +67,19 @@ export default function Login() {
       });
       return;
     }
-    authMutation.mutate({ email, password });
+    if (mode === "signup" && !name.trim()) {
+      toast({
+        title: "Missing information",
+        description: "Please enter your name",
+        variant: "destructive",
+      });
+      return;
+    }
+    authMutation.mutate({ 
+      email, 
+      password,
+      ...(mode === "signup" && { name: name.trim() })
+    });
   };
 
   return (
@@ -102,6 +129,23 @@ export default function Login() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {mode === "signup" && (
+              <div className="space-y-2">
+                <Label htmlFor="name" className="text-white/90 text-sm font-medium">
+                  Name
+                </Label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="Your name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="h-14 rounded-2xl bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:bg-white/15 focus:border-white/40 backdrop-blur-sm"
+                  data-testid="input-name"
+                />
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="email" className="text-white/90 text-sm font-medium">
                 Email
