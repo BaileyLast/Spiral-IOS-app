@@ -1589,14 +1589,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Customer Signup
   app.post("/api/customer/signup", async (req, res) => {
     try {
-      const { email, password, name } = req.body;
+      const { email, password } = req.body;
 
       if (!email || !password) {
         return res.status(400).json({ error: "Email and password required" });
-      }
-
-      if (!name || name.trim().length < 2) {
-        return res.status(400).json({ error: "Please enter your name" });
       }
 
       if (password.length < 6) {
@@ -1605,7 +1601,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Normalize email
       const normalizedEmail = email.toLowerCase().trim();
-      const trimmedName = name.trim();
 
       // Check if customer already exists
       const existing = await storage.getSpiralCustomerByEmail(normalizedEmail);
@@ -1624,7 +1619,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create customer
       const customer = await storage.createSpiralCustomer({
         email: normalizedEmail,
-        name: trimmedName,
         passwordHash,
         isActive: true,
         emailVerified: false,
@@ -1633,7 +1627,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Send verification email
-      const emailSent = await sendVerificationEmail(normalizedEmail, verificationCode, trimmedName);
+      const emailSent = await sendVerificationEmail(normalizedEmail, verificationCode);
       if (!emailSent) {
         console.warn("Failed to send verification email to:", normalizedEmail);
       }
@@ -1644,7 +1638,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         id: customer.id,
         email: customer.email,
-        name: customer.name,
         emailVerified: customer.emailVerified,
         instagramHandle: customer.instagramHandle,
         followerCount: customer.followerCount,
@@ -1722,7 +1715,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateSpiralCustomerVerificationCode(customerId, verificationCode, verificationExpiry);
 
       // Send email
-      const emailSent = await sendVerificationEmail(customer.email, verificationCode, customer.name || undefined);
+      const emailSent = await sendVerificationEmail(customer.email, verificationCode);
       if (!emailSent) {
         return res.status(500).json({ error: "Failed to send verification email" });
       }
@@ -1776,7 +1769,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         id: customer.id,
         email: customer.email,
-        name: customer.name,
         emailVerified: customer.emailVerified,
         instagramHandle: customer.instagramHandle,
         followerCount: customer.followerCount,
