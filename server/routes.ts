@@ -1853,12 +1853,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("Instagram OAuth - Host header:", host);
 
       // Request permissions for Instagram Business/Creator accounts
+      // Note: instagram_manage_insights and business_management require App Review
+      // For development/testing, we use only basic permissions
       const scopes = [
         "instagram_basic",
-        "instagram_manage_insights",
         "pages_show_list",
-        "pages_read_engagement",
-        "business_management"
+        "pages_read_engagement"
       ].join(",");
 
       const authUrl = new URL("https://www.facebook.com/v18.0/dialog/oauth");
