@@ -208,12 +208,12 @@ export default function InstagramConnect() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
+      <div className="flex-1 flex flex-col items-center px-6 pt-12 pb-6">
         <div className="w-full max-w-sm mx-auto text-center">
           <img 
             src={spiralLogoUrl} 
             alt="Spiral" 
-            className="h-8 mx-auto mb-12 object-contain"
+            className="h-8 mx-auto mb-10 object-contain"
             data-testid="img-spiral-logo"
           />
 
