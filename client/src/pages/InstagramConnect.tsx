@@ -88,12 +88,22 @@ export default function InstagramConnect() {
   }, [error, toast]);
 
   const handleConnect = () => {
+    // Check if we're in an iframe (Replit preview)
+    const isInIframe = window.self !== window.top;
+    
+    if (isInIframe) {
+      // Show a toast and open the app in a new tab for OAuth
+      toast({
+        title: "Opening in new tab",
+        description: "Instagram requires you to connect from the full app. Please complete the connection in the new tab.",
+      });
+      // Open the full app in a new tab
+      window.open(window.location.origin + "/connect-instagram", "_blank");
+      return;
+    }
+    
     setIsConnecting(true);
-    // Open in new window to avoid iframe restrictions from Facebook/Meta
-    const authUrl = `${window.location.origin}/api/customer/instagram/auth`;
-    window.open(authUrl, "_blank", "noopener,noreferrer");
-    // Reset connecting state after a moment since we can't track the popup
-    setTimeout(() => setIsConnecting(false), 2000);
+    window.location.href = "/api/customer/instagram/auth";
   };
 
   const handleSkip = () => {
