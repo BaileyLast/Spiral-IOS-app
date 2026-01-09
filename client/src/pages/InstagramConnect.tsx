@@ -94,11 +94,11 @@ export default function InstagramConnect() {
     if (isInIframe) {
       // Show a toast and open the app in a new tab for OAuth
       toast({
-        title: "Opening in new tab",
-        description: "Instagram requires you to connect from the full app. Please complete the connection in the new tab.",
+        title: "Opening Instagram login",
+        description: "Please complete the connection in the new tab that opens.",
       });
-      // Open the full app in a new tab
-      window.open(window.location.origin + "/connect-instagram", "_blank");
+      // Open OAuth directly in new tab - session cookie now works across tabs
+      window.open(window.location.origin + "/api/customer/instagram/auth", "_blank");
       return;
     }
     
