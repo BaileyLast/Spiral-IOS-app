@@ -44,6 +44,13 @@ declare module 'express-session' {
     oauthShop?: string;
     instagramOauthState?: string;
     customerId?: string;
+    pendingSignup?: {
+      email: string;
+      name?: string;
+      passwordHash: string;
+      verificationCode: string;
+      verificationExpiry: Date;
+    };
   }
 }
 
@@ -1586,7 +1593,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // CUSTOMER APP API ROUTES
   // ============================================
 
-  // Customer Signup
+  // Customer Signup - stores pending signup in session, account created after verification
   app.post("/api/customer/signup", async (req, res) => {
     try {
       const { email, password, name } = req.body;
@@ -1617,16 +1624,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const verificationCode = generateVerificationCode();
       const verificationExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-      // Create customer
-      const customer = await storage.createSpiralCustomer({
+      // Store pending signup in session (account created after verification)
+      req.session.pendingSignup = {
         email: normalizedEmail,
         name: customerName,
         passwordHash,
-        isActive: true,
-        emailVerified: false,
-        emailVerificationCode: verificationCode,
-        emailVerificationExpiresAt: verificationExpiry,
-      });
+        verificationCode,
+        verificationExpiry,
+      };
 
       // Send verification email with personalized greeting
       const emailSent = await sendVerificationEmail(normalizedEmail, verificationCode, customerName);
@@ -1634,15 +1639,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.warn("Failed to send verification email to:", normalizedEmail);
       }
 
-      // Set session
-      req.session.customerId = customer.id;
-
       res.json({
-        id: customer.id,
-        email: customer.email,
-        emailVerified: customer.emailVerified,
-        instagramHandle: customer.instagramHandle,
-        followerCount: customer.followerCount,
+        email: normalizedEmail,
+        emailVerified: false,
+        pendingVerification: true,
       });
     } catch (error) {
       console.error("Customer signup error:", error);
@@ -1650,12 +1650,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Verify email with 6-digit code
+  // Verify email with 6-digit code - creates account after successful verification
   app.post("/api/customer/verify-email", async (req, res) => {
     try {
-      const customerId = req.session.customerId;
-      if (!customerId) {
-        return res.status(401).json({ error: "Not authenticated" });
+      const pendingSignup = req.session.pendingSignup;
+      if (!pendingSignup) {
+        return res.status(401).json({ error: "No pending signup found. Please sign up again." });
       }
 
       const { code } = req.body;
@@ -1663,61 +1663,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Please enter the 6-digit code" });
       }
 
-      const customer = await storage.getSpiralCustomerById(customerId);
-      if (!customer) {
-        return res.status(404).json({ error: "Customer not found" });
-      }
-
-      if (customer.emailVerified) {
-        return res.json({ success: true, message: "Email already verified" });
-      }
-
       // Check if code is expired
-      if (!customer.emailVerificationExpiresAt || new Date() > customer.emailVerificationExpiresAt) {
+      if (new Date() > new Date(pendingSignup.verificationExpiry)) {
         return res.status(400).json({ error: "Verification code has expired. Please request a new one." });
       }
 
       // Verify code
-      if (customer.emailVerificationCode !== code) {
+      if (pendingSignup.verificationCode !== code) {
         return res.status(400).json({ error: "Invalid verification code" });
       }
 
-      // Mark as verified
-      await storage.updateSpiralCustomerEmailVerified(customerId, true);
+      // Check again if email was taken in the meantime
+      const existing = await storage.getSpiralCustomerByEmail(pendingSignup.email);
+      if (existing) {
+        req.session.pendingSignup = undefined;
+        return res.status(400).json({ error: "An account with this email already exists" });
+      }
 
-      res.json({ success: true, message: "Email verified successfully" });
+      // Create the account now that email is verified
+      const customer = await storage.createSpiralCustomer({
+        email: pendingSignup.email,
+        name: pendingSignup.name,
+        passwordHash: pendingSignup.passwordHash,
+        isActive: true,
+        emailVerified: true,
+      });
+
+      // Clear pending signup and set customer session
+      req.session.pendingSignup = undefined;
+      req.session.customerId = customer.id;
+
+      res.json({ 
+        success: true, 
+        message: "Email verified successfully",
+        id: customer.id,
+        email: customer.email,
+        emailVerified: true,
+      });
     } catch (error) {
       console.error("Email verification error:", error);
       res.status(500).json({ error: "Failed to verify email" });
     }
   });
 
-  // Resend verification code
+  // Resend verification code - works with pending signup session
   app.post("/api/customer/resend-code", async (req, res) => {
     try {
-      const customerId = req.session.customerId;
-      if (!customerId) {
-        return res.status(401).json({ error: "Not authenticated" });
-      }
-
-      const customer = await storage.getSpiralCustomerById(customerId);
-      if (!customer) {
-        return res.status(404).json({ error: "Customer not found" });
-      }
-
-      if (customer.emailVerified) {
-        return res.json({ success: true, message: "Email already verified" });
+      const pendingSignup = req.session.pendingSignup;
+      if (!pendingSignup) {
+        return res.status(401).json({ error: "No pending signup found. Please sign up again." });
       }
 
       // Generate new code
       const verificationCode = generateVerificationCode();
       const verificationExpiry = new Date(Date.now() + 10 * 60 * 1000);
 
-      // Update customer with new code
-      await storage.updateSpiralCustomerVerificationCode(customerId, verificationCode, verificationExpiry);
+      // Update pending signup with new code
+      req.session.pendingSignup = {
+        ...pendingSignup,
+        verificationCode,
+        verificationExpiry,
+      };
 
       // Send email
-      const emailSent = await sendVerificationEmail(customer.email, verificationCode);
+      const emailSent = await sendVerificationEmail(pendingSignup.email, verificationCode, pendingSignup.name);
       if (!emailSent) {
         return res.status(500).json({ error: "Failed to send verification email" });
       }

@@ -27,10 +27,13 @@ export default function VerifyEmail() {
       const response = await apiRequest("POST", "/api/customer/verify-email", { code: verificationCode });
       return response.json();
     },
-    onSuccess: () => {
-      if (customer) {
-        localStorage.setItem("spiral_customer", JSON.stringify({ ...customer, emailVerified: true }));
-      }
+    onSuccess: (data) => {
+      // Account is created on verification success - store the customer data
+      localStorage.setItem("spiral_customer", JSON.stringify({
+        id: data.id,
+        email: data.email,
+        emailVerified: true,
+      }));
       toast({
         title: "Email verified",
         description: "Your account is ready to use",
