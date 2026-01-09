@@ -1848,6 +1848,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const protocol = req.headers["x-forwarded-proto"] || "https";
       const host = req.headers.host;
       const redirectUri = `${protocol}://${host}/api/customer/instagram/callback`;
+      
+      console.log("Instagram OAuth - Generated redirect URI:", redirectUri);
+      console.log("Instagram OAuth - Host header:", host);
 
       // Request permissions for Instagram Business/Creator accounts
       const scopes = [
