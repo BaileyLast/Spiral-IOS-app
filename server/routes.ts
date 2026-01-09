@@ -1796,6 +1796,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ success: true });
   });
 
+  // Get current customer profile
+  app.get("/api/customer/me", async (req, res) => {
+    try {
+      const customerId = req.session.customerId;
+      if (!customerId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const customer = await storage.getSpiralCustomerById(customerId);
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+
+      res.json({
+        id: customer.id,
+        email: customer.email,
+        name: customer.name,
+        emailVerified: customer.emailVerified,
+        instagramHandle: customer.instagramHandle,
+        instagramUserId: customer.instagramUserId,
+        instagramProfilePicture: customer.instagramProfilePicture,
+        instagramAccountType: customer.instagramAccountType,
+        followerCount: customer.followerCount,
+      });
+    } catch (error) {
+      console.error("Get customer profile error:", error);
+      res.status(500).json({ error: "Failed to get profile" });
+    }
+  });
+
   // Instagram OAuth - Start authorization flow
   app.get("/api/customer/instagram/auth", async (req, res) => {
     try {
@@ -1918,14 +1948,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Find Instagram Business Account connected to a page
-      let instagramAccount: { id: string; username: string; profile_picture_url?: string; followers_count?: number; account_type?: string } | null = null;
+      interface InstagramBusinessAccount {
+        id: string;
+        username: string;
+        profile_picture_url?: string;
+        followers_count?: number;
+        account_type?: string;
+      }
+      
+      let instagramAccount: InstagramBusinessAccount | null = null;
       let pageAccessToken = "";
 
       for (const page of pagesData.data) {
         const igResponse = await fetch(
           `https://graph.facebook.com/v18.0/${page.id}?fields=instagram_business_account{id,username,profile_picture_url,followers_count,account_type}&access_token=${page.access_token}`
         );
-        const igData = await igResponse.json() as { instagram_business_account?: typeof instagramAccount; error?: { message: string } };
+        const igData = await igResponse.json() as { instagram_business_account?: InstagramBusinessAccount; error?: { message: string } };
 
         if (igData.instagram_business_account) {
           instagramAccount = igData.instagram_business_account;

@@ -8,6 +8,7 @@ import { Link } from "wouter";
 import Login from "@/pages/Login";
 import VerifyEmail from "@/pages/VerifyEmail";
 import InstagramConnect from "@/pages/InstagramConnect";
+import InstagramHelp from "@/pages/InstagramHelp";
 import Orders from "@/pages/Orders";
 import OrderDetail from "@/pages/OrderDetail";
 import Profile from "@/pages/Profile";
@@ -62,6 +63,7 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/verify-email" component={VerifyEmail} />
       <Route path="/connect-instagram" component={InstagramConnect} />
+      <Route path="/instagram-help" component={InstagramHelp} />
       <Route path="/home" component={CustomerHome} />
       <Route path="/orders" component={Orders} />
       <Route path="/orders/:id" component={OrderDetail} />
@@ -73,7 +75,7 @@ function Router() {
 function AppContent() {
   const [location] = useLocation();
   
-  const hideBottomNav = location === "/" || location === "/login" || location === "/verify-email" || location === "/connect-instagram";
+  const hideBottomNav = location === "/" || location === "/login" || location === "/verify-email" || location === "/connect-instagram" || location === "/instagram-help";
   
   return (
     <div className="min-h-screen bg-background">

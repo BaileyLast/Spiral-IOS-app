@@ -1,41 +1,206 @@
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
-import { useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Instagram, Shield, CheckCircle, Loader2 } from "lucide-react";
+import { Instagram, Shield, CheckCircle, Loader2, Users, ArrowRight, LogOut } from "lucide-react";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import spiralLogoUrl from "@assets/Spiral logo (2)_1763051288266.png";
+
+interface CustomerProfile {
+  id: string;
+  email: string;
+  emailVerified: boolean;
+  instagramHandle?: string;
+  instagramUserId?: string;
+  instagramProfilePicture?: string;
+  instagramAccountType?: string;
+  followerCount?: number;
+}
 
 export default function InstagramConnect() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isConnecting, setIsConnecting] = useState(false);
 
-  const connectMutation = useMutation({
+  const params = new URLSearchParams(window.location.search);
+  const success = params.get("success") === "true";
+  const error = params.get("error");
+
+  const { data: profile, isLoading } = useQuery<CustomerProfile>({
+    queryKey: ["/api/customer/me"],
+  });
+
+  const disconnectMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/customer/connect-instagram");
+      const response = await apiRequest("POST", "/api/customer/disconnect-instagram");
       return response.json();
     },
-    onSuccess: (data) => {
-      const customer = JSON.parse(localStorage.getItem("spiral_customer") || "{}");
-      localStorage.setItem("spiral_customer", JSON.stringify({ ...customer, ...data }));
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/customer/me"] });
       toast({
-        title: "Instagram connected",
-        description: "Your account is now linked",
+        title: "Instagram disconnected",
+        description: "Your account has been unlinked",
       });
-      setLocation("/home");
     },
     onError: (error: Error) => {
       toast({
-        title: "Connection failed",
+        title: "Failed to disconnect",
         description: error.message || "Please try again",
         variant: "destructive",
       });
     },
   });
 
+  useEffect(() => {
+    if (success) {
+      queryClient.invalidateQueries({ queryKey: ["/api/customer/me"] });
+      toast({
+        title: "Instagram connected",
+        description: "Your account is now linked",
+      });
+      window.history.replaceState({}, "", "/connect-instagram");
+    }
+  }, [success, toast, queryClient]);
+
+  useEffect(() => {
+    if (error) {
+      const errorMessages: Record<string, string> = {
+        "access_denied": "You cancelled the Instagram connection",
+        "config_error": "Configuration error. Please try again later.",
+        "token_exchange_failed": "Failed to connect. Please try again.",
+        "callback_failed": "Something went wrong. Please try again.",
+        "invalid_state": "Security check failed. Please try again.",
+      };
+      toast({
+        title: "Connection failed",
+        description: errorMessages[error] || "Please try again",
+        variant: "destructive",
+      });
+      window.history.replaceState({}, "", "/connect-instagram");
+    }
+  }, [error, toast]);
+
+  const handleConnect = () => {
+    setIsConnecting(true);
+    window.location.href = "/api/customer/instagram/auth";
+  };
+
   const handleSkip = () => {
     setLocation("/home");
   };
+
+  const handleContinue = () => {
+    setLocation("/home");
+  };
+
+  const formatFollowerCount = (count: number) => {
+    if (count >= 1000000) {
+      return (count / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
+    }
+    if (count >= 1000) {
+      return (count / 1000).toFixed(1).replace(/\.0$/, "") + "K";
+    }
+    return count.toString();
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const isConnected = profile?.instagramHandle;
+
+  if (isConnected) {
+    return (
+      <div className="min-h-screen flex flex-col relative overflow-hidden">
+        <div 
+          className="absolute inset-0 z-0"
+          style={{
+            background: `
+              linear-gradient(135deg, 
+                hsl(280 70% 50%) 0%, 
+                hsl(320 70% 45%) 50%,
+                hsl(340 65% 40%) 100%)
+            `,
+          }}
+        />
+        
+        <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 py-12">
+          <div className="w-full max-w-sm mx-auto text-center">
+            <img 
+              src={spiralLogoUrl} 
+              alt="Spiral" 
+              className="h-8 mx-auto mb-12 object-contain brightness-0 invert"
+              data-testid="img-spiral-logo"
+            />
+
+            <div className="bg-white rounded-3xl p-6 shadow-xl mb-6">
+              <div className="flex items-center gap-4 mb-4">
+                <Avatar className="w-16 h-16 border-2 border-primary/20">
+                  <AvatarImage 
+                    src={profile.instagramProfilePicture} 
+                    alt={profile.instagramHandle}
+                  />
+                  <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white text-xl">
+                    {profile.instagramHandle?.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 text-left">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-foreground">
+                      @{profile.instagramHandle}
+                    </span>
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                  </div>
+                  <div className="flex items-center gap-1 text-muted-foreground text-sm">
+                    <Users className="w-3.5 h-3.5" />
+                    <span>{formatFollowerCount(profile.followerCount || 0)} followers</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground capitalize">
+                    {profile.instagramAccountType?.toLowerCase()} account
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950/30 rounded-xl">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+                <span className="text-sm text-green-800 dark:text-green-200">
+                  Instagram connected successfully
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => disconnectMutation.mutate()}
+              disabled={disconnectMutation.isPending}
+              className="flex items-center justify-center gap-2 text-white/70 hover:text-white transition-colors mx-auto text-sm"
+              data-testid="button-disconnect"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Disconnect account</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="relative z-10 px-6 pb-8 safe-bottom">
+          <Button 
+            className="w-full h-14 text-base font-medium rounded-xl bg-white text-primary hover:bg-white/90"
+            onClick={handleContinue}
+            data-testid="button-continue"
+          >
+            Continue to Spiral
+            <ArrowRight className="w-5 h-5 ml-2" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -56,7 +221,7 @@ export default function InstagramConnect() {
             Connect Instagram
           </h1>
           <p className="text-muted-foreground mb-8">
-            Link your account to verify your follower count and unlock your discount
+            Link your Creator or Business account to verify your follower count and unlock your discount
           </p>
 
           <div className="bg-card rounded-2xl border border-border p-5 mb-8 text-left">
@@ -81,11 +246,11 @@ export default function InstagramConnect() {
       <div className="px-6 pb-8 space-y-3 safe-bottom">
         <Button 
           className="w-full h-14 text-base font-medium rounded-xl"
-          onClick={() => connectMutation.mutate()}
-          disabled={connectMutation.isPending}
+          onClick={handleConnect}
+          disabled={isConnecting}
           data-testid="button-connect-instagram"
         >
-          {connectMutation.isPending ? (
+          {isConnecting ? (
             <Loader2 className="w-5 h-5 animate-spin" />
           ) : (
             <>

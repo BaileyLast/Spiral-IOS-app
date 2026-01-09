@@ -1,6 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -13,24 +14,43 @@ import {
   Shield, 
   Gift,
   Trash2,
-  Users
+  Users,
+  CheckCircle,
+  Plus,
+  Loader2
 } from "lucide-react";
 import spiralLogoUrl from "@assets/Spiral logo (2)_1763051288266.png";
 
-function getFollowerBand(count: number | null | undefined): string {
-  if (!count) return "Not connected";
-  if (count < 1000) return "< 1K followers";
-  if (count < 5000) return "1K - 5K followers";
-  if (count < 10000) return "5K - 10K followers";
-  if (count < 50000) return "10K - 50K followers";
-  if (count < 100000) return "50K - 100K followers";
-  return "100K+ followers";
+interface CustomerProfile {
+  id: string;
+  email: string;
+  name?: string;
+  emailVerified: boolean;
+  instagramHandle?: string;
+  instagramUserId?: string;
+  instagramProfilePicture?: string;
+  instagramAccountType?: string;
+  followerCount?: number;
+}
+
+function formatFollowerCount(count: number | null | undefined): string {
+  if (!count) return "0";
+  if (count >= 1000000) {
+    return (count / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
+  }
+  if (count >= 1000) {
+    return (count / 1000).toFixed(1).replace(/\.0$/, "") + "K";
+  }
+  return count.toString();
 }
 
 export default function Profile() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const customer = JSON.parse(localStorage.getItem("spiral_customer") || "{}");
+
+  const { data: profile, isLoading: profileLoading } = useQuery<CustomerProfile>({
+    queryKey: ["/api/customer/me"],
+  });
 
   const { data: stats } = useQuery<{ totalSaved: number; ordersCompleted: number }>({
     queryKey: ["/api/customer/stats"],
@@ -53,13 +73,11 @@ export default function Profile() {
       return response.json();
     },
     onSuccess: () => {
-      const updated = { ...customer, instagramHandle: null, followerCount: null };
-      localStorage.setItem("spiral_customer", JSON.stringify(updated));
       toast({
         title: "Instagram disconnected",
         description: "Your account has been unlinked",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/customer/profile"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/customer/me"] });
     },
     onError: () => {
       toast({
@@ -74,6 +92,20 @@ export default function Profile() {
     logoutMutation.mutate();
   };
 
+  const handleConnectInstagram = () => {
+    setLocation("/connect-instagram");
+  };
+
+  if (profileLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const isInstagramConnected = !!profile?.instagramHandle;
+
   return (
     <div className="min-h-screen bg-background safe-top">
       <header className="px-6 pt-6 pb-4">
@@ -83,38 +115,80 @@ export default function Profile() {
       <main className="px-6 pb-8 space-y-6">
         <Card className="p-5 rounded-2xl">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center">
-              <span className="text-xl font-semibold text-primary-foreground">
-                {customer.email?.[0]?.toUpperCase() || "?"}
-              </span>
-            </div>
+            <Avatar className="w-14 h-14">
+              {profile?.instagramProfilePicture ? (
+                <AvatarImage 
+                  src={profile.instagramProfilePicture} 
+                  alt={profile.instagramHandle || profile.email}
+                />
+              ) : null}
+              <AvatarFallback className="bg-primary text-primary-foreground text-xl font-semibold">
+                {profile?.email?.[0]?.toUpperCase() || "?"}
+              </AvatarFallback>
+            </Avatar>
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-foreground truncate" data-testid="text-email">
-                {customer.email || "Guest"}
+                {profile?.name || profile?.email || "Guest"}
               </p>
-              {customer.instagramHandle && (
-                <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-0.5">
-                  <Instagram className="w-3.5 h-3.5" />
-                  <span data-testid="text-instagram-handle">@{customer.instagramHandle}</span>
-                </div>
-              )}
+              <p className="text-sm text-muted-foreground truncate">
+                {profile?.email}
+              </p>
             </div>
           </div>
         </Card>
 
-        {customer.instagramHandle && (
+        {isInstagramConnected ? (
           <Card className="p-5 rounded-2xl">
+            <div className="flex items-center gap-4">
+              <Avatar className="w-12 h-12 border-2 border-primary/20">
+                {profile?.instagramProfilePicture ? (
+                  <AvatarImage 
+                    src={profile.instagramProfilePicture} 
+                    alt={profile.instagramHandle}
+                  />
+                ) : null}
+                <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white">
+                  <Instagram className="w-5 h-5" />
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-foreground" data-testid="text-instagram-handle">
+                    @{profile.instagramHandle}
+                  </span>
+                  <CheckCircle className="w-4 h-4 text-green-600" />
+                </div>
+                <div className="flex items-center gap-3 text-sm text-muted-foreground mt-0.5">
+                  <div className="flex items-center gap-1">
+                    <Users className="w-3.5 h-3.5" />
+                    <span data-testid="text-follower-count">
+                      {formatFollowerCount(profile.followerCount)} followers
+                    </span>
+                  </div>
+                  <span className="capitalize text-xs">
+                    {profile.instagramAccountType?.toLowerCase()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </Card>
+        ) : (
+          <Card 
+            className="p-5 rounded-2xl hover-elevate cursor-pointer"
+            onClick={handleConnectInstagram}
+            data-testid="card-connect-instagram"
+          >
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
                 <Instagram className="w-6 h-6 text-white" />
               </div>
               <div className="flex-1">
-                <p className="font-medium text-foreground">@{customer.instagramHandle}</p>
-                <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-0.5">
-                  <Users className="w-3.5 h-3.5" />
-                  <span data-testid="text-follower-band">{getFollowerBand(customer.followerCount)}</span>
-                </div>
+                <p className="font-medium text-foreground">Connect Instagram</p>
+                <p className="text-sm text-muted-foreground">
+                  Link your account to unlock discounts
+                </p>
               </div>
+              <Plus className="w-5 h-5 text-muted-foreground" />
             </div>
           </Card>
         )}
@@ -146,7 +220,7 @@ export default function Profile() {
               <Switch defaultChecked data-testid="switch-notifications" />
             </div>
 
-            {customer.instagramHandle && (
+            {isInstagramConnected && (
               <button
                 onClick={() => disconnectMutation.mutate()}
                 disabled={disconnectMutation.isPending}
