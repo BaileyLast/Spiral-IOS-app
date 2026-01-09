@@ -231,18 +231,11 @@ export default function InstagramConnect() {
           </p>
 
           <div className="bg-card rounded-2xl border border-border p-5 mb-8 text-left">
-            <div className="flex items-start gap-3 mb-4">
+            <div className="flex items-start gap-3">
               <Shield className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
               <div>
                 <p className="text-sm font-medium text-foreground">Your privacy is protected</p>
                 <p className="text-sm text-muted-foreground mt-1">We only access your follower count and verify story tags</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <CheckCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-foreground">No posts on your behalf</p>
-                <p className="text-sm text-muted-foreground mt-1">We never post, comment, or follow anyone for you</p>
               </div>
             </div>
           </div>
