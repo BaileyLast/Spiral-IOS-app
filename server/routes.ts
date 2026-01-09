@@ -15,7 +15,7 @@ function generateVerificationCode(): string {
 async function sendVerificationEmail(email: string, code: string, name?: string): Promise<boolean> {
   try {
     await resend.emails.send({
-      from: "Spiral <onboarding@resend.dev>",
+      from: "Spiral <noreply@joinspiral.app>",
       to: email,
       subject: "Verify your Spiral account",
       html: `
