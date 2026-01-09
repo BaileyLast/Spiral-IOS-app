@@ -44,7 +44,7 @@ export default function InstagramHelp() {
     },
     {
       title: "Connect Facebook",
-      description: "Link to a Facebook Page (create one if needed - it can be private)",
+      description: "Go to Edit Profile → Page to link a Facebook Page. You can create one there if needed - it can be private",
     },
     {
       title: "Come back",
