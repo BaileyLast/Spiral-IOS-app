@@ -226,7 +226,7 @@ export default function InstagramConnect() {
           </h1>
           <p className="text-muted-foreground mb-8">
             <Link href="/instagram-help" className="text-primary hover:underline" data-testid="link-creator-help">
-              Not a Creator account? Switch in 3 easy steps
+              Not a Creator account? Here's how to switch
             </Link>
           </p>
 
