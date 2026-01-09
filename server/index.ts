@@ -9,14 +9,19 @@ const app = express();
 app.set('trust proxy', 1);
 
 // Session middleware for OAuth state management
+// In Replit, we're always behind HTTPS even in development
+const isProduction = process.env.NODE_ENV === 'production';
+const isReplit = !!process.env.REPL_SLUG;
+
 app.use(session({
   secret: process.env.SESSION_SECRET || 'spiral-dev-secret-change-in-production',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    secure: isProduction || isReplit, // Replit uses HTTPS
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    sameSite: isReplit ? 'none' : 'lax', // 'none' required for Replit iframe context
   }
 }));
 
