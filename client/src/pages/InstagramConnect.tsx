@@ -40,6 +40,7 @@ export default function InstagramConnect() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/customer/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/customer/stats"] });
       toast({
         title: "Instagram disconnected",
         description: "Your account has been unlinked",
@@ -71,8 +72,11 @@ export default function InstagramConnect() {
         "access_denied": "You cancelled the Instagram connection",
         "config_error": "Configuration error. Please try again later.",
         "token_exchange_failed": "Failed to connect. Please try again.",
+        "token_refresh_failed": "Failed to secure your connection. Please try again.",
         "callback_failed": "Something went wrong. Please try again.",
         "invalid_state": "Security check failed. Please try again.",
+        "missing_code": "Authorization was incomplete. Please try again.",
+        "oauth_start_failed": "Could not start Instagram connection. Please try again.",
       };
       toast({
         title: "Connection failed",

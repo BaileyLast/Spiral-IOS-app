@@ -1874,20 +1874,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Instagram OAuth - Handle callback from Meta
   app.get("/api/customer/instagram/callback", async (req, res) => {
+    // Helper to clear state and redirect with error
+    const failWithError = (errorCode: string, logMessage: string) => {
+      console.error(logMessage);
+      req.session.instagramOauthState = undefined;
+      return res.redirect(`/connect-instagram?error=${errorCode}`);
+    };
+
     try {
       const { code, state, error, error_description } = req.query;
 
-      // Check for OAuth errors
+      // Check for OAuth errors (user denied, etc.)
       if (error) {
-        console.error("Instagram OAuth error:", error, error_description);
-        return res.redirect(`/connect-instagram?error=${error}`);
+        return failWithError(String(error), `Instagram OAuth error: ${error} - ${error_description}`);
+      }
+
+      // Verify code exists
+      if (!code || typeof code !== "string") {
+        return failWithError("missing_code", "Missing authorization code in callback");
       }
 
       // Verify state to prevent CSRF
       if (!state || state !== req.session.instagramOauthState) {
-        console.error("Invalid OAuth state");
-        return res.redirect("/connect-instagram?error=invalid_state");
+        return failWithError("invalid_state", "Invalid or missing OAuth state - possible CSRF attack");
       }
+
+      // Clear state immediately after validation to prevent replay
+      req.session.instagramOauthState = undefined;
 
       const customerId = req.session.customerId;
       if (!customerId) {
@@ -1931,7 +1944,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const longTokenResponse = await fetch(longTokenUrl.toString());
       const longTokenData = await longTokenResponse.json() as { access_token?: string; expires_in?: number; error?: { message: string } };
 
-      const accessToken = longTokenData.access_token || shortLivedToken;
+      // Verify long-lived token exchange succeeded
+      if (longTokenData.error || !longTokenData.access_token) {
+        console.error("Long-lived token exchange failed:", longTokenData.error);
+        return res.redirect("/connect-instagram?error=token_refresh_failed");
+      }
+
+      const accessToken = longTokenData.access_token;
       const tokenExpiry = longTokenData.expires_in 
         ? new Date(Date.now() + longTokenData.expires_in * 1000)
         : new Date(Date.now() + 60 * 24 * 60 * 60 * 1000);
@@ -1994,9 +2013,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         instagramAccountType: instagramAccount.account_type || null,
         followerCount: instagramAccount.followers_count || null,
       });
-
-      // Clear OAuth state
-      req.session.instagramOauthState = undefined;
 
       res.redirect("/connect-instagram?success=true");
     } catch (error) {

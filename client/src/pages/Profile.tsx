@@ -34,7 +34,7 @@ interface CustomerProfile {
 }
 
 function formatFollowerCount(count: number | null | undefined): string {
-  if (!count) return "0";
+  if (count === null || count === undefined) return "";
   if (count >= 1000000) {
     return (count / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
   }
@@ -78,6 +78,7 @@ export default function Profile() {
         description: "Your account has been unlinked",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/customer/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/customer/stats"] });
     },
     onError: () => {
       toast({
@@ -159,15 +160,19 @@ export default function Profile() {
                   <CheckCircle className="w-4 h-4 text-green-600" />
                 </div>
                 <div className="flex items-center gap-3 text-sm text-muted-foreground mt-0.5">
-                  <div className="flex items-center gap-1">
-                    <Users className="w-3.5 h-3.5" />
-                    <span data-testid="text-follower-count">
-                      {formatFollowerCount(profile.followerCount)} followers
+                  {profile.followerCount && (
+                    <div className="flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5" />
+                      <span data-testid="text-follower-count">
+                        {formatFollowerCount(profile.followerCount)} followers
+                      </span>
+                    </div>
+                  )}
+                  {profile.instagramAccountType && (
+                    <span className="capitalize text-xs">
+                      {profile.instagramAccountType.toLowerCase()}
                     </span>
-                  </div>
-                  <span className="capitalize text-xs">
-                    {profile.instagramAccountType?.toLowerCase()}
-                  </span>
+                  )}
                 </div>
               </div>
             </div>
