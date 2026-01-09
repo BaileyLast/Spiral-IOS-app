@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -222,10 +222,12 @@ export default function InstagramConnect() {
           </div>
 
           <h1 className="text-2xl font-semibold text-foreground mb-3">
-            Connect Instagram
+            Connect your Instagram account to get started
           </h1>
           <p className="text-muted-foreground mb-8">
-            Link your Creator or Business account to verify your follower count and unlock your discount
+            <Link href="/instagram-help" className="text-primary hover:underline" data-testid="link-creator-help">
+              Not a Creator account? Switch in 3 easy steps
+            </Link>
           </p>
 
           <div className="bg-card rounded-2xl border border-border p-5 mb-8 text-left">
