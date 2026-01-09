@@ -1589,7 +1589,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Customer Signup
   app.post("/api/customer/signup", async (req, res) => {
     try {
-      const { email, password } = req.body;
+      const { email, password, name } = req.body;
 
       if (!email || !password) {
         return res.status(400).json({ error: "Email and password required" });
@@ -1599,8 +1599,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Password must be at least 6 characters" });
       }
 
-      // Normalize email
+      // Normalize email and name
       const normalizedEmail = email.toLowerCase().trim();
+      const customerName = name?.trim() || undefined;
 
       // Check if customer already exists
       const existing = await storage.getSpiralCustomerByEmail(normalizedEmail);
@@ -1619,6 +1620,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create customer
       const customer = await storage.createSpiralCustomer({
         email: normalizedEmail,
+        name: customerName,
         passwordHash,
         isActive: true,
         emailVerified: false,
@@ -1626,8 +1628,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         emailVerificationExpiresAt: verificationExpiry,
       });
 
-      // Send verification email
-      const emailSent = await sendVerificationEmail(normalizedEmail, verificationCode);
+      // Send verification email with personalized greeting
+      const emailSent = await sendVerificationEmail(normalizedEmail, verificationCode, customerName);
       if (!emailSent) {
         console.warn("Failed to send verification email to:", normalizedEmail);
       }
