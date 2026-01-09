@@ -36,11 +36,7 @@ export default function InstagramHelp() {
     },
     {
       title: "Choose Creator",
-      description: "Select 'Creator' (recommended for individuals) and pick any category",
-    },
-    {
-      title: "Hide category label",
-      description: "In Edit Profile, turn off 'Display category label' so it won't show on your profile",
+      description: "Select 'Creator', pick any category, and toggle off 'Display on profile' to hide it",
     },
     {
       title: "Connect Facebook",
