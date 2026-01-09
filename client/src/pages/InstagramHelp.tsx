@@ -31,12 +31,16 @@ export default function InstagramHelp() {
       description: "Tap 'Settings and privacy' at the bottom",
     },
     {
-      title: "Account type",
+      title: "Switch to professional",
       description: "Tap 'Account type and tools' → 'Switch to professional account'",
     },
     {
+      title: "Pick a category",
+      description: "Choose any category and toggle off 'Display on profile' to hide it",
+    },
+    {
       title: "Choose Creator",
-      description: "Select 'Creator', pick any category, and toggle off 'Display on profile' to hide it",
+      description: "Select 'Creator' (recommended for individuals)",
     },
     {
       title: "Connect Facebook",
