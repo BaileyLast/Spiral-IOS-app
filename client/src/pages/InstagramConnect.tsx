@@ -89,7 +89,11 @@ export default function InstagramConnect() {
 
   const handleConnect = () => {
     setIsConnecting(true);
-    window.location.href = "/api/customer/instagram/auth";
+    // Open in new window to avoid iframe restrictions from Facebook/Meta
+    const authUrl = `${window.location.origin}/api/customer/instagram/auth`;
+    window.open(authUrl, "_blank", "noopener,noreferrer");
+    // Reset connecting state after a moment since we can't track the popup
+    setTimeout(() => setIsConnecting(false), 2000);
   };
 
   const handleSkip = () => {
