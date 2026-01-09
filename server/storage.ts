@@ -69,7 +69,15 @@ export interface IStorage {
   getSpiralCustomerById(id: string): Promise<SpiralCustomer | undefined>;
   updateSpiralCustomerFollowerCount(id: string, followerCount: number): Promise<SpiralCustomer>;
   updateSpiralCustomerLastLogin(id: string): Promise<void>;
-  updateSpiralCustomerInstagram(id: string, instagramHandle: string | null, instagramUserId: string | null, followerCount: number | null): Promise<SpiralCustomer>;
+  updateSpiralCustomerInstagram(id: string, data: {
+    instagramHandle: string | null;
+    instagramUserId: string | null;
+    instagramAccessToken: string | null;
+    instagramTokenExpiry: Date | null;
+    instagramProfilePicture: string | null;
+    instagramAccountType: string | null;
+    followerCount: number | null;
+  }): Promise<SpiralCustomer>;
   updateSpiralCustomerEmailVerified(id: string, verified: boolean): Promise<SpiralCustomer>;
   updateSpiralCustomerVerificationCode(id: string, code: string, expiresAt: Date): Promise<SpiralCustomer>;
   getOrdersByCustomerId(customerId: string): Promise<Order[]>;
@@ -518,17 +526,27 @@ export class DatabaseStorage implements IStorage {
 
   async updateSpiralCustomerInstagram(
     id: string, 
-    instagramHandle: string | null, 
-    instagramUserId: string | null, 
-    followerCount: number | null
+    data: {
+      instagramHandle: string | null;
+      instagramUserId: string | null;
+      instagramAccessToken: string | null;
+      instagramTokenExpiry: Date | null;
+      instagramProfilePicture: string | null;
+      instagramAccountType: string | null;
+      followerCount: number | null;
+    }
   ): Promise<SpiralCustomer> {
     const [updated] = await db
       .update(spiralCustomers)
       .set({
-        instagramHandle,
-        instagramUserId,
-        followerCount,
-        followerCountUpdatedAt: instagramHandle ? new Date() : null,
+        instagramHandle: data.instagramHandle,
+        instagramUserId: data.instagramUserId,
+        instagramAccessToken: data.instagramAccessToken,
+        instagramTokenExpiry: data.instagramTokenExpiry,
+        instagramProfilePicture: data.instagramProfilePicture,
+        instagramAccountType: data.instagramAccountType,
+        followerCount: data.followerCount,
+        followerCountUpdatedAt: data.instagramHandle ? new Date() : null,
       })
       .where(eq(spiralCustomers.id, id))
       .returning();

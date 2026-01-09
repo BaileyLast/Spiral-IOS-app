@@ -1796,40 +1796,178 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ success: true });
   });
 
-  // Connect Instagram (mock for demo - in production would use OAuth)
-  app.post("/api/customer/connect-instagram", async (req, res) => {
+  // Instagram OAuth - Start authorization flow
+  app.get("/api/customer/instagram/auth", async (req, res) => {
     try {
       const customerId = req.session.customerId;
       if (!customerId) {
-        return res.status(401).json({ error: "Not authenticated" });
+        return res.redirect("/login?error=not_authenticated");
       }
 
-      // Generate mock Instagram data for demo
-      // In production, this would be called after Instagram OAuth flow
-      const mockHandle = `user_${Math.random().toString(36).substring(7)}`;
-      const mockUserId = `17841${Math.floor(Math.random() * 100000000)}`;
-      const mockFollowers = Math.floor(Math.random() * 50000) + 500;
+      const appId = process.env.FACEBOOK_APP_ID;
+      if (!appId) {
+        console.error("FACEBOOK_APP_ID not configured");
+        return res.redirect("/connect-instagram?error=config_error");
+      }
 
-      // Persist to storage
-      const updated = await storage.updateSpiralCustomerInstagram(
-        customerId,
-        mockHandle,
-        mockUserId,
-        mockFollowers
-      );
+      // Generate state token for CSRF protection
+      const state = crypto.randomBytes(32).toString("hex");
+      req.session.instagramOauthState = state;
 
-      res.json({
-        instagramHandle: updated.instagramHandle,
-        instagramUserId: updated.instagramUserId,
-        followerCount: updated.followerCount,
-      });
+      // Build redirect URI - must match what's configured in Meta Developer Console
+      const protocol = req.headers["x-forwarded-proto"] || "https";
+      const host = req.headers.host;
+      const redirectUri = `${protocol}://${host}/api/customer/instagram/callback`;
+
+      // Request permissions for Instagram Business/Creator accounts
+      const scopes = [
+        "instagram_basic",
+        "instagram_manage_insights",
+        "pages_show_list",
+        "pages_read_engagement",
+        "business_management"
+      ].join(",");
+
+      const authUrl = new URL("https://www.facebook.com/v18.0/dialog/oauth");
+      authUrl.searchParams.set("client_id", appId);
+      authUrl.searchParams.set("redirect_uri", redirectUri);
+      authUrl.searchParams.set("scope", scopes);
+      authUrl.searchParams.set("response_type", "code");
+      authUrl.searchParams.set("state", state);
+
+      res.redirect(authUrl.toString());
     } catch (error) {
-      console.error("Instagram connect error:", error);
-      res.status(500).json({ error: "Failed to connect Instagram" });
+      console.error("Instagram OAuth start error:", error);
+      res.redirect("/connect-instagram?error=oauth_start_failed");
     }
   });
 
-  // Disconnect Instagram
+  // Instagram OAuth - Handle callback from Meta
+  app.get("/api/customer/instagram/callback", async (req, res) => {
+    try {
+      const { code, state, error, error_description } = req.query;
+
+      // Check for OAuth errors
+      if (error) {
+        console.error("Instagram OAuth error:", error, error_description);
+        return res.redirect(`/connect-instagram?error=${error}`);
+      }
+
+      // Verify state to prevent CSRF
+      if (!state || state !== req.session.instagramOauthState) {
+        console.error("Invalid OAuth state");
+        return res.redirect("/connect-instagram?error=invalid_state");
+      }
+
+      const customerId = req.session.customerId;
+      if (!customerId) {
+        return res.redirect("/login?error=session_expired");
+      }
+
+      const appId = process.env.FACEBOOK_APP_ID;
+      const appSecret = process.env.FACEBOOK_APP_SECRET;
+      if (!appId || !appSecret) {
+        return res.redirect("/connect-instagram?error=config_error");
+      }
+
+      const protocol = req.headers["x-forwarded-proto"] || "https";
+      const host = req.headers.host;
+      const redirectUri = `${protocol}://${host}/api/customer/instagram/callback`;
+
+      // Exchange code for access token
+      const tokenUrl = new URL("https://graph.facebook.com/v18.0/oauth/access_token");
+      tokenUrl.searchParams.set("client_id", appId);
+      tokenUrl.searchParams.set("client_secret", appSecret);
+      tokenUrl.searchParams.set("redirect_uri", redirectUri);
+      tokenUrl.searchParams.set("code", code as string);
+
+      const tokenResponse = await fetch(tokenUrl.toString());
+      const tokenData = await tokenResponse.json() as { access_token?: string; error?: { message: string } };
+
+      if (tokenData.error || !tokenData.access_token) {
+        console.error("Token exchange error:", tokenData.error);
+        return res.redirect("/connect-instagram?error=token_exchange_failed");
+      }
+
+      const shortLivedToken = tokenData.access_token;
+
+      // Exchange for long-lived token (60 days)
+      const longTokenUrl = new URL("https://graph.facebook.com/v18.0/oauth/access_token");
+      longTokenUrl.searchParams.set("grant_type", "fb_exchange_token");
+      longTokenUrl.searchParams.set("client_id", appId);
+      longTokenUrl.searchParams.set("client_secret", appSecret);
+      longTokenUrl.searchParams.set("fb_exchange_token", shortLivedToken);
+
+      const longTokenResponse = await fetch(longTokenUrl.toString());
+      const longTokenData = await longTokenResponse.json() as { access_token?: string; expires_in?: number; error?: { message: string } };
+
+      const accessToken = longTokenData.access_token || shortLivedToken;
+      const tokenExpiry = longTokenData.expires_in 
+        ? new Date(Date.now() + longTokenData.expires_in * 1000)
+        : new Date(Date.now() + 60 * 24 * 60 * 60 * 1000);
+
+      // Get user's Facebook Pages
+      const pagesResponse = await fetch(
+        `https://graph.facebook.com/v18.0/me/accounts?access_token=${accessToken}`
+      );
+      const pagesData = await pagesResponse.json() as { data?: Array<{ id: string; access_token: string }>; error?: { message: string } };
+
+      if (!pagesData.data || pagesData.data.length === 0) {
+        console.error("No Facebook Pages found");
+        return res.redirect("/instagram-help?error=no_pages");
+      }
+
+      // Find Instagram Business Account connected to a page
+      let instagramAccount: { id: string; username: string; profile_picture_url?: string; followers_count?: number; account_type?: string } | null = null;
+      let pageAccessToken = "";
+
+      for (const page of pagesData.data) {
+        const igResponse = await fetch(
+          `https://graph.facebook.com/v18.0/${page.id}?fields=instagram_business_account{id,username,profile_picture_url,followers_count,account_type}&access_token=${page.access_token}`
+        );
+        const igData = await igResponse.json() as { instagram_business_account?: typeof instagramAccount; error?: { message: string } };
+
+        if (igData.instagram_business_account) {
+          instagramAccount = igData.instagram_business_account;
+          pageAccessToken = page.access_token;
+          break;
+        }
+      }
+
+      if (!instagramAccount) {
+        console.error("No Instagram Business/Creator account found");
+        return res.redirect("/instagram-help?error=no_business_account");
+      }
+
+      // Verify it's a Creator or Business account
+      const accountType = instagramAccount.account_type?.toUpperCase() || "";
+      if (!accountType.includes("BUSINESS") && !accountType.includes("CREATOR")) {
+        console.error("Account is personal, not business/creator:", accountType);
+        return res.redirect("/instagram-help?error=personal_account");
+      }
+
+      // Store the Instagram data
+      await storage.updateSpiralCustomerInstagram(customerId, {
+        instagramHandle: instagramAccount.username,
+        instagramUserId: instagramAccount.id,
+        instagramAccessToken: pageAccessToken || accessToken,
+        instagramTokenExpiry: tokenExpiry,
+        instagramProfilePicture: instagramAccount.profile_picture_url || null,
+        instagramAccountType: instagramAccount.account_type || null,
+        followerCount: instagramAccount.followers_count || null,
+      });
+
+      // Clear OAuth state
+      req.session.instagramOauthState = undefined;
+
+      res.redirect("/connect-instagram?success=true");
+    } catch (error) {
+      console.error("Instagram OAuth callback error:", error);
+      res.redirect("/connect-instagram?error=callback_failed");
+    }
+  });
+
+  // Disconnect Instagram account
   app.post("/api/customer/disconnect-instagram", async (req, res) => {
     try {
       const customerId = req.session.customerId;
@@ -1837,13 +1975,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Not authenticated" });
       }
 
-      // Clear Instagram data in storage
-      const updated = await storage.updateSpiralCustomerInstagram(
-        customerId,
-        null,
-        null,
-        null
-      );
+      // Clear all Instagram data in storage
+      const updated = await storage.updateSpiralCustomerInstagram(customerId, {
+        instagramHandle: null,
+        instagramUserId: null,
+        instagramAccessToken: null,
+        instagramTokenExpiry: null,
+        instagramProfilePicture: null,
+        instagramAccountType: null,
+        followerCount: null,
+      });
 
       res.json({
         instagramHandle: updated.instagramHandle,
