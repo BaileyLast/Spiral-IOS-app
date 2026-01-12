@@ -1826,7 +1826,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Connect Instagram by username (uses merchant's Business Discovery API)
+  // Connect Instagram by username (uses Spiral's Business Discovery API)
   // Customer just enters their username - no OAuth required
   app.post("/api/customer/connect-instagram", async (req, res) => {
     try {
@@ -1847,35 +1847,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid username" });
       }
 
-      // Get merchant's Instagram access token for Business Discovery lookup
-      const storeSettings = await storage.getStoreSettings();
+      // Use Spiral's own Instagram credentials for Business Discovery lookup
+      const spiralAccessToken = process.env.SPIRAL_INSTAGRAM_ACCESS_TOKEN;
+      const spiralBusinessId = process.env.SPIRAL_INSTAGRAM_BUSINESS_ID;
       
-      if (!storeSettings?.instagramAccessToken || !storeSettings?.instagramBusinessAccountId) {
-        console.error("Merchant Instagram not configured for Business Discovery");
-        // For demo/development: save username without follower verification
-        await storage.updateSpiralCustomerInstagram(customerId, {
-          instagramHandle: cleanUsername,
-          instagramUserId: null,
-          instagramAccessToken: null,
-          instagramTokenExpiry: null,
-          instagramProfilePicture: null,
-          instagramAccountType: "UNKNOWN",
-          followerCount: null,
-        });
-        
-        return res.json({
-          success: true,
-          username: cleanUsername,
-          followerCount: null,
-          accountType: null,
-          needsCreatorAccount: true,
-          message: "Username saved. We couldn't verify your follower count - make sure you have a Creator account.",
+      if (!spiralAccessToken || !spiralBusinessId) {
+        console.error("Spiral Instagram credentials not configured (SPIRAL_INSTAGRAM_ACCESS_TOKEN, SPIRAL_INSTAGRAM_BUSINESS_ID)");
+        return res.status(503).json({
+          error: "service_unavailable",
+          message: "Instagram verification is temporarily unavailable. Please try again later.",
         });
       }
 
       // Use Business Discovery API to look up the customer's account
       // This works for any public Creator or Business account
-      const businessDiscoveryUrl = `https://graph.facebook.com/v18.0/${storeSettings.instagramBusinessAccountId}?fields=business_discovery.username(${cleanUsername}){id,username,followers_count,profile_picture_url,account_type}&access_token=${storeSettings.instagramAccessToken}`;
+      const businessDiscoveryUrl = `https://graph.facebook.com/v18.0/${spiralBusinessId}?fields=business_discovery.username(${cleanUsername}){id,username,followers_count,profile_picture_url,account_type}&access_token=${spiralAccessToken}`;
       
       console.log("Business Discovery lookup for:", cleanUsername);
       
