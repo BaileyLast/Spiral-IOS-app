@@ -53,17 +53,32 @@ export default function InstagramConnect() {
       }
     },
     onError: (error: any) => {
-      const errorData = error?.message ? JSON.parse(error.message) : {};
+      console.error("Instagram connect error:", error);
+      let errorData: any = {};
+      try {
+        if (error?.message) {
+          errorData = JSON.parse(error.message);
+        }
+      } catch (e) {
+        console.error("Failed to parse error:", e);
+      }
+      
       if (errorData.error === "not_found" || errorData.error === "personal_account") {
         toast({
           title: "Couldn't verify account",
           description: errorData.message || "Please check your username and try again",
           variant: "destructive",
         });
+      } else if (errorData.error === "service_unavailable") {
+        toast({
+          title: "Service unavailable",
+          description: errorData.message || "Instagram verification is temporarily unavailable",
+          variant: "destructive",
+        });
       } else {
         toast({
           title: "Connection failed",
-          description: "Please check your username and try again",
+          description: errorData.message || error?.message || "Please check your username and try again",
           variant: "destructive",
         });
       }
