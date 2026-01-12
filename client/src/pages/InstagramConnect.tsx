@@ -4,7 +4,8 @@ import { useLocation, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Instagram, Shield, CheckCircle, Loader2, Users, ArrowRight, LogOut } from "lucide-react";
+import { Instagram, Shield, CheckCircle, Loader2, Users, ArrowRight, LogOut, Info } from "lucide-react";
+import { SiFacebook, SiMeta } from "react-icons/si";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import spiralLogoUrl from "@assets/Spiral logo (2)_1763051288266.png";
 
@@ -42,8 +43,8 @@ export default function InstagramConnect() {
       queryClient.invalidateQueries({ queryKey: ["/api/customer/me"] });
       queryClient.invalidateQueries({ queryKey: ["/api/customer/stats"] });
       toast({
-        title: "Instagram disconnected",
-        description: "Your account has been unlinked",
+        title: "Meta connection removed",
+        description: "Your Instagram account has been unlinked",
       });
     },
     onError: (error: Error) => {
@@ -59,8 +60,8 @@ export default function InstagramConnect() {
     if (success) {
       queryClient.invalidateQueries({ queryKey: ["/api/customer/me"] });
       toast({
-        title: "Instagram connected",
-        description: "Your account is now linked",
+        title: "Instagram connected via Meta",
+        description: "Your account is now linked and ready",
       });
       window.history.replaceState({}, "", "/connect-instagram");
     }
@@ -69,14 +70,14 @@ export default function InstagramConnect() {
   useEffect(() => {
     if (error) {
       const errorMessages: Record<string, string> = {
-        "access_denied": "You cancelled the Instagram connection",
+        "access_denied": "You cancelled the Meta connection",
         "config_error": "Configuration error. Please try again later.",
         "token_exchange_failed": "Failed to connect. Please try again.",
         "token_refresh_failed": "Failed to secure your connection. Please try again.",
         "callback_failed": "Something went wrong. Please try again.",
         "invalid_state": "Security check failed. Please try again.",
         "missing_code": "Authorization was incomplete. Please try again.",
-        "oauth_start_failed": "Could not start Instagram connection. Please try again.",
+        "oauth_start_failed": "Could not start Meta connection. Please try again.",
       };
       toast({
         title: "Connection failed",
@@ -94,7 +95,7 @@ export default function InstagramConnect() {
     if (isInIframe) {
       // Show a toast and open the app in a new tab for OAuth
       toast({
-        title: "Opening Instagram login",
+        title: "Opening Meta login",
         description: "Please complete the connection in the new tab that opens.",
       });
       // Open OAuth directly in new tab - session cookie now works across tabs
@@ -189,7 +190,7 @@ export default function InstagramConnect() {
               <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950/30 rounded-xl">
                 <CheckCircle className="w-5 h-5 text-green-600" />
                 <span className="text-sm text-green-800 dark:text-green-200">
-                  Instagram connected successfully
+                  Connected via Meta
                 </span>
               </div>
             </div>
@@ -231,28 +232,49 @@ export default function InstagramConnect() {
             data-testid="img-spiral-logo"
           />
 
-          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-8">
-            <Instagram className="w-10 h-10 text-white" />
+          <div className="flex items-center justify-center gap-3 mb-8">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+              <Instagram className="w-7 h-7 text-white" />
+            </div>
+            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+              <span className="text-muted-foreground text-lg">+</span>
+            </div>
+            <div className="w-14 h-14 rounded-2xl bg-[#0866FF] flex items-center justify-center">
+              <SiFacebook className="w-7 h-7 text-white" />
+            </div>
           </div>
 
           <h1 className="text-2xl font-semibold text-foreground mb-3">
-            Connect your Instagram account to get started
+            Connect via Meta
           </h1>
-          <p className="text-muted-foreground mb-8">
-            <Link href="/instagram-help" className="text-primary hover:underline" data-testid="link-creator-help">
-              Not a Creator account? Here's how to switch
-            </Link>
+          <p className="text-muted-foreground mb-6">
+            We'll use Meta's secure login to access your Instagram account
           </p>
 
-          <div className="bg-card rounded-2xl border border-border p-5 mb-8 text-left">
+          <div className="bg-card rounded-2xl border border-border p-5 mb-4 text-left space-y-4">
             <div className="flex items-start gap-3">
-              <Shield className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+              <Info className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-foreground">Why Facebook login?</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Meta owns both Instagram and Facebook. For Creator/Business accounts, Instagram requires you to sign in through Facebook to verify your identity.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <Shield className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
               <div>
                 <p className="text-sm font-medium text-foreground">Your privacy is protected</p>
                 <p className="text-sm text-muted-foreground mt-1">We only access your follower count and verify story tags</p>
               </div>
             </div>
           </div>
+          
+          <p className="text-muted-foreground text-sm mb-6">
+            <Link href="/instagram-help" className="text-primary hover:underline" data-testid="link-creator-help">
+              Not a Creator account? Here's how to switch
+            </Link>
+          </p>
         </div>
       </div>
 
@@ -267,8 +289,8 @@ export default function InstagramConnect() {
             <Loader2 className="w-5 h-5 animate-spin" />
           ) : (
             <>
-              <Instagram className="w-5 h-5 mr-2" />
-              Connect Instagram
+              <SiMeta className="w-5 h-5 mr-2" />
+              Continue with Meta
             </>
           )}
         </Button>

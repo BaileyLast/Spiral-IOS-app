@@ -17,8 +17,10 @@ import {
   Users,
   CheckCircle,
   Plus,
-  Loader2
+  Loader2,
+  Link2
 } from "lucide-react";
+import { SiMeta } from "react-icons/si";
 import spiralLogoUrl from "@assets/Spiral logo (2)_1763051288266.png";
 
 interface CustomerProfile {
@@ -74,8 +76,8 @@ export default function Profile() {
     },
     onSuccess: () => {
       toast({
-        title: "Instagram disconnected",
-        description: "Your account has been unlinked",
+        title: "Meta connection removed",
+        description: "Your Instagram account has been unlinked",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/customer/me"] });
       queryClient.invalidateQueries({ queryKey: ["/api/customer/stats"] });
@@ -176,6 +178,10 @@ export default function Profile() {
                 </div>
               </div>
             </div>
+            <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-border">
+              <SiMeta className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Connected via Meta</span>
+            </div>
           </Card>
         ) : (
           <Card 
@@ -185,12 +191,12 @@ export default function Profile() {
           >
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-                <Instagram className="w-6 h-6 text-white" />
+                <Link2 className="w-6 h-6 text-white" />
               </div>
               <div className="flex-1">
-                <p className="font-medium text-foreground">Connect Instagram</p>
+                <p className="font-medium text-foreground">Connect via Meta</p>
                 <p className="text-sm text-muted-foreground">
-                  Link your account to unlock discounts
+                  Link your Instagram to unlock discounts
                 </p>
               </div>
               <Plus className="w-5 h-5 text-muted-foreground" />
@@ -233,8 +239,8 @@ export default function Profile() {
                 data-testid="button-disconnect-instagram"
               >
                 <div className="flex items-center gap-3">
-                  <Instagram className="w-5 h-5 text-muted-foreground" />
-                  <span className="font-medium text-foreground">Disconnect Instagram</span>
+                  <SiMeta className="w-5 h-5 text-muted-foreground" />
+                  <span className="font-medium text-foreground">Disconnect Meta</span>
                 </div>
                 <ChevronRight className="w-5 h-5 text-muted-foreground" />
               </button>

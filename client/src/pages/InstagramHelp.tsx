@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
-import { ArrowLeft, Instagram, CheckCircle2, ExternalLink } from "lucide-react";
+import { ArrowLeft, Instagram, CheckCircle2, ExternalLink, Info } from "lucide-react";
+import { SiFacebook } from "react-icons/si";
 import spiralLogoUrl from "@assets/Spiral logo (2)_1763051288266.png";
 
 export default function InstagramHelp() {
@@ -11,13 +12,13 @@ export default function InstagramHelp() {
   const getErrorMessage = () => {
     switch (error) {
       case "no_pages":
-        return "Your Instagram account isn't connected to a Facebook Page yet.";
+        return "Your Instagram account isn't connected to a Facebook Page yet. This is required for Meta's business tools.";
       case "no_business_account":
-        return "We couldn't find an Instagram Business or Creator account.";
+        return "We couldn't find an Instagram Business or Creator account linked to your Meta account.";
       case "personal_account":
-        return "Your Instagram account is set to Personal. Spiral requires a Creator or Business account.";
+        return "Your Instagram account is set to Personal. Meta requires a Creator or Business account to access follower data.";
       default:
-        return "To use Spiral, you need an Instagram Creator or Business account.";
+        return "To use Spiral, you need an Instagram Creator or Business account connected via Meta.";
     }
   };
 
@@ -43,12 +44,12 @@ export default function InstagramHelp() {
       description: "Select 'Creator' (recommended for individuals)",
     },
     {
-      title: "Connect Facebook",
-      description: "Go to Edit Profile → Page to link a Facebook Page. You can create one there if needed - it can be private",
+      title: "Link a Facebook Page",
+      description: "Go to Edit Profile → Page to connect a Facebook Page. You can create a new one - it can be set to private",
     },
     {
-      title: "Come back",
-      description: "Return to Spiral and try connecting again",
+      title: "Return to Spiral",
+      description: "Come back and tap 'Continue with Meta' to complete the connection",
     },
   ];
 
@@ -84,12 +85,20 @@ export default function InstagramHelp() {
             data-testid="img-spiral-logo"
           />
 
-          <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center mx-auto mb-6">
-            <Instagram className="w-8 h-8 text-white" />
+          <div className="flex items-center justify-center gap-2 mb-6">
+            <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+              <Instagram className="w-6 h-6 text-white" />
+            </div>
+            <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center">
+              <span className="text-white/70 text-sm">+</span>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+              <SiFacebook className="w-6 h-6 text-white" />
+            </div>
           </div>
 
           <h1 className="text-2xl font-semibold text-white text-center mb-3">
-            Switch to Creator Account
+            Set up for Meta connection
           </h1>
           <p className="text-white/80 text-center mb-8">
             {getErrorMessage()}
@@ -114,13 +123,22 @@ export default function InstagramHelp() {
               ))}
             </div>
 
-            <div className="mt-6 p-4 bg-muted/50 rounded-xl">
+            <div className="mt-6 p-4 bg-muted/50 rounded-xl space-y-3">
+              <div className="flex items-start gap-3">
+                <Info className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">Why this setup?</p>
+                  <p className="text-sm text-muted-foreground">
+                    Meta (the company behind Instagram & Facebook) requires a Creator or Business account linked to a Facebook Page to access follower data. This is how Instagram's professional tools work.
+                  </p>
+                </div>
+              </div>
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-foreground">Why Creator?</p>
+                  <p className="text-sm font-medium text-foreground">Your account stays the same</p>
                   <p className="text-sm text-muted-foreground">
-                    Creator accounts let us verify your follower count and check when you post stories. Your account stays the same otherwise.
+                    Switching to Creator is free and doesn't change how your profile looks or works.
                   </p>
                 </div>
               </div>
@@ -135,7 +153,7 @@ export default function InstagramHelp() {
           onClick={() => setLocation("/connect-instagram")}
           data-testid="button-try-again"
         >
-          Try connecting again
+          Try connecting with Meta
         </Button>
         <a 
           href="https://help.instagram.com/502981923235522"
