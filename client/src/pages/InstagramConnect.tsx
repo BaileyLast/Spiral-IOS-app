@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useLocation, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Instagram, Shield, CheckCircle, Loader2, Users, ArrowRight, LogOut, Info } from "lucide-react";
-import { SiFacebook, SiMeta } from "react-icons/si";
+import { Instagram, Shield, CheckCircle, Loader2, Users, ArrowRight, LogOut, AlertCircle } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import spiralLogoUrl from "@assets/Spiral logo (2)_1763051288266.png";
 
@@ -24,14 +24,50 @@ export default function InstagramConnect() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [isConnecting, setIsConnecting] = useState(false);
-
-  const params = new URLSearchParams(window.location.search);
-  const success = params.get("success") === "true";
-  const error = params.get("error");
+  const [username, setUsername] = useState("");
 
   const { data: profile, isLoading } = useQuery<CustomerProfile>({
     queryKey: ["/api/customer/me"],
+  });
+
+  const connectMutation = useMutation({
+    mutationFn: async (instagramUsername: string) => {
+      const response = await apiRequest("POST", "/api/customer/connect-instagram", {
+        username: instagramUsername,
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/customer/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/customer/stats"] });
+      if (data.followerCount) {
+        toast({
+          title: "Instagram connected",
+          description: `@${data.username} with ${formatFollowerCount(data.followerCount)} followers`,
+        });
+      } else {
+        toast({
+          title: "Username saved",
+          description: data.message || "Your Instagram username has been saved",
+        });
+      }
+    },
+    onError: (error: any) => {
+      const errorData = error?.message ? JSON.parse(error.message) : {};
+      if (errorData.error === "not_found" || errorData.error === "personal_account") {
+        toast({
+          title: "Couldn't verify account",
+          description: errorData.message || "Please check your username and try again",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Connection failed",
+          description: "Please check your username and try again",
+          variant: "destructive",
+        });
+      }
+    },
   });
 
   const disconnectMutation = useMutation({
@@ -43,7 +79,7 @@ export default function InstagramConnect() {
       queryClient.invalidateQueries({ queryKey: ["/api/customer/me"] });
       queryClient.invalidateQueries({ queryKey: ["/api/customer/stats"] });
       toast({
-        title: "Meta connection removed",
+        title: "Instagram disconnected",
         description: "Your Instagram account has been unlinked",
       });
     },
@@ -56,55 +92,11 @@ export default function InstagramConnect() {
     },
   });
 
-  useEffect(() => {
-    if (success) {
-      queryClient.invalidateQueries({ queryKey: ["/api/customer/me"] });
-      toast({
-        title: "Instagram connected via Meta",
-        description: "Your account is now linked and ready",
-      });
-      window.history.replaceState({}, "", "/connect-instagram");
+  const handleConnect = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (username.trim()) {
+      connectMutation.mutate(username.trim());
     }
-  }, [success, toast, queryClient]);
-
-  useEffect(() => {
-    if (error) {
-      const errorMessages: Record<string, string> = {
-        "access_denied": "You cancelled the Meta connection",
-        "config_error": "Configuration error. Please try again later.",
-        "token_exchange_failed": "Failed to connect. Please try again.",
-        "token_refresh_failed": "Failed to secure your connection. Please try again.",
-        "callback_failed": "Something went wrong. Please try again.",
-        "invalid_state": "Security check failed. Please try again.",
-        "missing_code": "Authorization was incomplete. Please try again.",
-        "oauth_start_failed": "Could not start Meta connection. Please try again.",
-      };
-      toast({
-        title: "Connection failed",
-        description: errorMessages[error] || "Please try again",
-        variant: "destructive",
-      });
-      window.history.replaceState({}, "", "/connect-instagram");
-    }
-  }, [error, toast]);
-
-  const handleConnect = () => {
-    // Check if we're in an iframe (Replit preview)
-    const isInIframe = window.self !== window.top;
-    
-    if (isInIframe) {
-      // Show a toast and open the app in a new tab for OAuth
-      toast({
-        title: "Opening Meta login",
-        description: "Please complete the connection in the new tab that opens.",
-      });
-      // Open OAuth directly in new tab - session cookie now works across tabs
-      window.open(window.location.origin + "/api/customer/instagram/auth", "_blank");
-      return;
-    }
-    
-    setIsConnecting(true);
-    window.location.href = "/api/customer/instagram/auth";
   };
 
   const handleSkip = () => {
@@ -177,20 +169,24 @@ export default function InstagramConnect() {
                     </span>
                     <CheckCircle className="w-4 h-4 text-green-600" />
                   </div>
-                  <div className="flex items-center gap-1 text-muted-foreground text-sm">
-                    <Users className="w-3.5 h-3.5" />
-                    <span>{formatFollowerCount(profile.followerCount || 0)} followers</span>
-                  </div>
-                  <span className="text-xs text-muted-foreground capitalize">
-                    {profile.instagramAccountType?.toLowerCase()} account
-                  </span>
+                  {profile.followerCount ? (
+                    <div className="flex items-center gap-1 text-muted-foreground text-sm">
+                      <Users className="w-3.5 h-3.5" />
+                      <span>{formatFollowerCount(profile.followerCount)} followers</span>
+                    </div>
+                  ) : null}
+                  {profile.instagramAccountType && (
+                    <span className="text-xs text-muted-foreground capitalize">
+                      {profile.instagramAccountType.toLowerCase()} account
+                    </span>
+                  )}
                 </div>
               </div>
 
               <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950/30 rounded-xl">
                 <CheckCircle className="w-5 h-5 text-green-600" />
                 <span className="text-sm text-green-800 dark:text-green-200">
-                  Connected via Meta
+                  Instagram connected
                 </span>
               </div>
             </div>
@@ -232,68 +228,73 @@ export default function InstagramConnect() {
             data-testid="img-spiral-logo"
           />
 
-          <div className="flex items-center justify-center gap-3 mb-8">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-              <Instagram className="w-7 h-7 text-white" />
-            </div>
-            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-              <span className="text-muted-foreground text-lg">+</span>
-            </div>
-            <div className="w-14 h-14 rounded-2xl bg-[#0866FF] flex items-center justify-center">
-              <SiFacebook className="w-7 h-7 text-white" />
-            </div>
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-8">
+            <Instagram className="w-8 h-8 text-white" />
           </div>
 
           <h1 className="text-2xl font-semibold text-foreground mb-3">
-            Connect via Meta
+            Connect Instagram
           </h1>
-          <p className="text-muted-foreground mb-6">
-            We'll use Meta's secure login to access your Instagram account
+          <p className="text-muted-foreground mb-8">
+            Enter your Instagram username to unlock discounts based on your follower count
           </p>
 
-          <div className="bg-card rounded-2xl border border-border p-5 mb-4 text-left space-y-4">
-            <div className="flex items-start gap-3">
-              <Info className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-foreground">Why Facebook login?</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Meta owns both Instagram and Facebook. For Creator/Business accounts, Instagram requires you to sign in through Facebook to verify your identity.
-                </p>
-              </div>
+          <form onSubmit={handleConnect} className="space-y-4 mb-6">
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">@</span>
+              <Input
+                type="text"
+                placeholder="yourusername"
+                value={username}
+                onChange={(e) => setUsername(e.target.value.replace(/^@/, ""))}
+                className="h-14 pl-9 text-base rounded-xl"
+                disabled={connectMutation.isPending}
+                data-testid="input-instagram-username"
+              />
             </div>
+            <Button 
+              type="submit"
+              className="w-full h-14 text-base font-medium rounded-xl"
+              disabled={!username.trim() || connectMutation.isPending}
+              data-testid="button-connect-instagram"
+            >
+              {connectMutation.isPending ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  <Instagram className="w-5 h-5 mr-2" />
+                  Connect Instagram
+                </>
+              )}
+            </Button>
+          </form>
+
+          <div className="bg-card rounded-2xl border border-border p-5 mb-4 text-left space-y-4">
             <div className="flex items-start gap-3">
               <Shield className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
               <div>
                 <p className="text-sm font-medium text-foreground">Your privacy is protected</p>
-                <p className="text-sm text-muted-foreground mt-1">We only access your follower count and verify story tags</p>
+                <p className="text-sm text-muted-foreground mt-1">We only read your public follower count to calculate your discount</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-foreground">Creator account required</p>
+                <p className="text-sm text-muted-foreground mt-1">Your Instagram must be set to Creator or Business (not Personal)</p>
               </div>
             </div>
           </div>
           
-          <p className="text-muted-foreground text-sm mb-6">
+          <p className="text-muted-foreground text-sm">
             <Link href="/instagram-help" className="text-primary hover:underline" data-testid="link-creator-help">
-              Not a Creator account? Here's how to switch
+              How to switch to a Creator account
             </Link>
           </p>
         </div>
       </div>
 
-      <div className="px-6 pb-8 space-y-3 safe-bottom">
-        <Button 
-          className="w-full h-14 text-base font-medium rounded-xl"
-          onClick={handleConnect}
-          disabled={isConnecting}
-          data-testid="button-connect-instagram"
-        >
-          {isConnecting ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : (
-            <>
-              <SiMeta className="w-5 h-5 mr-2" />
-              Continue with Meta
-            </>
-          )}
-        </Button>
+      <div className="px-6 pb-8 safe-bottom">
         <Button 
           variant="ghost"
           className="w-full h-12 text-base text-muted-foreground"

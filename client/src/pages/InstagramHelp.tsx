@@ -1,55 +1,39 @@
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
-import { ArrowLeft, Instagram, CheckCircle2, ExternalLink, Info } from "lucide-react";
-import { SiFacebook } from "react-icons/si";
+import { ArrowLeft, Instagram, CheckCircle2, ExternalLink } from "lucide-react";
 import spiralLogoUrl from "@assets/Spiral logo (2)_1763051288266.png";
 
 export default function InstagramHelp() {
-  const [location, setLocation] = useLocation();
-  const params = new URLSearchParams(window.location.search);
-  const error = params.get("error");
-
-  const getErrorMessage = () => {
-    switch (error) {
-      case "no_pages":
-        return "Your Instagram account isn't connected to a Facebook Page yet. This is required for Meta's business tools.";
-      case "no_business_account":
-        return "We couldn't find an Instagram Business or Creator account linked to your Meta account.";
-      case "personal_account":
-        return "Your Instagram account is set to Personal. Meta requires a Creator or Business account to access follower data.";
-      default:
-        return "To use Spiral, you need an Instagram Creator or Business account connected via Meta.";
-    }
-  };
+  const [, setLocation] = useLocation();
 
   const steps = [
     {
       title: "Open Instagram",
-      description: "Go to your profile and tap the menu (≡) in the top right",
+      description: "Go to your profile and tap the menu (three lines) in the top right",
     },
     {
       title: "Go to Settings",
-      description: "Tap 'Settings and privacy' at the bottom",
+      description: "Tap 'Settings and privacy' at the bottom of the menu",
+    },
+    {
+      title: "Find account type",
+      description: "Tap 'Account type and tools' (under 'For professionals')",
     },
     {
       title: "Switch to professional",
-      description: "Tap 'Account type and tools' → 'Switch to professional account'",
-    },
-    {
-      title: "Pick a category",
-      description: "Choose any category and toggle off 'Display on profile' to hide it",
+      description: "Tap 'Switch to professional account' and follow the prompts",
     },
     {
       title: "Choose Creator",
-      description: "Select 'Creator' (recommended for individuals)",
+      description: "When asked, select 'Creator' - this is best for individuals",
     },
     {
-      title: "Link a Facebook Page",
-      description: "Go to Edit Profile → Page to connect a Facebook Page. You can create a new one - it can be set to private",
+      title: "Pick a category",
+      description: "Choose any category (e.g., 'Digital creator'). You can hide it from your profile",
     },
     {
       title: "Return to Spiral",
-      description: "Come back and tap 'Continue with Meta' to complete the connection",
+      description: "Come back here and enter your Instagram username to connect",
     },
   ];
 
@@ -85,23 +69,15 @@ export default function InstagramHelp() {
             data-testid="img-spiral-logo"
           />
 
-          <div className="flex items-center justify-center gap-2 mb-6">
-            <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-              <Instagram className="w-6 h-6 text-white" />
-            </div>
-            <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center">
-              <span className="text-white/70 text-sm">+</span>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-              <SiFacebook className="w-6 h-6 text-white" />
-            </div>
+          <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center mx-auto mb-6">
+            <Instagram className="w-7 h-7 text-white" />
           </div>
 
           <h1 className="text-2xl font-semibold text-white text-center mb-3">
-            Set up for Meta connection
+            Switch to Creator Account
           </h1>
           <p className="text-white/80 text-center mb-8">
-            {getErrorMessage()}
+            Spiral needs a Creator or Business account to see your follower count. It's free and takes about 2 minutes.
           </p>
 
           <div className="bg-white rounded-3xl p-6 shadow-xl">
@@ -123,22 +99,13 @@ export default function InstagramHelp() {
               ))}
             </div>
 
-            <div className="mt-6 p-4 bg-muted/50 rounded-xl space-y-3">
-              <div className="flex items-start gap-3">
-                <Info className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-foreground">Why this setup?</p>
-                  <p className="text-sm text-muted-foreground">
-                    Meta (the company behind Instagram & Facebook) requires a Creator or Business account linked to a Facebook Page to access follower data. This is how Instagram's professional tools work.
-                  </p>
-                </div>
-              </div>
+            <div className="mt-6 p-4 bg-muted/50 rounded-xl">
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium text-foreground">Your account stays the same</p>
                   <p className="text-sm text-muted-foreground">
-                    Switching to Creator is free and doesn't change how your profile looks or works.
+                    Switching to Creator is free and doesn't change how your profile looks or works. You can switch back anytime.
                   </p>
                 </div>
               </div>
@@ -153,7 +120,7 @@ export default function InstagramHelp() {
           onClick={() => setLocation("/connect-instagram")}
           data-testid="button-try-again"
         >
-          Try connecting with Meta
+          I've switched - Connect now
         </Button>
         <a 
           href="https://help.instagram.com/502981923235522"
