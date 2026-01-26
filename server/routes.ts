@@ -1826,118 +1826,232 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Connect Instagram by username (uses Spiral's Business Discovery API)
-  // Customer just enters their username - no OAuth required
-  app.post("/api/customer/connect-instagram", async (req, res) => {
+  // Helper to get fixed redirect URI
+  const getInstagramRedirectUri = (req: any): string => {
+    // Use configured base URL if available
+    const baseUrl = process.env.APP_BASE_URL;
+    if (baseUrl) {
+      return `${baseUrl}/api/customer/instagram/callback`;
+    }
+    
+    // In production, require APP_BASE_URL for security
+    if (process.env.NODE_ENV === "production") {
+      console.warn("APP_BASE_URL not set in production - using request host");
+    }
+    
+    // Development fallback: use request host
+    const host = req.get("host") || "localhost:5000";
+    const protocol = req.secure || host.includes("replit") || host.includes(".app") ? "https" : "http";
+    return `${protocol}://${host}/api/customer/instagram/callback`;
+  };
+
+  // Instagram OAuth - Initiate the Meta Login flow
+  app.get("/api/customer/instagram/auth", async (req, res) => {
     try {
       const customerId = req.session.customerId;
       if (!customerId) {
-        return res.status(401).json({ error: "Not authenticated" });
+        return res.status(401).json({ error: "Not authenticated", requiresLogin: true });
       }
 
-      const { username } = req.body;
-      if (!username) {
-        return res.status(400).json({ error: "Instagram username required" });
+      const appId = process.env.FACEBOOK_APP_ID;
+      if (!appId) {
+        console.error("FACEBOOK_APP_ID not configured");
+        return res.status(503).json({ error: "Instagram connection not configured" });
       }
 
-      // Clean up username (remove @ if present)
-      const cleanUsername = username.replace(/^@/, "").trim().toLowerCase();
-      
-      if (!cleanUsername || cleanUsername.length < 1) {
-        return res.status(400).json({ error: "Invalid username" });
+      // Generate state for CSRF protection (includes customerId for extra validation)
+      const stateData = `${crypto.randomBytes(16).toString("hex")}_${customerId}`;
+      req.session.instagramOauthState = stateData;
+
+      const redirectUri = getInstagramRedirectUri(req);
+
+      // Required permissions for Instagram data
+      const scopes = [
+        "instagram_basic",
+        "pages_show_list",
+        "pages_read_engagement",
+        "instagram_manage_insights",
+      ].join(",");
+
+      const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&state=${stateData}&response_type=code`;
+
+      console.log("Instagram OAuth initiated, redirect URI:", redirectUri);
+      res.json({ authUrl });
+    } catch (error) {
+      console.error("Instagram auth initiation error:", error);
+      res.status(500).json({ error: "Failed to initiate Instagram connection" });
+    }
+  });
+
+  // Instagram OAuth - Callback handler
+  app.get("/api/customer/instagram/callback", async (req, res) => {
+    const redirectWithError = (error: string) => {
+      res.redirect(`/connect-instagram?instagram_error=${encodeURIComponent(error)}`);
+    };
+
+    try {
+      const customerId = req.session.customerId;
+      if (!customerId) {
+        return redirectWithError("not_authenticated");
       }
 
-      // Use Spiral's own Instagram credentials for Business Discovery lookup
-      const spiralAccessToken = process.env.SPIRAL_INSTAGRAM_ACCESS_TOKEN;
-      const spiralBusinessId = process.env.SPIRAL_INSTAGRAM_BUSINESS_ID;
-      
-      if (!spiralAccessToken || !spiralBusinessId) {
-        console.error("Spiral Instagram credentials not configured (SPIRAL_INSTAGRAM_ACCESS_TOKEN, SPIRAL_INSTAGRAM_BUSINESS_ID)");
-        return res.status(503).json({
-          error: "service_unavailable",
-          message: "Instagram verification is temporarily unavailable. Please try again later.",
-        });
+      const { code, state, error: oauthError, error_description } = req.query;
+
+      if (oauthError) {
+        console.error("Instagram OAuth error:", oauthError, error_description);
+        return redirectWithError(oauthError === "access_denied" ? "access_denied" : "oauth_failed");
       }
 
-      // Use Business Discovery API to look up the customer's account
-      // This works for any public Creator or Business account
-      const businessDiscoveryUrl = `https://graph.facebook.com/v18.0/${spiralBusinessId}?fields=business_discovery.username(${cleanUsername}){id,username,followers_count,profile_picture_url,account_type}&access_token=${spiralAccessToken}`;
+      if (!code || typeof code !== "string") {
+        return redirectWithError("no_code_received");
+      }
+
+      // Verify state for CSRF protection (includes customerId validation)
+      const expectedState = req.session.instagramOauthState;
+      if (!expectedState || state !== expectedState) {
+        console.error("Instagram OAuth state mismatch");
+        return redirectWithError("invalid_state");
+      }
       
-      console.log("Business Discovery lookup for:", cleanUsername);
+      // Verify customerId in state matches session
+      const stateCustomerId = expectedState.toString().split("_").pop();
+      if (stateCustomerId !== customerId) {
+        console.error("Instagram OAuth customer mismatch");
+        return redirectWithError("invalid_state");
+      }
+      delete req.session.instagramOauthState;
+
+      const appId = process.env.FACEBOOK_APP_ID;
+      const appSecret = process.env.FACEBOOK_APP_SECRET;
+      if (!appId || !appSecret) {
+        return redirectWithError("configuration_error");
+      }
+
+      const redirectUri = getInstagramRedirectUri(req);
+
+      // Exchange code for short-lived access token
+      console.log("Exchanging Instagram OAuth code for token...");
+      const tokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`;
       
-      const response = await fetch(businessDiscoveryUrl);
-      const data = await response.json() as {
-        business_discovery?: {
-          id: string;
-          username: string;
-          followers_count?: number;
-          profile_picture_url?: string;
-          account_type?: string;
-        };
-        error?: {
-          message: string;
-          code: number;
-        };
+      const tokenResponse = await fetch(tokenUrl);
+      const tokenData = await tokenResponse.json() as {
+        access_token?: string;
+        error?: { message: string };
       };
 
-      if (data.error) {
-        console.error("Business Discovery error:", data.error);
-        
-        // Error code 100 typically means account not found or is private/personal
-        if (data.error.code === 100) {
-          return res.status(400).json({
-            error: "not_found",
-            message: "We couldn't find this account. Make sure your Instagram is set to Creator or Business (not Personal) and is public.",
-          });
+      if (!tokenData.access_token) {
+        console.error("Token exchange failed:", tokenData.error);
+        return redirectWithError("token_exchange_failed");
+      }
+
+      const shortLivedToken = tokenData.access_token;
+
+      // Exchange for long-lived token (valid for ~60 days)
+      console.log("Exchanging for long-lived token...");
+      const longLivedUrl = `https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${shortLivedToken}`;
+      const longLivedResponse = await fetch(longLivedUrl);
+      const longLivedData = await longLivedResponse.json() as {
+        access_token?: string;
+        expires_in?: number;
+        error?: { message: string };
+      };
+
+      const userAccessToken = longLivedData.access_token || shortLivedToken;
+      const tokenExpiresIn = longLivedData.expires_in || 3600; // Default 1 hour if short-lived
+
+      // Get user's Facebook Pages
+      console.log("Fetching user's Facebook Pages...");
+      const pagesUrl = `https://graph.facebook.com/v21.0/me/accounts?access_token=${userAccessToken}`;
+      const pagesResponse = await fetch(pagesUrl);
+      const pagesData = await pagesResponse.json() as {
+        data?: Array<{ id: string; name: string; access_token: string }>;
+        error?: { message: string };
+      };
+
+      if (!pagesData.data || pagesData.data.length === 0) {
+        console.error("No Facebook Pages found");
+        return redirectWithError("no_facebook_pages");
+      }
+
+      // Find a page with a connected Instagram account (Business or Creator)
+      let instagramAccountId: string | null = null;
+      let pageAccessToken: string | null = null;
+      let pageName: string | null = null;
+
+      for (const page of pagesData.data) {
+        // Check for instagram_business_account (works for both Business and Creator accounts linked to Pages)
+        const igUrl = `https://graph.facebook.com/v21.0/${page.id}?fields=instagram_business_account&access_token=${page.access_token}`;
+        const igResponse = await fetch(igUrl);
+        const igData = await igResponse.json() as {
+          instagram_business_account?: { id: string };
+          error?: { message: string };
+        };
+
+        if (igData.instagram_business_account) {
+          instagramAccountId = igData.instagram_business_account.id;
+          pageAccessToken = page.access_token;
+          pageName = page.name;
+          console.log(`Found Instagram account: ${instagramAccountId} on page "${page.name}"`);
+          break;
         }
-        
-        return res.status(400).json({
-          error: "lookup_failed",
-          message: "Couldn't look up this account. Please check the username and try again.",
-        });
       }
 
-      if (!data.business_discovery) {
-        return res.status(400).json({
-          error: "not_found",
-          message: "Account not found. Make sure your Instagram is set to Creator or Business account.",
-        });
+      if (!instagramAccountId || !pageAccessToken) {
+        console.error("No Instagram account found linked to any Facebook Page");
+        return redirectWithError("no_instagram_account");
       }
 
-      const igAccount = data.business_discovery;
+      // Fetch Instagram account details
+      console.log("Fetching Instagram account details...");
+      const igDetailsUrl = `https://graph.facebook.com/v21.0/${instagramAccountId}?fields=id,username,followers_count,profile_picture_url,account_type&access_token=${pageAccessToken}`;
+      const igDetailsResponse = await fetch(igDetailsUrl);
+      const igDetails = await igDetailsResponse.json() as {
+        id: string;
+        username: string;
+        followers_count?: number;
+        profile_picture_url?: string;
+        account_type?: string;
+        error?: { message: string };
+      };
+
+      if (igDetails.error) {
+        console.error("Failed to fetch Instagram details:", igDetails.error);
+        return redirectWithError("fetch_details_failed");
+      }
+
+      // Verify it's a Creator or Business account (account_type can be BUSINESS, MEDIA_CREATOR, or CREATOR)
+      const accountType = (igDetails.account_type || "").toUpperCase();
+      const isValidAccountType = accountType.includes("BUSINESS") || 
+                                  accountType.includes("CREATOR") || 
+                                  accountType === "MEDIA_CREATOR" ||
+                                  accountType === ""; // Empty is allowed - means it's professional
       
-      // Verify it's a Creator or Business account
-      const accountType = igAccount.account_type?.toUpperCase() || "";
-      if (accountType && !accountType.includes("BUSINESS") && !accountType.includes("CREATOR") && accountType !== "MEDIA_CREATOR") {
-        return res.status(400).json({
-          error: "personal_account",
-          message: "Your Instagram is set to Personal. Please switch to a Creator account in Instagram settings.",
-        });
+      if (!isValidAccountType) {
+        console.error("Invalid account type:", accountType);
+        return redirectWithError("personal_account");
       }
+
+      // Calculate token expiry (use long-lived expiry if available)
+      const tokenExpiry = new Date(Date.now() + tokenExpiresIn * 1000);
 
       // Save the Instagram data
       await storage.updateSpiralCustomerInstagram(customerId, {
-        instagramHandle: igAccount.username,
-        instagramUserId: igAccount.id,
-        instagramAccessToken: null, // No customer token needed!
-        instagramTokenExpiry: null,
-        instagramProfilePicture: igAccount.profile_picture_url || null,
-        instagramAccountType: igAccount.account_type || "CREATOR",
-        followerCount: igAccount.followers_count || null,
+        instagramHandle: igDetails.username,
+        instagramUserId: igDetails.id,
+        instagramAccessToken: pageAccessToken, // Page tokens don't expire if page is still linked
+        instagramTokenExpiry: tokenExpiry,
+        instagramProfilePicture: igDetails.profile_picture_url || null,
+        instagramAccountType: igDetails.account_type || "CREATOR",
+        followerCount: igDetails.followers_count || null,
       });
 
-      console.log(`Connected Instagram @${igAccount.username} with ${igAccount.followers_count} followers`);
+      console.log(`Connected Instagram @${igDetails.username} with ${igDetails.followers_count} followers via OAuth (page: ${pageName})`);
 
-      res.json({
-        success: true,
-        username: igAccount.username,
-        followerCount: igAccount.followers_count || 0,
-        accountType: igAccount.account_type,
-        profilePicture: igAccount.profile_picture_url,
-      });
+      // Redirect to success
+      res.redirect("/connect-instagram?instagram_connected=true");
     } catch (error) {
-      console.error("Instagram connect error:", error);
-      res.status(500).json({ error: "Failed to connect Instagram" });
+      console.error("Instagram OAuth callback error:", error);
+      redirectWithError("unknown_error");
     }
   });
 

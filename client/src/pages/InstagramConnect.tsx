@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useLocation, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Instagram, Shield, CheckCircle, Loader2, Users, ArrowRight, LogOut, AlertCircle } from "lucide-react";
+import { SiFacebook } from "react-icons/si";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import spiralLogoUrl from "@assets/Spiral logo (2)_1763051288266.png";
 
@@ -24,66 +24,67 @@ export default function InstagramConnect() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [username, setUsername] = useState("");
+  const [isConnecting, setIsConnecting] = useState(false);
 
   const { data: profile, isLoading } = useQuery<CustomerProfile>({
     queryKey: ["/api/customer/me"],
   });
 
-  const connectMutation = useMutation({
-    mutationFn: async (instagramUsername: string) => {
-      const response = await apiRequest("POST", "/api/customer/connect-instagram", {
-        username: instagramUsername,
-      });
-      return response.json();
-    },
-    onSuccess: (data) => {
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const success = urlParams.get("instagram_connected");
+    const error = urlParams.get("instagram_error");
+    
+    if (success === "true") {
       queryClient.invalidateQueries({ queryKey: ["/api/customer/me"] });
       queryClient.invalidateQueries({ queryKey: ["/api/customer/stats"] });
-      if (data.followerCount) {
-        toast({
-          title: "Instagram connected",
-          description: `@${data.username} with ${formatFollowerCount(data.followerCount)} followers`,
-        });
-      } else {
-        toast({
-          title: "Username saved",
-          description: data.message || "Your Instagram username has been saved",
-        });
+      toast({
+        title: "Instagram connected",
+        description: "Your Instagram account has been linked successfully",
+      });
+      window.history.replaceState({}, "", "/connect-instagram");
+    } else if (error) {
+      let errorMessage = "Please try again";
+      switch (error) {
+        case "access_denied":
+          errorMessage = "You declined the Instagram connection";
+          break;
+        case "no_instagram_account":
+          errorMessage = "No Instagram account found linked to a Facebook Page. Please link your Instagram to a Facebook Page first.";
+          break;
+        case "no_facebook_pages":
+          errorMessage = "No Facebook Pages found. Create a Facebook Page and link your Instagram to it.";
+          break;
+        case "personal_account":
+          errorMessage = "Your Instagram must be a Creator or Business account, not Personal.";
+          break;
+        case "token_exchange_failed":
+          errorMessage = "Failed to complete authentication. Please try again.";
+          break;
+        case "fetch_details_failed":
+          errorMessage = "Could not retrieve your Instagram details. Please try again.";
+          break;
+        case "not_authenticated":
+          errorMessage = "Your session expired. Please log in again.";
+          setLocation("/login");
+          break;
+        case "invalid_state":
+          errorMessage = "Security verification failed. Please try again.";
+          break;
+        case "configuration_error":
+          errorMessage = "Instagram connection is not configured. Please contact support.";
+          break;
+        default:
+          errorMessage = error.replace(/_/g, " ");
       }
-    },
-    onError: (error: any) => {
-      console.error("Instagram connect error:", error);
-      let errorData: any = {};
-      try {
-        if (error?.message) {
-          errorData = JSON.parse(error.message);
-        }
-      } catch (e) {
-        console.error("Failed to parse error:", e);
-      }
-      
-      if (errorData.error === "not_found" || errorData.error === "personal_account") {
-        toast({
-          title: "Couldn't verify account",
-          description: errorData.message || "Please check your username and try again",
-          variant: "destructive",
-        });
-      } else if (errorData.error === "service_unavailable") {
-        toast({
-          title: "Service unavailable",
-          description: errorData.message || "Instagram verification is temporarily unavailable",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Connection failed",
-          description: errorData.message || error?.message || "Please check your username and try again",
-          variant: "destructive",
-        });
-      }
-    },
-  });
+      toast({
+        title: "Connection failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      window.history.replaceState({}, "", "/connect-instagram");
+    }
+  }, [queryClient, toast, setLocation]);
 
   const disconnectMutation = useMutation({
     mutationFn: async () => {
@@ -107,10 +108,49 @@ export default function InstagramConnect() {
     },
   });
 
-  const handleConnect = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (username.trim()) {
-      connectMutation.mutate(username.trim());
+  const handleConnectWithMeta = async () => {
+    setIsConnecting(true);
+    try {
+      const response = await apiRequest("GET", "/api/customer/instagram/auth");
+      const data = await response.json();
+      
+      if (data.requiresLogin || data.error === "Not authenticated") {
+        setIsConnecting(false);
+        toast({
+          title: "Session expired",
+          description: "Please log in again to connect Instagram",
+          variant: "destructive",
+        });
+        setLocation("/login");
+        return;
+      }
+      
+      if (data.authUrl) {
+        // Redirecting to Facebook - keep isConnecting true
+        window.location.href = data.authUrl;
+      } else {
+        throw new Error("Failed to get auth URL");
+      }
+    } catch (error: any) {
+      console.error("Failed to initiate Instagram auth:", error);
+      setIsConnecting(false);
+      
+      // Handle 401 specifically
+      if (error?.message?.includes("401") || error?.message?.includes("Not authenticated")) {
+        toast({
+          title: "Session expired",
+          description: "Please log in again to connect Instagram",
+          variant: "destructive",
+        });
+        setLocation("/login");
+        return;
+      }
+      
+      toast({
+        title: "Connection failed",
+        description: "Could not start Instagram connection. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -251,38 +291,28 @@ export default function InstagramConnect() {
             Connect Instagram
           </h1>
           <p className="text-muted-foreground mb-8">
-            Enter your Instagram username to unlock discounts based on your follower count
+            Link your Instagram to unlock discounts based on your follower count
           </p>
 
-          <form onSubmit={handleConnect} className="space-y-4 mb-6">
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">@</span>
-              <Input
-                type="text"
-                placeholder="yourusername"
-                value={username}
-                onChange={(e) => setUsername(e.target.value.replace(/^@/, ""))}
-                className="h-14 pl-9 text-base rounded-xl"
-                disabled={connectMutation.isPending}
-                data-testid="input-instagram-username"
-              />
-            </div>
-            <Button 
-              type="submit"
-              className="w-full h-14 text-base font-medium rounded-xl"
-              disabled={!username.trim() || connectMutation.isPending}
-              data-testid="button-connect-instagram"
-            >
-              {connectMutation.isPending ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <>
-                  <Instagram className="w-5 h-5 mr-2" />
-                  Connect Instagram
-                </>
-              )}
-            </Button>
-          </form>
+          <Button 
+            onClick={handleConnectWithMeta}
+            disabled={isConnecting}
+            className="w-full h-14 text-base font-medium rounded-xl bg-[#1877F2] hover:bg-[#166FE5] text-white mb-4"
+            data-testid="button-connect-instagram"
+          >
+            {isConnecting ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <>
+                <SiFacebook className="w-5 h-5 mr-2" />
+                Continue with Facebook
+              </>
+            )}
+          </Button>
+          
+          <p className="text-xs text-muted-foreground mb-6">
+            Your Instagram must be linked to Facebook to connect
+          </p>
 
           <div className="bg-card rounded-2xl border border-border p-5 mb-4 text-left space-y-4">
             <div className="flex items-start gap-3">
@@ -295,15 +325,15 @@ export default function InstagramConnect() {
             <div className="flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
               <div>
-                <p className="text-sm font-medium text-foreground">Creator account required</p>
-                <p className="text-sm text-muted-foreground mt-1">Your Instagram must be set to Creator or Business (not Personal)</p>
+                <p className="text-sm font-medium text-foreground">Requirements</p>
+                <p className="text-sm text-muted-foreground mt-1">Instagram must be Creator/Business account and linked to a Facebook Page</p>
               </div>
             </div>
           </div>
           
           <p className="text-muted-foreground text-sm">
             <Link href="/instagram-help" className="text-primary hover:underline" data-testid="link-creator-help">
-              How to switch to a Creator account
+              Need help setting up?
             </Link>
           </p>
         </div>

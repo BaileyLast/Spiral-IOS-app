@@ -1,0 +1,201 @@
+Business Asset User Profile Access
+The Business Asset User Profile Access feature allows your app to read the User Fields for users engaging with your business assets such as id, ids_for_business, name, and picture.
+…
+
+Full Description
+Found in 2 use cases
+
+
+Human Agent
+The Human Agent feature allows your app to have a human agent respond to user messages using the human_agent tag within 7 days of a user's message.
+…
+
+Full Description
+
+
+Instagram Public Content Access
+The Instagram Public Content Access feature allows your app to access Instagram Graph API's Hashtag Search endpoints.
+…
+
+Full Description
+
+
+ads_management
+The ads_management permission allows your app to both read and manage the Ads account it owns, or has been granted access to, by the Ad account owner.
+…
+
+Full Description
+
+
+ads_read
+The ads_read permission allows your app to access the Ads Insights API to pull Ads report information for Ad accounts you own or have been granted access to by the owner or owners of other ad accounts through this permission. This permissions also grants your app access to the Server-Side API to allow advertisers to send web events from their servers directly to Facebook.
+…
+
+Full Description
+
+
+business_management
+The business_management permission allows your app to read and write with the Business Manager API.
+…
+
+Full Description
+Found in 2 use cases
+0
+Ready for testing
+catalog_management
+The catalog_management permission allows your app to create, read, update and delete business-owned product catalogs that the user is an admin of.
+…
+
+Full Description
+
+
+email
+The email permission allows your app to read a person's primary email address.
+…
+
+Full Description
+Found in 2 use cases
+
+
+instagram_basic
+The instagram_basic permission allows your app to read an Instagram account profile's info and media.
+…
+
+Full Description
+0
+Ready for testing
+instagram_branded_content_ads_brand
+The instagram_branded_content_ads_brand permission allows an app to read Instagram posts where the app user's Instagram account is tagged as a paid partner, and an app user to read, request, and revoke permissions to run Partnership Ads.
+…
+
+Full Description
+
+
+instagram_branded_content_brand
+The instagram_branded_content_brand permission allows your app to add, remove and view creators from a specific brand’s approved creators list.
+…
+
+Full Description
+
+
+instagram_branded_content_creator
+The instagram_branded_content_creator permission allows your app to read and change the boost status of a creator’s specific piece of content.
+…
+
+Full Description
+
+
+instagram_business_basic
+The instagram_business_basic allows your app to read an Instagram Business account profile's info and media.
+…
+
+Full Description
+0
+Ready for testing
+instagram_business_content_publish
+The instagram_business_content_publish permission allows an app to create organic feed photo and video posts on behalf of a business user.
+…
+
+Full Description
+
+
+instagram_business_manage_comments
+The instagram_business_manage_comments permission allows an app to access comments on an Instagram professional account, as well as public posts and Instagram Stories where that account is tagged or mentioned in comments.
+…
+
+Full Description
+0
+Ready for testing
+instagram_business_manage_insights
+The instagram_business_manage_insights permission allows an app to get insights from the app user's Instagram professional account metadata, posts, photos, and videos; and insights for an Instagram professional account's public profile metadata and media.
+…
+
+Full Description
+
+
+instagram_business_manage_messages
+The instagram_business_manage_messages permission allows an app to access messages on an Instagram professional account.
+…
+
+Full Description
+0
+Ready for testing
+instagram_content_publish
+The instagram_content_publish permission allows your app to create organic feed photo and video posts on behalf of a business user.
+…
+
+Full Description
+
+
+instagram_creator_marketplace_discovery
+The instagram_creator_marketplace_discovery permission allows your app to discover content creators on Instagram Creator Marketplace and access insights like creator bio, follower count, and account reach for Instagram businesses onboarded to the platform.
+…
+
+Full Description
+
+
+instagram_manage_comments
+The instagram_manage_comments permission allows your app to create, delete and hide comments on behalf of the Instagram account linked to a Page. Your app can also read and respond to public media and comments that a business has been photo tagged or @mentioned in.
+…
+
+Full Description
+0
+Ready for testing
+instagram_manage_contents
+The instagram_manage_contents permission allows your app to delete posts on behalf of an Instagram account linked to a Facebook Page.
+…
+
+Full Description
+
+
+instagram_manage_insights
+The instagram_manage_insights permission allows your app to get access to insights for the Instagram account linked to a Facebook Page. Your app can also discover and read the profile info and media of other business profiles.
+…
+
+Full Description
+
+
+instagram_manage_messages
+The instagram_manage_messages permission allows business users to read and respond to Instagram Direct messages.
+…
+
+Full Description
+
+
+instagram_manage_upcoming_events
+The instagram_manage_upcoming_events permission allows an app to read, create, and update upcoming events on behalf of Instagram accounts administered by people using the app.
+…
+
+Full Description
+
+
+instagram_shopping_tag_products
+The instagram_shopping_tag_products permission allows an app to tag Instagram media with product tags and appeal product rejections.
+…
+
+Full Description
+
+
+pages_read_engagement
+The pages_read_engagement permission allows your app to read content (posts, photos, videos, events) posted by the Page, read followers data (including name, PSID), and profile picture, and read metadata and other insights about the Page.
+…
+
+Full Description
+Found in 2 use cases
+0
+Ready for testing
+pages_show_list
+The pages_show_list permission allows your app to access the list of Pages a person manages.
+…
+
+Full Description
+Found in 2 use cases
+0
+Ready for testing
+public_profile
+The public_profile permission allows an app to read the Default Public Profile Fields on the User node. This permission is automatically granted to all apps.
+…
+
+Full Description
+Found in 2 use cases
+0

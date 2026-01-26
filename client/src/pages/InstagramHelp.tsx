@@ -1,12 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
-import { ArrowLeft, Instagram, CheckCircle2, ExternalLink } from "lucide-react";
+import { ArrowLeft, Instagram, CheckCircle2, ExternalLink, Link2 } from "lucide-react";
+import { SiFacebook } from "react-icons/si";
 import spiralLogoUrl from "@assets/Spiral logo (2)_1763051288266.png";
 
 export default function InstagramHelp() {
   const [, setLocation] = useLocation();
 
-  const steps = [
+  const creatorSteps = [
     {
       title: "Open Instagram",
       description: "Go to your profile and tap the menu (three lines) in the top right",
@@ -24,16 +25,23 @@ export default function InstagramHelp() {
       description: "Tap 'Switch to professional account' and follow the prompts",
     },
     {
-      title: "Choose Creator",
-      description: "When asked, select 'Creator' - this is best for individuals",
+      title: "Choose Creator or Business",
+      description: "Select 'Creator' for individuals or 'Business' for brands",
+    },
+  ];
+
+  const linkSteps = [
+    {
+      title: "Open Instagram Settings",
+      description: "Go to Settings and privacy > Accounts Center",
     },
     {
-      title: "Pick a category",
-      description: "Choose any category (e.g., 'Digital creator'). You can hide it from your profile",
+      title: "Add Facebook account",
+      description: "Tap 'Accounts' then 'Add accounts' and connect your Facebook",
     },
     {
-      title: "Return to Spiral",
-      description: "Come back here and enter your Instagram username to connect",
+      title: "Link to a Facebook Page",
+      description: "In Accounts Center, connect your Instagram to a Facebook Page you manage",
     },
   ];
 
@@ -51,7 +59,7 @@ export default function InstagramHelp() {
         }}
       />
       
-      <div className="relative z-10 flex-1 flex flex-col px-6 py-8">
+      <div className="relative z-10 flex-1 flex flex-col px-6 py-8 overflow-y-auto">
         <button 
           onClick={() => setLocation("/connect-instagram")}
           className="flex items-center gap-2 text-white/80 hover:text-white transition-colors mb-6 w-fit"
@@ -74,40 +82,75 @@ export default function InstagramHelp() {
           </div>
 
           <h1 className="text-2xl font-semibold text-white text-center mb-3">
-            Switch to Creator Account
+            Setup Guide
           </h1>
           <p className="text-white/80 text-center mb-8">
-            Spiral needs a Creator or Business account to see your follower count. It's free and takes about 2 minutes.
+            Spiral needs your Instagram to be a Creator/Business account linked to Facebook
           </p>
 
-          <div className="bg-white rounded-3xl p-6 shadow-xl">
-            <h2 className="font-medium text-foreground mb-4">
-              How to switch (takes 2 minutes)
-            </h2>
+          <div className="bg-white rounded-3xl p-6 shadow-xl mb-4">
+            <div className="flex items-center gap-2 mb-4">
+              <Instagram className="w-5 h-5 text-primary" />
+              <h2 className="font-medium text-foreground">
+                Step 1: Switch to Creator/Business
+              </h2>
+            </div>
             
-            <div className="space-y-4">
-              {steps.map((step, index) => (
+            <div className="space-y-3">
+              {creatorSteps.map((step, index) => (
                 <div key={index} className="flex gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
+                  <div className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
                     <span className="text-xs font-semibold text-primary">{index + 1}</span>
                   </div>
                   <div className="flex-1">
                     <p className="font-medium text-foreground text-sm">{step.title}</p>
-                    <p className="text-muted-foreground text-sm">{step.description}</p>
+                    <p className="text-muted-foreground text-xs">{step.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl p-6 shadow-xl mb-4">
+            <div className="flex items-center gap-2 mb-4">
+              <SiFacebook className="w-5 h-5 text-[#1877F2]" />
+              <h2 className="font-medium text-foreground">
+                Step 2: Link to Facebook
+              </h2>
+            </div>
+            
+            <div className="space-y-3">
+              {linkSteps.map((step, index) => (
+                <div key={index} className="flex gap-3">
+                  <div className="flex-shrink-0 w-5 h-5 rounded-full bg-[#1877F2]/10 flex items-center justify-center">
+                    <span className="text-xs font-semibold text-[#1877F2]">{index + 1}</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-foreground text-sm">{step.title}</p>
+                    <p className="text-muted-foreground text-xs">{step.description}</p>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="mt-6 p-4 bg-muted/50 rounded-xl">
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-foreground">Your account stays the same</p>
-                  <p className="text-sm text-muted-foreground">
-                    Switching to Creator is free and doesn't change how your profile looks or works. You can switch back anytime.
-                  </p>
-                </div>
+            <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-xl">
+              <div className="flex items-start gap-2">
+                <Link2 className="w-4 h-4 text-[#1877F2] flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-muted-foreground">
+                  If you don't have a Facebook Page, you can create one for free in the Facebook app or at facebook.com/pages/create
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl p-5 shadow-xl">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-foreground">Your privacy is protected</p>
+                <p className="text-xs text-muted-foreground">
+                  We only read your follower count. We can't post, message, or access your private data.
+                </p>
               </div>
             </div>
           </div>
@@ -120,7 +163,7 @@ export default function InstagramHelp() {
           onClick={() => setLocation("/connect-instagram")}
           data-testid="button-try-again"
         >
-          I've switched - Connect now
+          I'm ready - Connect now
         </Button>
         <a 
           href="https://help.instagram.com/502981923235522"

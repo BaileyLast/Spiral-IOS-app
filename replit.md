@@ -41,11 +41,19 @@ Preferred communication style: Simple, everyday language.
 - `POST /api/customer/signup`: Create new customer account
 - `POST /api/customer/login`: Authenticate customer
 - `POST /api/customer/logout`: End session
-- `POST /api/customer/connect-instagram`: Link Instagram account (mock for demo)
+- `GET /api/customer/instagram/auth`: Initiate Instagram OAuth flow via Meta Login
+- `GET /api/customer/instagram/callback`: Handle OAuth callback, exchange code for token, fetch Instagram data
 - `POST /api/customer/disconnect-instagram`: Unlink Instagram account
 - `GET /api/customer/orders`: Get customer's orders
 - `GET /api/customer/orders/:id`: Get single order details
 - `GET /api/customer/stats`: Get total saved and orders completed
+
+### Instagram Integration
+- **OAuth Flow**: Customers connect via Meta Login (Facebook OAuth)
+- **Requirements**: Instagram must be Creator/Business account AND linked to a Facebook Page
+- **Permissions**: `instagram_basic`, `pages_show_list`, `pages_read_engagement`, `instagram_manage_insights`
+- **Data Retrieved**: Instagram user ID, username, follower count, profile picture, account type
+- **Token Storage**: Page access token stored per customer for future API calls
 
 ### Order Status Flow
 1. **Ordered** - Order placed, waiting for delivery
