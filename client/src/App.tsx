@@ -13,6 +13,7 @@ import Orders from "@/pages/Orders";
 import OrderDetail from "@/pages/OrderDetail";
 import Profile from "@/pages/Profile";
 import CustomerHome from "@/pages/CustomerHome";
+import Privacy from "@/pages/Privacy";
 
 function BottomNav() {
   const [location] = useLocation();
@@ -68,6 +69,7 @@ function Router() {
       <Route path="/orders" component={Orders} />
       <Route path="/orders/:id" component={OrderDetail} />
       <Route path="/profile" component={Profile} />
+      <Route path="/privacy" component={Privacy} />
     </Switch>
   );
 }
@@ -75,7 +77,7 @@ function Router() {
 function AppContent() {
   const [location] = useLocation();
   
-  const hideBottomNav = location === "/" || location === "/login" || location === "/verify-email" || location === "/connect-instagram" || location === "/instagram-help";
+  const hideBottomNav = location === "/" || location === "/login" || location === "/verify-email" || location === "/connect-instagram" || location === "/instagram-help" || location === "/privacy";
   
   return (
     <div className="min-h-screen bg-background">
