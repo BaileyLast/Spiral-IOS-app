@@ -1870,7 +1870,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "instagram_basic",
         "pages_show_list",
         "pages_read_engagement",
-        "instagram_manage_insights",
       ].join(",");
 
       const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&state=${stateData}&response_type=code`;
