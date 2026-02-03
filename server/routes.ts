@@ -1884,15 +1884,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Instagram OAuth - Callback handler
   app.get("/api/customer/instagram/callback", async (req, res) => {
+    console.log("=== INSTAGRAM CALLBACK START ===");
+    console.log("Query params:", JSON.stringify(req.query));
+    console.log("Session:", JSON.stringify({ customerId: req.session.customerId, hasState: !!req.session.instagramOauthState }));
+    
     const redirectWithError = (error: string) => {
+      console.log("=== CALLBACK ERROR:", error, "===");
       res.redirect(`/connect-instagram?instagram_error=${encodeURIComponent(error)}`);
     };
 
     try {
       const customerId = req.session.customerId;
       if (!customerId) {
+        console.log("FAIL: No customerId in session");
         return redirectWithError("not_authenticated");
       }
+      console.log("OK: customerId =", customerId);
 
       const { code, state, error: oauthError, error_description } = req.query;
 
@@ -1902,22 +1909,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (!code || typeof code !== "string") {
+        console.log("FAIL: No code in query");
         return redirectWithError("no_code_received");
       }
+      console.log("OK: Got authorization code");
 
       // Verify state for CSRF protection (includes customerId validation)
       const expectedState = req.session.instagramOauthState;
+      console.log("State check - received:", state, "expected:", expectedState);
       if (!expectedState || state !== expectedState) {
-        console.error("Instagram OAuth state mismatch");
+        console.error("Instagram OAuth state mismatch - received:", state, "expected:", expectedState);
         return redirectWithError("invalid_state");
       }
       
       // Verify customerId in state matches session
       const stateCustomerId = expectedState.toString().split("_").pop();
       if (stateCustomerId !== customerId) {
-        console.error("Instagram OAuth customer mismatch");
+        console.error("Instagram OAuth customer mismatch - state:", stateCustomerId, "session:", customerId);
         return redirectWithError("invalid_state");
       }
+      console.log("OK: State validation passed");
       delete req.session.instagramOauthState;
 
       const appId = process.env.FACEBOOK_APP_ID;
@@ -2033,16 +2044,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Calculate token expiry (use long-lived expiry if available)
       const tokenExpiry = new Date(Date.now() + tokenExpiresIn * 1000);
 
+      console.log("Saving Instagram data to database...");
+      console.log("Customer ID:", customerId);
+      console.log("Instagram data:", JSON.stringify({
+        username: igDetails.username,
+        id: igDetails.id,
+        followers: igDetails.followers_count,
+        accountType: igDetails.account_type,
+      }));
+
       // Save the Instagram data
-      await storage.updateSpiralCustomerInstagram(customerId, {
-        instagramHandle: igDetails.username,
-        instagramUserId: igDetails.id,
-        instagramAccessToken: pageAccessToken, // Page tokens don't expire if page is still linked
-        instagramTokenExpiry: tokenExpiry,
-        instagramProfilePicture: igDetails.profile_picture_url || null,
-        instagramAccountType: igDetails.account_type || "CREATOR",
-        followerCount: igDetails.followers_count || null,
-      });
+      try {
+        await storage.updateSpiralCustomerInstagram(customerId, {
+          instagramHandle: igDetails.username,
+          instagramUserId: igDetails.id,
+          instagramAccessToken: pageAccessToken, // Page tokens don't expire if page is still linked
+          instagramTokenExpiry: tokenExpiry,
+          instagramProfilePicture: igDetails.profile_picture_url || null,
+          instagramAccountType: igDetails.account_type || "CREATOR",
+          followerCount: igDetails.followers_count || null,
+        });
+        console.log("=== DATABASE SAVE SUCCESS ===");
+      } catch (dbError) {
+        console.error("=== DATABASE SAVE FAILED ===", dbError);
+        throw dbError;
+      }
 
       console.log(`Connected Instagram @${igDetails.username} with ${igDetails.followers_count} followers via OAuth (page: ${pageName})`);
 
