@@ -2011,9 +2011,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return redirectWithError("no_instagram_account");
       }
 
-      // Fetch Instagram account details
+      // Fetch Instagram account details (account_type requires instagram_manage_insights permission which we don't have)
       console.log("Fetching Instagram account details...");
-      const igDetailsUrl = `https://graph.facebook.com/v21.0/${instagramAccountId}?fields=id,username,followers_count,profile_picture_url,account_type&access_token=${pageAccessToken}`;
+      const igDetailsUrl = `https://graph.facebook.com/v21.0/${instagramAccountId}?fields=id,username,followers_count,profile_picture_url&access_token=${pageAccessToken}`;
       const igDetailsResponse = await fetch(igDetailsUrl);
       const igDetails = await igDetailsResponse.json() as {
         id: string;
@@ -2029,17 +2029,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return redirectWithError("fetch_details_failed");
       }
 
-      // Verify it's a Creator or Business account (account_type can be BUSINESS, MEDIA_CREATOR, or CREATOR)
-      const accountType = (igDetails.account_type || "").toUpperCase();
-      const isValidAccountType = accountType.includes("BUSINESS") || 
-                                  accountType.includes("CREATOR") || 
-                                  accountType === "MEDIA_CREATOR" ||
-                                  accountType === ""; // Empty is allowed - means it's professional
-      
-      if (!isValidAccountType) {
-        console.error("Invalid account type:", accountType);
-        return redirectWithError("personal_account");
-      }
+      // If we got here via instagram_business_account, it's already a Business/Creator account
+      // Personal accounts cannot be linked to Facebook Pages this way
+      console.log("OK: Instagram account validated (linked to Facebook Page = Business/Creator)");
 
       // Calculate token expiry (use long-lived expiry if available)
       const tokenExpiry = new Date(Date.now() + tokenExpiresIn * 1000);
@@ -2061,7 +2053,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           instagramAccessToken: pageAccessToken, // Page tokens don't expire if page is still linked
           instagramTokenExpiry: tokenExpiry,
           instagramProfilePicture: igDetails.profile_picture_url || null,
-          instagramAccountType: igDetails.account_type || "CREATOR",
+          instagramAccountType: "BUSINESS", // Linked to Page = Business/Creator account
           followerCount: igDetails.followers_count || null,
         });
         console.log("=== DATABASE SAVE SUCCESS ===");
