@@ -2368,57 +2368,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 
                 console.log(`Received DM from ${senderInstagramId}: ${messageText}`);
 
-                // Check if message matches a valid Spiral code
-                const spiralCode = await storage.getSpiralCodeByCode(messageText);
+                // Extract 6-character code from anywhere in message
+                // Code uses: ABCDEFGHJKLMNPQRSTUVWXYZ23456789 (no 0,O,I,1)
+                // Allow codes adjacent to punctuation (e.g., "CODE:ABC123!" works)
+                const codePattern = /(?<![A-Z0-9])[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}(?![A-Z0-9])/gi;
+                const potentialCodes = (messageText.match(codePattern) || []).map((c: string) => c.toUpperCase());
                 
-                if (spiralCode && spiralCode.status === "pending") {
-                  // Check if code is not expired
-                  if (new Date(spiralCode.expiresAt) >= new Date()) {
-                    // Fetch Instagram user info via RapidAPI (if configured)
-                    let followerCount = 0;
-                    let instagramHandle = "";
-                    let profilePicture = "";
-                    
-                    // Try to get Instagram data
-                    try {
-                      const rapidApiKey = process.env.RAPIDAPI_KEY;
-                      if (rapidApiKey) {
-                        const igData = await fetchInstagramDataByUserId(senderInstagramId, rapidApiKey);
-                        followerCount = igData.followerCount || 0;
-                        instagramHandle = igData.username || "";
-                        profilePicture = igData.profilePicture || "";
-                      }
-                    } catch (igError) {
-                      console.error("Failed to fetch Instagram data:", igError);
+                // Find all matching codes and categorize them
+                let pendingValidCode = null;
+                let pendingValidMatchedCode = "";
+                let expiredCode = null;
+                let expiredMatchedCode = "";
+                let verifiedCode = null;
+                let verifiedMatchedCode = "";
+                
+                for (const code of potentialCodes) {
+                  const found = await storage.getSpiralCodeByCode(code);
+                  if (found) {
+                    if (found.status === "pending" && new Date(found.expiresAt) >= new Date()) {
+                      // Found a valid pending code - use this one
+                      pendingValidCode = found;
+                      pendingValidMatchedCode = code;
+                      break; // Prioritize first valid pending code
+                    } else if (found.status === "pending" && !expiredCode) {
+                      expiredCode = found;
+                      expiredMatchedCode = code;
+                    } else if (found.status === "verified" && !verifiedCode) {
+                      verifiedCode = found;
+                      verifiedMatchedCode = code;
                     }
-
-                    // Verify the code and link Instagram
-                    await storage.verifySpiralCode(messageText, senderInstagramId, instagramHandle);
-
-                    // Update customer's Instagram info
-                    await storage.updateSpiralCustomerInstagram(spiralCode.customerId, {
-                      instagramHandle,
-                      instagramUserId: senderInstagramId,
-                      instagramAccessToken: null,
-                      instagramTokenExpiry: null,
-                      instagramProfilePicture: profilePicture || null,
-                      instagramAccountType: "UNKNOWN",
-                      followerCount,
-                    });
-
-                    console.log(`Verified Spiral code ${messageText} for customer ${spiralCode.customerId} - Instagram: @${instagramHandle} (${senderInstagramId})`);
-
-                    // Send confirmation DM back
-                    await sendInstagramDM(senderInstagramId, "You're verified! Head back to the Spiral app.");
-                  } else {
-                    console.log(`Spiral code ${messageText} is expired`);
-                    await sendInstagramDM(senderInstagramId, "This code has expired. Please get a new code from the Spiral app.");
                   }
-                } else if (spiralCode && spiralCode.status === "verified") {
-                  console.log(`Spiral code ${messageText} was already used`);
+                }
+                
+                if (pendingValidCode) {
+                  // Valid pending code found - process verification
+                  // Fetch Instagram user info via RapidAPI (if configured)
+                  let followerCount = 0;
+                  let instagramHandle = "";
+                  let profilePicture = "";
+                  
+                  // Try to get Instagram data
+                  try {
+                    const rapidApiKey = process.env.RAPIDAPI_KEY;
+                    if (rapidApiKey) {
+                      const igData = await fetchInstagramDataByUserId(senderInstagramId, rapidApiKey);
+                      followerCount = igData.followerCount || 0;
+                      instagramHandle = igData.username || "";
+                      profilePicture = igData.profilePicture || "";
+                    }
+                  } catch (igError) {
+                    console.error("Failed to fetch Instagram data:", igError);
+                  }
+
+                  // Verify the code and link Instagram
+                  await storage.verifySpiralCode(pendingValidMatchedCode, senderInstagramId, instagramHandle);
+
+                  // Update customer's Instagram info
+                  await storage.updateSpiralCustomerInstagram(pendingValidCode.customerId, {
+                    instagramHandle,
+                    instagramUserId: senderInstagramId,
+                    instagramAccessToken: null,
+                    instagramTokenExpiry: null,
+                    instagramProfilePicture: profilePicture || null,
+                    instagramAccountType: "UNKNOWN",
+                    followerCount,
+                  });
+
+                  console.log(`Verified Spiral code ${pendingValidMatchedCode} for customer ${pendingValidCode.customerId} - Instagram: @${instagramHandle} (${senderInstagramId})`);
+
+                  // Send confirmation DM back
+                  await sendInstagramDM(senderInstagramId, "You're verified! Head back to the Spiral app.");
+                } else if (expiredCode) {
+                  console.log(`Spiral code ${expiredMatchedCode} is expired`);
+                  await sendInstagramDM(senderInstagramId, "This code has expired. Please get a new code from the Spiral app.");
+                } else if (verifiedCode) {
+                  console.log(`Spiral code ${verifiedMatchedCode} was already used`);
                   await sendInstagramDM(senderInstagramId, "This code has already been used. You're already verified!");
+                } else if (potentialCodes.length > 0) {
+                  console.log(`No matching Spiral code found in message. Tried: ${potentialCodes.join(", ")}`);
                 } else {
-                  console.log(`Unknown message received: ${messageText}`);
+                  console.log(`No code pattern found in message: ${messageText}`);
                 }
               }
             }
