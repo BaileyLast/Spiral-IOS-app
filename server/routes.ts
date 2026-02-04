@@ -2377,6 +2377,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     // Fetch Instagram user info via RapidAPI (if configured)
                     let followerCount = 0;
                     let instagramHandle = "";
+                    let profilePicture = "";
                     
                     // Try to get Instagram data
                     try {
@@ -2385,6 +2386,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                         const igData = await fetchInstagramDataByUserId(senderInstagramId, rapidApiKey);
                         followerCount = igData.followerCount || 0;
                         instagramHandle = igData.username || "";
+                        profilePicture = igData.profilePicture || "";
                       }
                     } catch (igError) {
                       console.error("Failed to fetch Instagram data:", igError);
@@ -2399,7 +2401,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       instagramUserId: senderInstagramId,
                       instagramAccessToken: null,
                       instagramTokenExpiry: null,
-                      instagramProfilePicture: null,
+                      instagramProfilePicture: profilePicture || null,
                       instagramAccountType: "UNKNOWN",
                       followerCount,
                     });
@@ -2433,7 +2435,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Helper: Fetch Instagram data by user ID via RapidAPI
-  async function fetchInstagramDataByUserId(userId: string, rapidApiKey: string): Promise<{ username: string; followerCount: number }> {
+  async function fetchInstagramDataByUserId(userId: string, rapidApiKey: string): Promise<{ username: string; followerCount: number; profilePicture: string }> {
     try {
       // Use Instagram API - Fast & Reliable Data Scraper from RapidAPI
       // This API can look up user info by Instagram user ID
@@ -2457,13 +2459,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const data = await response.json();
       console.log('RapidAPI Instagram data:', JSON.stringify(data, null, 2));
 
-      // Extract username and follower count from response
+      // Extract username, follower count, and profile picture from response
       // API response structure may vary - handle common patterns
       const username = data.username || data.user?.username || '';
       const followerCount = data.follower_count || data.followers_count || 
                            data.user?.follower_count || data.edge_followed_by?.count || 0;
+      const profilePicture = data.profile_pic_url || data.profile_pic_url_hd || 
+                             data.user?.profile_pic_url || data.profile_picture || '';
 
-      return { username, followerCount };
+      return { username, followerCount, profilePicture };
     } catch (error) {
       console.error('Failed to fetch Instagram data from RapidAPI:', error);
       throw error;
