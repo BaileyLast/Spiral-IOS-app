@@ -2434,10 +2434,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Helper: Fetch Instagram data by user ID via RapidAPI
   async function fetchInstagramDataByUserId(userId: string, rapidApiKey: string): Promise<{ username: string; followerCount: number }> {
-    // This will be implemented when user provides RapidAPI endpoint
-    // For now, return placeholder
-    console.log(`TODO: Fetch Instagram data for user ${userId} via RapidAPI`);
-    return { username: "", followerCount: 0 };
+    try {
+      // Use Instagram API - Fast & Reliable Data Scraper from RapidAPI
+      // This API can look up user info by Instagram user ID
+      const response = await fetch(
+        `https://instagram-api-fast-reliable-data-scraper.p.rapidapi.com/user_info_by_id?user_id=${userId}`,
+        {
+          method: 'GET',
+          headers: {
+            'X-RapidAPI-Key': rapidApiKey,
+            'X-RapidAPI-Host': 'instagram-api-fast-reliable-data-scraper.p.rapidapi.com'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`RapidAPI error (${response.status}):`, errorText);
+        throw new Error(`RapidAPI request failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('RapidAPI Instagram data:', JSON.stringify(data, null, 2));
+
+      // Extract username and follower count from response
+      // API response structure may vary - handle common patterns
+      const username = data.username || data.user?.username || '';
+      const followerCount = data.follower_count || data.followers_count || 
+                           data.user?.follower_count || data.edge_followed_by?.count || 0;
+
+      return { username, followerCount };
+    } catch (error) {
+      console.error('Failed to fetch Instagram data from RapidAPI:', error);
+      throw error;
+    }
   }
 
   // Helper: Send DM back to user via Instagram API

@@ -41,19 +41,34 @@ Preferred communication style: Simple, everyday language.
 - `POST /api/customer/signup`: Create new customer account
 - `POST /api/customer/login`: Authenticate customer
 - `POST /api/customer/logout`: End session
-- `GET /api/customer/instagram/auth`: Initiate Instagram OAuth flow via Meta Login
-- `GET /api/customer/instagram/callback`: Handle OAuth callback, exchange code for token, fetch Instagram data
+- `POST /api/customer/spiral-code`: Generate or get existing verification code
+- `GET /api/customer/spiral-code/status`: Poll for verification status
+- `POST /api/customer/spiral-code/regenerate`: Generate a new code (invalidates old)
 - `POST /api/customer/disconnect-instagram`: Unlink Instagram account
 - `GET /api/customer/orders`: Get customer's orders
 - `GET /api/customer/orders/:id`: Get single order details
 - `GET /api/customer/stats`: Get total saved and orders completed
 
-### Instagram Integration
-- **OAuth Flow**: Customers connect via Meta Login (Facebook OAuth)
-- **Requirements**: Instagram must be Creator/Business account AND linked to a Facebook Page
-- **Permissions**: `instagram_basic`, `pages_show_list`, `pages_read_engagement`, `instagram_manage_insights`
-- **Data Retrieved**: Instagram user ID, username, follower count, profile picture, account type
-- **Token Storage**: Page access token stored per customer for future API calls
+### Webhook Endpoints
+- `GET /webhooks/instagram-dm`: Webhook verification (Meta challenge)
+- `POST /webhooks/instagram-dm`: Receive DMs to @joinspiral for code verification
+
+### Instagram Integration (DM Verification)
+- **Verification Flow**: Customers verify ownership by DMing a unique code to @joinspiral
+- **How It Works**:
+  1. Customer gets a 6-character verification code (24-hour expiry)
+  2. Customer opens Instagram and DMs the code to @joinspiral
+  3. Webhook receives DM, extracts Instagram user ID from sender metadata
+  4. Code is matched and customer's Instagram is verified automatically
+- **Follower Lookup**: RapidAPI (Instagram API - Fast & Reliable Data Scraper) fetches follower count
+- **Data Retrieved**: Instagram user ID (from DM sender), username, follower count via RapidAPI
+- **Code Table**: `spiral_codes` tracks verification sessions with status (pending/verified/expired)
+
+### Required Secrets
+- `RAPIDAPI_KEY`: For fetching Instagram follower counts
+- `FACEBOOK_APP_SECRET`: For webhook signature verification
+- `SPIRAL_INSTAGRAM_ACCESS_TOKEN`: For receiving DMs to @joinspiral
+- `SPIRAL_INSTAGRAM_BUSINESS_ID`: The Instagram business account ID for @joinspiral
 
 ### Order Status Flow
 1. **Ordered** - Order placed, waiting for delivery
