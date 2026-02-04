@@ -2168,6 +2168,314 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============================================
+  // Spiral Code API (DM-based Instagram verification)
+  // ============================================
+
+  // Generate a new Spiral code for Instagram verification
+  function generateSpiralCode(): string {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Removed confusing chars like 0,O,I,1
+    let code = "";
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  }
+
+  // Get or create a Spiral code for the authenticated customer
+  app.post("/api/customer/spiral-code", async (req, res) => {
+    try {
+      const customerId = req.session.customerId;
+      if (!customerId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      // Check for existing pending code
+      let spiralCode = await storage.getPendingSpiralCodeByCustomerId(customerId);
+      
+      // If existing code is expired, create a new one
+      if (spiralCode && new Date(spiralCode.expiresAt) < new Date()) {
+        spiralCode = undefined;
+      }
+
+      if (!spiralCode) {
+        // Generate new code (24 hour expiry)
+        const code = generateSpiralCode();
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + 24);
+
+        spiralCode = await storage.createSpiralCode({
+          code,
+          customerId,
+          status: "pending",
+          expiresAt,
+        });
+      }
+
+      res.json({
+        code: spiralCode.code,
+        expiresAt: spiralCode.expiresAt,
+        status: spiralCode.status,
+      });
+    } catch (error) {
+      console.error("Failed to generate spiral code:", error);
+      res.status(500).json({ error: "Failed to generate verification code" });
+    }
+  });
+
+  // Check verification status (polling endpoint)
+  app.get("/api/customer/spiral-code/status", async (req, res) => {
+    try {
+      const customerId = req.session.customerId;
+      if (!customerId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const spiralCode = await storage.getSpiralCodeByCustomerId(customerId);
+      
+      if (!spiralCode) {
+        return res.json({ status: "no_code" });
+      }
+
+      // Check if code is expired
+      if (new Date(spiralCode.expiresAt) < new Date()) {
+        return res.json({ status: "expired" });
+      }
+
+      // If verified, also return the Instagram data
+      if (spiralCode.status === "verified") {
+        // Get the customer to return their updated Instagram info
+        const customer = await storage.getSpiralCustomerById(customerId);
+        return res.json({
+          status: "verified",
+          instagramHandle: customer?.instagramHandle,
+          instagramUserId: customer?.instagramUserId,
+          followerCount: customer?.followerCount,
+        });
+      }
+
+      res.json({ status: spiralCode.status });
+    } catch (error) {
+      console.error("Failed to check spiral code status:", error);
+      res.status(500).json({ error: "Failed to check verification status" });
+    }
+  });
+
+  // Regenerate Spiral code (invalidates old one)
+  app.post("/api/customer/spiral-code/regenerate", async (req, res) => {
+    try {
+      const customerId = req.session.customerId;
+      if (!customerId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      // Generate new code (24 hour expiry)
+      const code = generateSpiralCode();
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 24);
+
+      const spiralCode = await storage.createSpiralCode({
+        code,
+        customerId,
+        status: "pending",
+        expiresAt,
+      });
+
+      res.json({
+        code: spiralCode.code,
+        expiresAt: spiralCode.expiresAt,
+        status: spiralCode.status,
+      });
+    } catch (error) {
+      console.error("Failed to regenerate spiral code:", error);
+      res.status(500).json({ error: "Failed to regenerate verification code" });
+    }
+  });
+
+  // ============================================
+  // Instagram DM Webhook (for receiving verification DMs)
+  // ============================================
+
+  // Webhook verification endpoint (Meta requires this for setup)
+  app.get("/webhooks/instagram-dm", (req, res) => {
+    const VERIFY_TOKEN = process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN || 'spiral_dm_verify_token';
+    
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+
+    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+      console.log('Instagram DM webhook verified successfully');
+      res.status(200).send(challenge);
+    } else {
+      console.error('Instagram DM webhook verification failed');
+      res.status(403).send('Verification failed');
+    }
+  });
+
+  // Webhook endpoint for receiving DMs to @joinspiral
+  app.post("/webhooks/instagram-dm", async (req, res) => {
+    try {
+      // Verify webhook signature using app secret
+      const signature = req.headers['x-hub-signature-256'] as string;
+      const appSecret = process.env.FACEBOOK_APP_SECRET;
+      
+      if (appSecret) {
+        if (!signature) {
+          console.error('Instagram DM webhook missing required signature header');
+          return res.status(403).json({ error: 'Missing signature' });
+        }
+        
+        const rawBody = (req as any).rawBody;
+        
+        if (!rawBody) {
+          console.error('Raw body not available for signature verification');
+          return res.status(500).json({ error: 'Server configuration error' });
+        }
+        
+        const expectedSignature = 'sha256=' + crypto
+          .createHmac('sha256', appSecret)
+          .update(rawBody)
+          .digest('hex');
+        
+        const signatureBuffer = Buffer.from(signature, 'utf8');
+        const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
+        
+        if (signatureBuffer.length !== expectedBuffer.length || 
+            !crypto.timingSafeEqual(signatureBuffer, expectedBuffer)) {
+          console.error('Invalid Instagram DM webhook signature');
+          return res.status(403).json({ error: 'Invalid signature' });
+        }
+        
+        console.log('Instagram DM webhook signature verified');
+      } else {
+        console.warn('FACEBOOK_APP_SECRET not configured - skipping signature verification (DEV MODE)');
+      }
+
+      console.log('Instagram DM webhook received:', JSON.stringify(req.body, null, 2));
+
+      const body = req.body;
+
+      // Process messaging events
+      if (body.object === 'instagram' && body.entry) {
+        for (const entry of body.entry) {
+          if (entry.messaging) {
+            for (const event of entry.messaging) {
+              // Handle incoming message
+              if (event.message?.text) {
+                const senderInstagramId = event.sender?.id;
+                const messageText = event.message.text.trim().toUpperCase();
+                
+                console.log(`Received DM from ${senderInstagramId}: ${messageText}`);
+
+                // Check if message matches a valid Spiral code
+                const spiralCode = await storage.getSpiralCodeByCode(messageText);
+                
+                if (spiralCode && spiralCode.status === "pending") {
+                  // Check if code is not expired
+                  if (new Date(spiralCode.expiresAt) >= new Date()) {
+                    // Fetch Instagram user info via RapidAPI (if configured)
+                    let followerCount = 0;
+                    let instagramHandle = "";
+                    
+                    // Try to get Instagram data
+                    try {
+                      const rapidApiKey = process.env.RAPIDAPI_KEY;
+                      if (rapidApiKey) {
+                        const igData = await fetchInstagramDataByUserId(senderInstagramId, rapidApiKey);
+                        followerCount = igData.followerCount || 0;
+                        instagramHandle = igData.username || "";
+                      }
+                    } catch (igError) {
+                      console.error("Failed to fetch Instagram data:", igError);
+                    }
+
+                    // Verify the code and link Instagram
+                    await storage.verifySpiralCode(messageText, senderInstagramId, instagramHandle);
+
+                    // Update customer's Instagram info
+                    await storage.updateSpiralCustomerInstagram(spiralCode.customerId, {
+                      instagramHandle,
+                      instagramUserId: senderInstagramId,
+                      instagramAccessToken: null,
+                      instagramTokenExpiry: null,
+                      instagramProfilePicture: null,
+                      instagramAccountType: "UNKNOWN",
+                      followerCount,
+                    });
+
+                    console.log(`Verified Spiral code ${messageText} for customer ${spiralCode.customerId} - Instagram: @${instagramHandle} (${senderInstagramId})`);
+
+                    // Send confirmation DM back
+                    await sendInstagramDM(senderInstagramId, "You're verified! Head back to the Spiral app.");
+                  } else {
+                    console.log(`Spiral code ${messageText} is expired`);
+                    await sendInstagramDM(senderInstagramId, "This code has expired. Please get a new code from the Spiral app.");
+                  }
+                } else if (spiralCode && spiralCode.status === "verified") {
+                  console.log(`Spiral code ${messageText} was already used`);
+                  await sendInstagramDM(senderInstagramId, "This code has already been used. You're already verified!");
+                } else {
+                  console.log(`Unknown message received: ${messageText}`);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Always respond with 200 to acknowledge receipt
+      res.status(200).json({ received: true });
+    } catch (error) {
+      console.error('Error processing Instagram DM webhook:', error);
+      res.status(200).json({ received: true });
+    }
+  });
+
+  // Helper: Fetch Instagram data by user ID via RapidAPI
+  async function fetchInstagramDataByUserId(userId: string, rapidApiKey: string): Promise<{ username: string; followerCount: number }> {
+    // This will be implemented when user provides RapidAPI endpoint
+    // For now, return placeholder
+    console.log(`TODO: Fetch Instagram data for user ${userId} via RapidAPI`);
+    return { username: "", followerCount: 0 };
+  }
+
+  // Helper: Send DM back to user via Instagram API
+  async function sendInstagramDM(recipientId: string, message: string): Promise<void> {
+    try {
+      const accessToken = process.env.SPIRAL_INSTAGRAM_ACCESS_TOKEN;
+      const pageId = process.env.SPIRAL_INSTAGRAM_BUSINESS_ID;
+      
+      if (!accessToken || !pageId) {
+        console.log('Instagram access token not configured, skipping DM reply');
+        return;
+      }
+
+      const url = `https://graph.instagram.com/v18.0/${pageId}/messages`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          recipient: { id: recipientId },
+          message: { text: message },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Failed to send Instagram DM:', response.status, errorData);
+      } else {
+        console.log(`Sent Instagram DM to ${recipientId}: "${message}"`);
+      }
+    } catch (error) {
+      console.error('Error sending Instagram DM:', error);
+    }
+  }
+
   const httpServer = createServer(app);
   return httpServer;
 }

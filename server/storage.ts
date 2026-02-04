@@ -8,6 +8,7 @@ import {
   selectedCollections,
   spiralCustomers,
   orders,
+  spiralCodes,
   type StoreSettings, 
   type DiscountTier, 
   type Verification,
@@ -15,13 +16,15 @@ import {
   type ShopifyCollection,
   type SpiralCustomer,
   type Order,
+  type SpiralCode,
   type InsertStoreSettings,
   type InsertDiscountTier,
   type InsertVerification,
   type InsertShopifyProduct,
   type InsertShopifyCollection,
   type InsertSpiralCustomer,
-  type InsertOrder
+  type InsertOrder,
+  type InsertSpiralCode
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, inArray, and, lt, isNull } from "drizzle-orm";
@@ -81,6 +84,13 @@ export interface IStorage {
   updateSpiralCustomerEmailVerified(id: string, verified: boolean): Promise<SpiralCustomer>;
   updateSpiralCustomerVerificationCode(id: string, code: string, expiresAt: Date): Promise<SpiralCustomer>;
   getOrdersByCustomerId(customerId: string): Promise<Order[]>;
+  // Spiral verification codes
+  createSpiralCode(code: InsertSpiralCode): Promise<SpiralCode>;
+  getSpiralCodeByCode(code: string): Promise<SpiralCode | undefined>;
+  getSpiralCodeByCustomerId(customerId: string): Promise<SpiralCode | undefined>;
+  getPendingSpiralCodeByCustomerId(customerId: string): Promise<SpiralCode | undefined>;
+  verifySpiralCode(code: string, instagramUserId: string, instagramHandle: string): Promise<SpiralCode>;
+  invalidateSpiralCode(code: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -583,6 +593,75 @@ export class DatabaseStorage implements IStorage {
       .where(eq(spiralCustomers.id, id))
       .returning();
     return updated;
+  }
+
+  async createSpiralCode(codeData: InsertSpiralCode): Promise<SpiralCode> {
+    // First invalidate any existing pending codes for this customer
+    await db
+      .update(spiralCodes)
+      .set({ status: "expired" })
+      .where(
+        and(
+          eq(spiralCodes.customerId, codeData.customerId),
+          eq(spiralCodes.status, "pending")
+        )
+      );
+    
+    const [created] = await db
+      .insert(spiralCodes)
+      .values(codeData)
+      .returning();
+    return created;
+  }
+
+  async getSpiralCodeByCode(code: string): Promise<SpiralCode | undefined> {
+    const [spiralCode] = await db
+      .select()
+      .from(spiralCodes)
+      .where(eq(spiralCodes.code, code.toUpperCase()));
+    return spiralCode;
+  }
+
+  async getSpiralCodeByCustomerId(customerId: string): Promise<SpiralCode | undefined> {
+    const [spiralCode] = await db
+      .select()
+      .from(spiralCodes)
+      .where(eq(spiralCodes.customerId, customerId));
+    return spiralCode;
+  }
+
+  async getPendingSpiralCodeByCustomerId(customerId: string): Promise<SpiralCode | undefined> {
+    const [spiralCode] = await db
+      .select()
+      .from(spiralCodes)
+      .where(
+        and(
+          eq(spiralCodes.customerId, customerId),
+          eq(spiralCodes.status, "pending")
+        )
+      );
+    return spiralCode;
+  }
+
+  async verifySpiralCode(code: string, instagramUserId: string, instagramHandle: string): Promise<SpiralCode> {
+    const [updated] = await db
+      .update(spiralCodes)
+      .set({
+        status: "verified",
+        instagramUserId,
+        instagramHandle,
+        verifiedAt: new Date(),
+      })
+      .where(eq(spiralCodes.code, code.toUpperCase()))
+      .returning();
+    return updated;
+  }
+
+  async invalidateSpiralCode(code: string): Promise<void> {
+    await db
+      .update(spiralCodes)
+      .set({ status: "expired" })
+      .where(eq(spiralCodes.code, code.toUpperCase()));
   }
 }
 

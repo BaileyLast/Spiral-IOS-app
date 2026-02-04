@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { useLocation, Link } from "wouter";
+import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Instagram, Shield, CheckCircle, Loader2, Users, ArrowRight, LogOut, AlertCircle } from "lucide-react";
-import { SiFacebook } from "react-icons/si";
+import { Instagram, CheckCircle, Loader2, Users, ArrowRight, LogOut, Copy, ExternalLink, RefreshCw } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import spiralLogoUrl from "@assets/Spiral logo (2)_1763051288266.png";
 
@@ -20,71 +19,75 @@ interface CustomerProfile {
   followerCount?: number;
 }
 
+interface SpiralCodeResponse {
+  code: string;
+  expiresAt: string;
+  status: string;
+}
+
+interface VerificationStatus {
+  status: string;
+  instagramHandle?: string;
+  instagramUserId?: string;
+  followerCount?: number;
+}
+
 export default function InstagramConnect() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [isConnecting, setIsConnecting] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const { data: profile, isLoading } = useQuery<CustomerProfile>({
     queryKey: ["/api/customer/me"],
   });
 
+  const { data: spiralCode, refetch: refetchCode } = useQuery<SpiralCodeResponse>({
+    queryKey: ["/api/customer/spiral-code"],
+    queryFn: async () => {
+      const response = await apiRequest("POST", "/api/customer/spiral-code");
+      return response.json();
+    },
+    enabled: !!profile && !profile.instagramHandle,
+  });
+
+  const { data: verificationStatus } = useQuery<VerificationStatus>({
+    queryKey: ["/api/customer/spiral-code/status"],
+    refetchInterval: 3000,
+    enabled: !!spiralCode && spiralCode.status === "pending",
+  });
+
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const success = urlParams.get("instagram_connected");
-    const error = urlParams.get("instagram_error");
-    
-    if (success === "true") {
+    if (verificationStatus?.status === "verified") {
       queryClient.invalidateQueries({ queryKey: ["/api/customer/me"] });
       queryClient.invalidateQueries({ queryKey: ["/api/customer/stats"] });
       toast({
-        title: "Instagram connected",
-        description: "Your Instagram account has been linked successfully",
+        title: "Instagram connected!",
+        description: `Verified as @${verificationStatus.instagramHandle}`,
       });
-      window.history.replaceState({}, "", "/connect-instagram");
-    } else if (error) {
-      let errorMessage = "Please try again";
-      switch (error) {
-        case "access_denied":
-          errorMessage = "You declined the Instagram connection";
-          break;
-        case "no_instagram_account":
-          errorMessage = "No Instagram account found linked to a Facebook Page. Please link your Instagram to a Facebook Page first.";
-          break;
-        case "no_facebook_pages":
-          errorMessage = "No Facebook Pages found. Create a Facebook Page and link your Instagram to it.";
-          break;
-        case "personal_account":
-          errorMessage = "Your Instagram must be a Creator or Business account, not Personal.";
-          break;
-        case "token_exchange_failed":
-          errorMessage = "Failed to complete authentication. Please try again.";
-          break;
-        case "fetch_details_failed":
-          errorMessage = "Could not retrieve your Instagram details. Please try again.";
-          break;
-        case "not_authenticated":
-          errorMessage = "Your session expired. Please log in again.";
-          setLocation("/login");
-          break;
-        case "invalid_state":
-          errorMessage = "Security verification failed. Please try again.";
-          break;
-        case "configuration_error":
-          errorMessage = "Instagram connection is not configured. Please contact support.";
-          break;
-        default:
-          errorMessage = error.replace(/_/g, " ");
-      }
+    }
+  }, [verificationStatus?.status, verificationStatus?.instagramHandle, queryClient, toast]);
+
+  const regenerateCodeMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/customer/spiral-code/regenerate");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/customer/spiral-code"] });
       toast({
-        title: "Connection failed",
-        description: errorMessage,
+        title: "New code generated",
+        description: "Your Spiral code has been refreshed",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Failed to regenerate",
+        description: "Please try again",
         variant: "destructive",
       });
-      window.history.replaceState({}, "", "/connect-instagram");
-    }
-  }, [queryClient, toast, setLocation]);
+    },
+  });
 
   const disconnectMutation = useMutation({
     mutationFn: async () => {
@@ -108,47 +111,19 @@ export default function InstagramConnect() {
     },
   });
 
-  const handleConnectWithMeta = async () => {
-    setIsConnecting(true);
+  const handleCopyAndMessage = async () => {
+    if (!spiralCode?.code) return;
+
     try {
-      const response = await apiRequest("GET", "/api/customer/instagram/auth");
-      const data = await response.json();
+      await navigator.clipboard.writeText(spiralCode.code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
       
-      if (data.requiresLogin || data.error === "Not authenticated") {
-        setIsConnecting(false);
-        toast({
-          title: "Session expired",
-          description: "Please log in again to connect Instagram",
-          variant: "destructive",
-        });
-        setLocation("/login");
-        return;
-      }
-      
-      if (data.authUrl) {
-        // Redirecting to Facebook - keep isConnecting true
-        window.location.href = data.authUrl;
-      } else {
-        throw new Error("Failed to get auth URL");
-      }
-    } catch (error: any) {
-      console.error("Failed to initiate Instagram auth:", error);
-      setIsConnecting(false);
-      
-      // Handle 401 specifically
-      if (error?.message?.includes("401") || error?.message?.includes("Not authenticated")) {
-        toast({
-          title: "Session expired",
-          description: "Please log in again to connect Instagram",
-          variant: "destructive",
-        });
-        setLocation("/login");
-        return;
-      }
-      
+      window.open("https://ig.me/m/joinspiral", "_blank");
+    } catch (error) {
       toast({
-        title: "Connection failed",
-        description: "Could not start Instagram connection. Please try again.",
+        title: "Copy failed",
+        description: "Please copy the code manually",
         variant: "destructive",
       });
     }
@@ -230,11 +205,6 @@ export default function InstagramConnect() {
                       <span>{formatFollowerCount(profile.followerCount)} followers</span>
                     </div>
                   ) : null}
-                  {profile.instagramAccountType && (
-                    <span className="text-xs text-muted-foreground capitalize">
-                      {profile.instagramAccountType.toLowerCase()} account
-                    </span>
-                  )}
                 </div>
               </div>
 
@@ -291,63 +261,98 @@ export default function InstagramConnect() {
             Connect Instagram
           </h1>
           <p className="text-muted-foreground mb-8">
-            Link your Instagram to unlock discounts based on your follower count
+            Verify your Instagram to unlock discounts based on your follower count
           </p>
 
-          <Button 
-            onClick={handleConnectWithMeta}
-            disabled={isConnecting}
-            className="w-full h-14 text-base font-medium rounded-xl bg-[#1877F2] hover:bg-[#166FE5] text-white mb-4"
-            data-testid="button-connect-instagram"
-          >
-            {isConnecting ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <>
-                <SiFacebook className="w-5 h-5 mr-2" />
-                Continue with Facebook
-              </>
-            )}
-          </Button>
-          
-          <p className="text-xs text-muted-foreground mb-6">
-            Your Instagram must be linked to Facebook to connect
-          </p>
+          {spiralCode?.status === "pending" && (
+            <div className="bg-card rounded-2xl border border-border p-6 mb-6">
+              <p className="text-sm text-muted-foreground mb-3">
+                Send this code to @joinspiral on Instagram:
+              </p>
+              
+              <div className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl p-4 mb-4">
+                <span className="text-3xl font-bold tracking-[0.3em] text-primary font-mono">
+                  {spiralCode.code}
+                </span>
+              </div>
 
-          <div className="bg-card rounded-2xl border border-border p-5 mb-4 text-left space-y-4">
-            <div className="flex items-start gap-3">
-              <Shield className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-foreground">Your privacy is protected</p>
-                <p className="text-sm text-muted-foreground mt-1">We only read your public follower count to calculate your discount</p>
+              <Button 
+                onClick={handleCopyAndMessage}
+                className="w-full h-14 text-base font-medium rounded-xl bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 text-white mb-3"
+                data-testid="button-copy-message"
+              >
+                {copied ? (
+                  <>
+                    <CheckCircle className="w-5 h-5 mr-2" />
+                    Copied! Opening Instagram...
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-5 h-5 mr-2" />
+                    Copy & Message @joinspiral
+                    <ExternalLink className="w-4 h-4 ml-2" />
+                  </>
+                )}
+              </Button>
+
+              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Waiting for your message...</span>
               </div>
             </div>
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-foreground">Requirements</p>
-                <p className="text-sm text-muted-foreground mt-1">Instagram must be Creator/Business account and linked to a Facebook Page</p>
-              </div>
+          )}
+
+          {verificationStatus?.status === "verified" && (
+            <div className="bg-green-50 dark:bg-green-950/30 rounded-2xl border border-green-200 dark:border-green-900 p-6 mb-6">
+              <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-3" />
+              <p className="text-lg font-semibold text-green-800 dark:text-green-200 mb-1">
+                Verified!
+              </p>
+              <p className="text-sm text-green-700 dark:text-green-300">
+                Connected as @{verificationStatus.instagramHandle}
+              </p>
+              {verificationStatus.followerCount ? (
+                <p className="text-sm text-green-600 dark:text-green-400 mt-1">
+                  {formatFollowerCount(verificationStatus.followerCount)} followers
+                </p>
+              ) : null}
             </div>
-          </div>
-          
-          <p className="text-muted-foreground text-sm">
-            <Link href="/instagram-help" className="text-primary hover:underline" data-testid="link-creator-help">
-              Need help setting up?
-            </Link>
-          </p>
+          )}
+
+          {spiralCode?.status === "pending" && (
+            <button
+              onClick={() => regenerateCodeMutation.mutate()}
+              disabled={regenerateCodeMutation.isPending}
+              className="flex items-center justify-center gap-2 text-muted-foreground hover:text-foreground transition-colors mx-auto text-sm"
+              data-testid="button-regenerate"
+            >
+              <RefreshCw className={`w-4 h-4 ${regenerateCodeMutation.isPending ? 'animate-spin' : ''}`} />
+              <span>Get new code</span>
+            </button>
+          )}
         </div>
       </div>
 
       <div className="px-6 pb-8 safe-bottom">
-        <Button 
-          variant="ghost"
-          className="w-full h-12 text-base text-muted-foreground"
-          onClick={handleSkip}
-          data-testid="button-skip"
-        >
-          Skip for now
-        </Button>
+        {verificationStatus?.status === "verified" ? (
+          <Button 
+            className="w-full h-14 text-base font-medium rounded-xl"
+            onClick={handleContinue}
+            data-testid="button-continue"
+          >
+            Continue to Spiral
+            <ArrowRight className="w-5 h-5 ml-2" />
+          </Button>
+        ) : (
+          <Button 
+            variant="ghost"
+            className="w-full h-12 text-base text-muted-foreground"
+            onClick={handleSkip}
+            data-testid="button-skip"
+          >
+            Skip for now
+          </Button>
+        )}
       </div>
     </div>
   );

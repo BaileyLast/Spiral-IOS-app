@@ -134,6 +134,22 @@ export const orders = pgTable("orders", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Spiral verification codes - for DM-based Instagram verification
+// Status: pending (waiting for DM), verified (DM received, Instagram linked), expired (24h passed)
+export const spiralCodes = pgTable("spiral_codes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code").notNull().unique(),
+  customerId: varchar("customer_id").notNull(),
+  status: text("status").notNull().default("pending"),
+  // Instagram data (populated when DM received)
+  instagramUserId: text("instagram_user_id"),
+  instagramHandle: text("instagram_handle"),
+  // Timestamps
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(),
+  verifiedAt: timestamp("verified_at"),
+});
+
 export const insertStoreSettingsSchema = createInsertSchema(storeSettings).omit({ id: true });
 export const insertDiscountTierSchema = createInsertSchema(discountTiers)
   .omit({ id: true })
@@ -163,6 +179,7 @@ export const insertSelectedProductSchema = createInsertSchema(selectedProducts).
 export const insertSelectedCollectionSchema = createInsertSchema(selectedCollections).omit({ id: true });
 export const insertSpiralCustomerSchema = createInsertSchema(spiralCustomers).omit({ id: true, createdAt: true, lastLoginAt: true });
 export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true });
+export const insertSpiralCodeSchema = createInsertSchema(spiralCodes).omit({ id: true, createdAt: true, verifiedAt: true });
 
 export type InsertStoreSettings = z.infer<typeof insertStoreSettingsSchema>;
 export type StoreSettings = typeof storeSettings.$inferSelect;
@@ -182,3 +199,5 @@ export type InsertSpiralCustomer = z.infer<typeof insertSpiralCustomerSchema>;
 export type SpiralCustomer = typeof spiralCustomers.$inferSelect;
 export type InsertOrder = z.infer<typeof insertOrderSchema>;
 export type Order = typeof orders.$inferSelect;
+export type InsertSpiralCode = z.infer<typeof insertSpiralCodeSchema>;
+export type SpiralCode = typeof spiralCodes.$inferSelect;
