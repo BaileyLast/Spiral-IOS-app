@@ -2469,7 +2469,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Use Instagram API - Fast & Reliable Data Scraper from RapidAPI
       // This API can look up user info by Instagram user ID
       const response = await fetch(
-        `https://instagram-api-fast-reliable-data-scraper.p.rapidapi.com/user_info_by_id?user_id=${userId}`,
+        `https://instagram-api-fast-reliable-data-scraper.p.rapidapi.com/profile?user_id=${userId}`,
         {
           method: 'GET',
           headers: {
