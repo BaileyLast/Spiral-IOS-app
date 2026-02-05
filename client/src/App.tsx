@@ -3,7 +3,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Home, ShoppingBag, User } from "lucide-react";
+import { Home, Store, Percent, User } from "lucide-react";
 import { Link } from "wouter";
 import Login from "@/pages/Login";
 import VerifyEmail from "@/pages/VerifyEmail";
@@ -12,6 +12,7 @@ import InstagramHelp from "@/pages/InstagramHelp";
 import Orders from "@/pages/Orders";
 import OrderDetail from "@/pages/OrderDetail";
 import Profile from "@/pages/Profile";
+import Marketplace from "@/pages/Marketplace";
 import CustomerHome from "@/pages/CustomerHome";
 import Privacy from "@/pages/Privacy";
 import DataDeletion from "@/pages/DataDeletion";
@@ -21,13 +22,14 @@ function BottomNav() {
   
   const navItems = [
     { path: "/home", icon: Home, label: "Home" },
-    { path: "/orders", icon: ShoppingBag, label: "Orders" },
+    { path: "/marketplace", icon: Store, label: "Marketplace" },
+    { path: "/discounts", icon: Percent, label: "Discounts" },
     { path: "/profile", icon: User, label: "Profile" },
   ];
 
   const isActive = (path: string) => {
-    if (path === "/orders") {
-      return location === "/orders" || location.startsWith("/orders/");
+    if (path === "/discounts") {
+      return location === "/discounts" || location.startsWith("/orders/");
     }
     return location === path;
   };
@@ -67,7 +69,8 @@ function Router() {
       <Route path="/connect-instagram" component={InstagramConnect} />
       <Route path="/instagram-help" component={InstagramHelp} />
       <Route path="/home" component={CustomerHome} />
-      <Route path="/orders" component={Orders} />
+      <Route path="/marketplace" component={Marketplace} />
+      <Route path="/discounts" component={Orders} />
       <Route path="/orders/:id" component={OrderDetail} />
       <Route path="/profile" component={Profile} />
       <Route path="/privacy" component={Privacy} />

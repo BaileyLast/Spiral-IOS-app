@@ -54,8 +54,8 @@ export default function Orders() {
         <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent" />
         <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-primary/20 to-transparent rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
         <div className="relative">
-          <h1 className="text-2xl font-semibold text-foreground">Your Orders</h1>
-          <p className="text-muted-foreground mt-1">Track your purchases and discounts</p>
+          <h1 className="text-2xl font-semibold text-foreground">Your Discounts</h1>
+          <p className="text-muted-foreground mt-1">Track your purchases and savings</p>
         </div>
       </header>
 

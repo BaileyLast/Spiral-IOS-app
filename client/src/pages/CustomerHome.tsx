@@ -120,7 +120,7 @@ export default function CustomerHome() {
                   Share to keep your discount
                 </p>
               </div>
-              <Link href="/orders">
+              <Link href="/discounts">
                 <Button 
                   size="sm" 
                   variant="secondary"
@@ -138,7 +138,7 @@ export default function CustomerHome() {
           <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-foreground">Recent Orders</h2>
-              <Link href="/orders">
+              <Link href="/discounts">
                 <Button variant="ghost" size="sm" className="text-muted-foreground" data-testid="link-view-all-orders">
                   View all
                   <ChevronRight className="w-4 h-4 ml-1" />
