@@ -109,8 +109,12 @@ export default function Profile() {
 
   return (
     <div className="min-h-screen bg-background safe-top">
-      <header className="px-6 pt-6 pb-4">
-        <h1 className="text-2xl font-semibold text-foreground">Profile</h1>
+      <header className="relative overflow-hidden px-6 pt-8 pb-6">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent" />
+        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-primary/20 to-transparent rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
+        <div className="relative">
+          <h1 className="text-2xl font-semibold text-foreground">Profile</h1>
+        </div>
       </header>
 
       <main className="px-6 pb-8 space-y-6">
@@ -199,19 +203,29 @@ export default function Profile() {
         )}
 
         <div className="grid grid-cols-2 gap-4">
-          <Card className="p-4 rounded-2xl text-center">
-            <Gift className="w-6 h-6 text-primary mx-auto mb-2" />
-            <p className="text-xl font-semibold text-foreground" data-testid="text-total-saved">
-              ${stats?.totalSaved?.toFixed(2) || "0.00"}
-            </p>
-            <p className="text-xs text-muted-foreground">Total saved</p>
+          <Card className="p-4 rounded-2xl text-center relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent" />
+            <div className="relative">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center mx-auto mb-2 shadow-md shadow-primary/20">
+                <Gift className="w-5 h-5 text-primary-foreground" />
+              </div>
+              <p className="text-xl font-semibold text-foreground" data-testid="text-total-saved">
+                ${stats?.totalSaved?.toFixed(2) || "0.00"}
+              </p>
+              <p className="text-xs text-muted-foreground">Total saved</p>
+            </div>
           </Card>
-          <Card className="p-4 rounded-2xl text-center">
-            <Shield className="w-6 h-6 text-primary mx-auto mb-2" />
-            <p className="text-xl font-semibold text-foreground" data-testid="text-orders-verified">
-              {stats?.ordersCompleted || 0}
-            </p>
-            <p className="text-xs text-muted-foreground">Verified orders</p>
+          <Card className="p-4 rounded-2xl text-center relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent" />
+            <div className="relative">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center mx-auto mb-2 shadow-md shadow-primary/20">
+                <Shield className="w-5 h-5 text-primary-foreground" />
+              </div>
+              <p className="text-xl font-semibold text-foreground" data-testid="text-orders-verified">
+                {stats?.ordersCompleted || 0}
+              </p>
+              <p className="text-xs text-muted-foreground">Verified orders</p>
+            </div>
           </Card>
         </div>
 

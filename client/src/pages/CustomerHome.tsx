@@ -47,8 +47,10 @@ export default function CustomerHome() {
 
   return (
     <div className="min-h-screen bg-background safe-top">
-      <header className="px-6 pt-6 pb-4">
-        <div className="flex items-center justify-between">
+      <header className="relative overflow-hidden px-6 pt-6 pb-4">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent" />
+        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-primary/20 to-transparent rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
+        <div className="relative flex items-center justify-between">
           <img 
             src={spiralLogoUrl} 
             alt="Spiral" 
@@ -73,28 +75,34 @@ export default function CustomerHome() {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Card className="p-5 rounded-2xl">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center">
-                <Gift className="w-5 h-5 text-primary" />
+          <Card className="p-5 rounded-2xl relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent" />
+            <div className="relative">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-md shadow-primary/20">
+                  <Gift className="w-5 h-5 text-primary-foreground" />
+                </div>
               </div>
+              <p className="text-2xl font-semibold text-foreground" data-testid="text-total-saved">
+                ${stats?.totalSaved?.toFixed(2) || "0.00"}
+              </p>
+              <p className="text-sm text-muted-foreground">Total saved</p>
             </div>
-            <p className="text-2xl font-semibold text-foreground" data-testid="text-total-saved">
-              ${stats?.totalSaved?.toFixed(2) || "0.00"}
-            </p>
-            <p className="text-sm text-muted-foreground">Total saved</p>
           </Card>
 
-          <Card className="p-5 rounded-2xl">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 text-primary" />
+          <Card className="p-5 rounded-2xl relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent" />
+            <div className="relative">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-md shadow-primary/20">
+                  <TrendingUp className="w-5 h-5 text-primary-foreground" />
+                </div>
               </div>
+              <p className="text-2xl font-semibold text-foreground" data-testid="text-orders-completed">
+                {stats?.ordersCompleted || 0}
+              </p>
+              <p className="text-sm text-muted-foreground">Orders verified</p>
             </div>
-            <p className="text-2xl font-semibold text-foreground" data-testid="text-orders-completed">
-              {stats?.ordersCompleted || 0}
-            </p>
-            <p className="text-sm text-muted-foreground">Orders verified</p>
           </Card>
         </div>
 
@@ -169,14 +177,17 @@ export default function CustomerHome() {
             </div>
           </div>
         ) : (
-          <Card className="p-8 rounded-2xl text-center">
-            <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center mx-auto mb-4">
-              <ShoppingBag className="w-8 h-8 text-primary" />
+          <Card className="p-8 rounded-2xl text-center relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/5" />
+            <div className="relative">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/20">
+                <ShoppingBag className="w-8 h-8 text-primary-foreground" />
+              </div>
+              <h3 className="font-semibold text-foreground mb-2">No orders yet</h3>
+              <p className="text-sm text-muted-foreground">
+                When you make a purchase with Spiral, it will appear here
+              </p>
             </div>
-            <h3 className="font-semibold text-foreground mb-2">No orders yet</h3>
-            <p className="text-sm text-muted-foreground">
-              When you make a purchase with Spiral, it will appear here
-            </p>
           </Card>
         )}
       </main>

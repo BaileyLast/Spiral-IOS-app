@@ -50,9 +50,13 @@ export default function Orders() {
 
   return (
     <div className="min-h-screen bg-background safe-top">
-      <header className="px-6 pt-6 pb-4">
-        <h1 className="text-2xl font-semibold text-foreground">Your Orders</h1>
-        <p className="text-muted-foreground mt-1">Track your purchases and discounts</p>
+      <header className="relative overflow-hidden px-6 pt-8 pb-6">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent" />
+        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-primary/20 to-transparent rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
+        <div className="relative">
+          <h1 className="text-2xl font-semibold text-foreground">Your Orders</h1>
+          <p className="text-muted-foreground mt-1">Track your purchases and discounts</p>
+        </div>
       </header>
 
       <main className="px-6 pb-8">
@@ -116,14 +120,17 @@ export default function Orders() {
             })}
           </div>
         ) : (
-          <Card className="p-8 rounded-2xl text-center">
-            <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center mx-auto mb-4">
-              <ShoppingBag className="w-8 h-8 text-primary" />
+          <Card className="p-8 rounded-2xl text-center relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/5" />
+            <div className="relative">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/20">
+                <ShoppingBag className="w-8 h-8 text-primary-foreground" />
+              </div>
+              <h3 className="font-semibold text-foreground mb-2">No orders yet</h3>
+              <p className="text-sm text-muted-foreground">
+                When you make a purchase with Spiral, it will appear here
+              </p>
             </div>
-            <h3 className="font-semibold text-foreground mb-2">No orders yet</h3>
-            <p className="text-sm text-muted-foreground">
-              When you make a purchase with Spiral, it will appear here
-            </p>
           </Card>
         )}
       </main>
