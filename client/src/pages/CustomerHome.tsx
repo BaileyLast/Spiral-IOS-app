@@ -29,8 +29,17 @@ function getStatusColor(status: string) {
   }
 }
 
+interface CustomerProfile {
+  id: string;
+  email: string;
+  name?: string;
+  instagramHandle?: string;
+}
+
 export default function CustomerHome() {
-  const customer = JSON.parse(localStorage.getItem("spiral_customer") || "{}");
+  const { data: profile } = useQuery<CustomerProfile>({
+    queryKey: ["/api/customer/me"],
+  });
 
   const { data: orders = [] } = useQuery<Order[]>({
     queryKey: ["/api/customer/orders"],
@@ -57,10 +66,10 @@ export default function CustomerHome() {
             className="h-7 object-contain"
             data-testid="img-spiral-logo"
           />
-          {customer.instagramHandle && (
+          {profile?.instagramHandle && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Instagram className="w-4 h-4" />
-              <span data-testid="text-instagram-handle">@{customer.instagramHandle}</span>
+              <span data-testid="text-instagram-handle">@{profile.instagramHandle}</span>
             </div>
           )}
         </div>
@@ -69,7 +78,7 @@ export default function CustomerHome() {
       <main className="px-6 pb-8 space-y-6">
         <div>
           <h1 className="text-2xl font-semibold text-foreground" data-testid="text-greeting">
-            Hi{customer.email ? `, ${customer.email.split("@")[0]}` : ""}
+            Hi{profile?.email ? `, ${profile.email.split("@")[0]}` : ""}
           </h1>
           <p className="text-muted-foreground mt-1">Here's your Spiral activity</p>
         </div>
