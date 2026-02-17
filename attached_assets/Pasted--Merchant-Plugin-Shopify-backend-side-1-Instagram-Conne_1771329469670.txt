@@ -1,0 +1,179 @@
+🧩 Merchant Plugin (Shopify / backend side)
+1️⃣ Instagram Connection (OAuth)
+
+You need:
+
+“Connect Instagram” button in merchant dashboard
+
+Request scopes:
+
+instagram_basic
+
+instagram_manage_messages
+
+pages_manage_metadata
+
+Store:
+
+Merchant IG Business ID
+
+Access token
+
+Token expiry
+
+Page ID (if needed for webhook subscription)
+
+2️⃣ Webhook Subscription
+
+After OAuth:
+
+Subscribe merchant’s IG account to:
+
+Instagram Messaging webhook
+
+story_mention event
+
+Store:
+
+Subscription status
+
+Last webhook received timestamp
+
+Add:
+
+Health monitor (alert if no webhook activity for X days)
+
+3️⃣ Order → Expected Instagram Mapping
+
+When checkout happens:
+
+Order ID
+
+Merchant ID
+
+Spiral user ID
+
+Expected @handle
+
+Status = pending
+
+No duration logic anymore.
+
+4️⃣ Webhook Handler (Core Logic)
+
+When webhook fires:
+
+Extract:
+
+sender_scoped_id
+
+Timestamp
+
+Resolve username (if first time)
+
+Match against pending orders
+
+If match:
+
+Create mapping:
+{merchant_id + sender_scoped_id → spiral_user_id}
+
+Update order status:
+story_detected → verified
+
+No timers.
+No rechecks.
+
+5️⃣ Database Additions
+
+Add table:
+
+merchant_scoped_user_map
+
+merchant_id
+
+sender_scoped_id
+
+spiral_user_id
+
+first_seen_at
+
+Update order table:
+
+verification_status
+
+webhook_timestamp
+
+📱 iOS Customer App
+
+Keep this simple.
+
+1️⃣ Instagram Handle Collection
+
+At signup:
+
+User enters @handle
+
+You validate format
+
+(Optional) Pull via RapidAPI to confirm it exists
+
+Store:
+
+spiral_user_id
+
+@handle
+
+2️⃣ Order UI Flow
+
+After purchase:
+
+Show:
+
+“Post a Story tagging @merchant”
+
+Clear instructions
+
+Status indicator:
+
+Pending
+
+Verified
+
+3️⃣ Status Feedback
+
+App listens for backend updates:
+
+When order moves to verified:
+
+Show confirmation in UI
+
+“Discount confirmed”
+
+No countdown timers.
+No duration warnings.
+No “keep live for 24h” messaging.
+
+🎯 What You Removed
+
+No CDN validation
+
+No scraping
+
+No time-based checks
+
+No clawback logic tied to duration
+
+Final Architecture Summary
+
+Merchant side =
+Webhook-driven, scoped ID matching, stable mapping.
+
+Customer side =
+Collect handle → wait for webhook → show verified.
+
+That’s clean.
+That’s scalable.
+That’s buildable.
+
+Now you’re building infrastructure, not experiments.
