@@ -65,45 +65,38 @@ export default function CustomerHome() {
   return (
     <div className="min-h-screen safe-top">
       <main className="px-6 pt-8 pb-8 space-y-6">
+        {profile?.instagramHandle && (
+          <div className="text-center" data-testid="card-instagram-profile">
+            <Avatar className="w-20 h-20 mx-auto border-0">
+              <AvatarImage
+                src="/api/customer/instagram-avatar"
+                alt={profile.instagramHandle}
+              />
+              <AvatarFallback className="bg-gradient-to-br from-purple-400 to-pink-400 text-white">
+                <Instagram className="w-8 h-8" />
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex items-center justify-center gap-1.5 mt-3">
+              <span className="font-medium text-white" data-testid="text-instagram-handle">
+                @{profile.instagramHandle}
+              </span>
+              <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+            </div>
+            {profile.followerCount ? (
+              <p className="text-sm text-white/50 mt-1" data-testid="text-follower-count">
+                {formatFollowerCount(profile.followerCount)} followers
+              </p>
+            ) : null}
+          </div>
+        )}
+
         {stats && (
-          <div className="text-center py-4" data-testid="card-average-savings">
+          <div className="text-center py-2" data-testid="card-average-savings">
             <p className="text-white/50 text-sm mb-1">On average, you save</p>
             <p className="text-6xl font-bold text-white tracking-tight" data-testid="text-average-savings">
               {stats.averageSavingsPercent.toFixed(1)}%
             </p>
             <p className="text-white/50 text-sm mt-1">with Spiral</p>
-          </div>
-        )}
-
-        {profile?.instagramHandle && (
-          <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10" data-testid="card-instagram-profile">
-            <div className="flex items-center gap-3">
-              <Avatar className="w-11 h-11 border-0">
-                <AvatarImage
-                  src="/api/customer/instagram-avatar"
-                  alt={profile.instagramHandle}
-                />
-                <AvatarFallback className="bg-gradient-to-br from-purple-400 to-pink-400 text-white">
-                  <Instagram className="w-5 h-5" />
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-medium text-white truncate" data-testid="text-instagram-handle">
-                    @{profile.instagramHandle}
-                  </span>
-                  <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
-                </div>
-                {profile.followerCount ? (
-                  <div className="flex items-center gap-1 text-sm text-white/50 mt-0.5">
-                    <Users className="w-3.5 h-3.5" />
-                    <span data-testid="text-follower-count">
-                      {formatFollowerCount(profile.followerCount)} followers
-                    </span>
-                  </div>
-                ) : null}
-              </div>
-            </div>
           </div>
         )}
 
