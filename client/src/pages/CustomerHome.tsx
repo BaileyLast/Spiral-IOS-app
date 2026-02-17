@@ -65,12 +65,6 @@ export default function CustomerHome() {
   return (
     <div className="min-h-screen safe-top">
       <main className="px-6 pt-8 pb-8 space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-white" data-testid="text-greeting">
-            Hi{profile?.name ? `, ${profile.name}` : profile?.email ? `, ${profile.email.split("@")[0]}` : ""}
-          </h1>
-        </div>
-
         {stats && (
           <div className="text-center py-4" data-testid="card-average-savings">
             <p className="text-white/50 text-sm mb-1">On average, you save</p>
@@ -84,7 +78,7 @@ export default function CustomerHome() {
         {profile?.instagramHandle && (
           <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10" data-testid="card-instagram-profile">
             <div className="flex items-center gap-3">
-              <Avatar className="w-11 h-11 border-2 border-white/20">
+              <Avatar className="w-11 h-11 border-0">
                 <AvatarImage
                   src="/api/customer/instagram-avatar"
                   alt={profile.instagramHandle}
