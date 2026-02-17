@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Gift, TrendingUp, ChevronRight, Instagram, Sparkles, Users, CheckCircle } from "lucide-react";
+import { ChevronRight, Instagram, Sparkles, Users, CheckCircle, Tag } from "lucide-react";
 import type { Order } from "@shared/schema";
 
 function getStatusLabel(order: Order) {
@@ -53,7 +53,7 @@ export default function CustomerHome() {
     queryKey: ["/api/customer/orders"],
   });
 
-  const { data: stats } = useQuery<{ totalSaved: number; ordersCompleted: number }>({
+  const { data: stats } = useQuery<{ totalSaved: number; ordersCompleted: number; averageSavingsPercent: number | null }>({
     queryKey: ["/api/customer/stats"],
   });
 
@@ -69,8 +69,17 @@ export default function CustomerHome() {
           <h1 className="text-2xl font-semibold text-white" data-testid="text-greeting">
             Hi{profile?.name ? `, ${profile.name}` : profile?.email ? `, ${profile.email.split("@")[0]}` : ""}
           </h1>
-          <p className="text-white/60 mt-1">Here's your Spiral activity</p>
         </div>
+
+        {stats?.averageSavingsPercent != null && (
+          <div className="text-center py-4" data-testid="card-average-savings">
+            <p className="text-white/50 text-sm mb-1">On average, you save</p>
+            <p className="text-6xl font-bold text-white tracking-tight" data-testid="text-average-savings">
+              {stats.averageSavingsPercent.toFixed(1)}%
+            </p>
+            <p className="text-white/50 text-sm mt-1">with Spiral</p>
+          </div>
+        )}
 
         {profile?.instagramHandle && (
           <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10" data-testid="card-instagram-profile">
@@ -104,29 +113,17 @@ export default function CustomerHome() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="p-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
-                <Gift className="w-5 h-5 text-white" />
-              </div>
+        <div className="p-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center flex-shrink-0">
+              <Tag className="w-5 h-5 text-green-300" />
             </div>
-            <p className="text-2xl font-semibold text-white" data-testid="text-total-saved">
-              ${stats?.totalSaved?.toFixed(2) || "0.00"}
-            </p>
-            <p className="text-sm text-white/50">Total saved</p>
-          </div>
-
-          <div className="p-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 text-white" />
-              </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-white/50">You've saved</p>
+              <p className="text-xl font-semibold text-green-300" data-testid="text-total-saved">
+                ${stats?.totalSaved?.toFixed(2) || "0.00"}
+              </p>
             </div>
-            <p className="text-2xl font-semibold text-white" data-testid="text-orders-completed">
-              {stats?.ordersCompleted || 0}
-            </p>
-            <p className="text-sm text-white/50">Orders verified</p>
           </div>
         </div>
 

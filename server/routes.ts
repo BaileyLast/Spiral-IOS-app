@@ -2123,9 +2123,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const verifiedOrders = orders.filter(o => o.verificationStatus === "verified");
       const totalSaved = verifiedOrders.reduce((sum, o) => sum + parseFloat(o.discountAmount || "0"), 0);
       
+      const customer = await storage.getSpiralCustomerById(customerId);
+      let averageSavingsPercent: number | null = null;
+      if (customer?.followerCount) {
+        const tiers = await storage.getDiscountTiers();
+        const matchingTier = tiers.find(t => {
+          const from = t.fromFollowers;
+          const to = t.toFollowers;
+          return customer.followerCount! >= from && (to === null || customer.followerCount! <= to);
+        });
+        if (matchingTier) {
+          averageSavingsPercent = parseFloat(matchingTier.discountPercent);
+        }
+      }
+      
       res.json({
         totalSaved,
         ordersCompleted: verifiedOrders.length,
+        averageSavingsPercent,
       });
     } catch (error) {
       console.error("Failed to fetch customer stats:", error);
