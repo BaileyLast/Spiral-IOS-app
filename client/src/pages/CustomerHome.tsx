@@ -64,7 +64,7 @@ export default function CustomerHome() {
 
   return (
     <div className="min-h-screen safe-top">
-      <main className="px-6 pt-8 pb-8 space-y-6">
+      <main className="px-6 pt-14 pb-8 space-y-6">
         {profile?.instagramHandle && (
           <div className="text-center" data-testid="card-instagram-profile">
             <Avatar className="w-20 h-20 mx-auto border-0">
