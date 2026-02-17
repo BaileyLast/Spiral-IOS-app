@@ -158,27 +158,6 @@ export default function Profile() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 text-center">
-            <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center mx-auto mb-2">
-              <Gift className="w-5 h-5 text-white" />
-            </div>
-            <p className="text-xl font-semibold text-white" data-testid="text-total-saved">
-              ${stats?.totalSaved?.toFixed(2) || "0.00"}
-            </p>
-            <p className="text-xs text-white/50">Total saved</p>
-          </div>
-          <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 text-center">
-            <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center mx-auto mb-2">
-              <Shield className="w-5 h-5 text-white" />
-            </div>
-            <p className="text-xl font-semibold text-white" data-testid="text-orders-verified">
-              {stats?.ordersCompleted || 0}
-            </p>
-            <p className="text-xs text-white/50">Verified orders</p>
-          </div>
-        </div>
-
         <div className="rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 overflow-hidden">
           <div className="divide-y divide-white/10">
             <div className="flex items-center justify-between p-4">
