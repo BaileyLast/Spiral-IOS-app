@@ -2124,16 +2124,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const totalSaved = verifiedOrders.reduce((sum, o) => sum + parseFloat(o.discountAmount || "0"), 0);
       
       const customer = await storage.getSpiralCustomerById(customerId);
-      let averageSavingsPercent: number | null = null;
-      if (customer?.followerCount) {
+      let averageSavingsPercent: number = 0;
+      if (customer?.followerCount && customer.followerCount > 0) {
         const tiers = await storage.getDiscountTiers();
-        const matchingTier = tiers.find(t => {
-          const from = t.fromFollowers;
-          const to = t.toFollowers;
-          return customer.followerCount! >= from && (to === null || customer.followerCount! <= to);
-        });
-        if (matchingTier) {
-          averageSavingsPercent = parseFloat(matchingTier.discountPercent);
+        const anchors = tiers
+          .map(t => ({ followers: t.fromFollowers, percent: parseFloat(t.discountPercent) }))
+          .sort((a, b) => a.followers - b.followers);
+        
+        const fc = customer.followerCount;
+        if (anchors.length > 0) {
+          if (fc < anchors[0].followers) {
+            averageSavingsPercent = 0;
+          } else if (fc >= anchors[anchors.length - 1].followers) {
+            averageSavingsPercent = anchors[anchors.length - 1].percent;
+          } else {
+            for (let i = 0; i < anchors.length - 1; i++) {
+              if (fc >= anchors[i].followers && fc < anchors[i + 1].followers) {
+                const range = anchors[i + 1].followers - anchors[i].followers;
+                const progress = (fc - anchors[i].followers) / range;
+                averageSavingsPercent = anchors[i].percent + progress * (anchors[i + 1].percent - anchors[i].percent);
+                break;
+              }
+            }
+          }
         }
       }
       

@@ -53,7 +53,7 @@ export default function CustomerHome() {
     queryKey: ["/api/customer/orders"],
   });
 
-  const { data: stats } = useQuery<{ totalSaved: number; ordersCompleted: number; averageSavingsPercent: number | null }>({
+  const { data: stats } = useQuery<{ totalSaved: number; ordersCompleted: number; averageSavingsPercent: number }>({
     queryKey: ["/api/customer/stats"],
   });
 
@@ -71,7 +71,7 @@ export default function CustomerHome() {
           </h1>
         </div>
 
-        {stats?.averageSavingsPercent != null && (
+        {stats && (
           <div className="text-center py-4" data-testid="card-average-savings">
             <p className="text-white/50 text-sm mb-1">On average, you save</p>
             <p className="text-6xl font-bold text-white tracking-tight" data-testid="text-average-savings">
