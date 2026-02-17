@@ -1662,24 +1662,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       let profilePicture = customer.instagramProfilePicture;
+      let followerCount = customer.followerCount;
+      let instagramHandle = customer.instagramHandle;
 
-      if (!profilePicture && customer.instagramUserId && process.env.RAPIDAPI_KEY) {
-        try {
-          const igData = await fetchInstagramDataByUserId(customer.instagramUserId, process.env.RAPIDAPI_KEY);
-          if (igData.profilePicture) {
-            profilePicture = igData.profilePicture;
+      if (customer.instagramUserId && process.env.RAPIDAPI_KEY) {
+        const lastUpdated = customer.followerCountUpdatedAt ? new Date(customer.followerCountUpdatedAt).getTime() : 0;
+        const oneDayMs = 24 * 60 * 60 * 1000;
+        const isStale = Date.now() - lastUpdated > oneDayMs;
+
+        if (isStale || !profilePicture) {
+          try {
+            const igData = await fetchInstagramDataByUserId(customer.instagramUserId, process.env.RAPIDAPI_KEY);
+            if (igData.followerCount != null) followerCount = igData.followerCount;
+            if (igData.profilePicture) profilePicture = igData.profilePicture;
+            if (igData.username) instagramHandle = igData.username;
             await storage.updateSpiralCustomerInstagram(customer.id, {
-              instagramHandle: customer.instagramHandle,
+              instagramHandle: instagramHandle,
               instagramUserId: customer.instagramUserId,
               instagramAccessToken: null,
               instagramTokenExpiry: null,
               instagramProfilePicture: profilePicture,
               instagramAccountType: customer.instagramAccountType || "UNKNOWN",
-              followerCount: igData.followerCount || customer.followerCount || 0,
+              followerCount: followerCount ?? 0,
             });
+          } catch (igError) {
+            console.error("Failed to refresh Instagram data:", igError);
           }
-        } catch (igError) {
-          console.error("Failed to backfill Instagram profile picture:", igError);
         }
       }
 
@@ -1688,11 +1696,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email: customer.email,
         name: customer.name,
         emailVerified: customer.emailVerified,
-        instagramHandle: customer.instagramHandle,
+        instagramHandle,
         instagramUserId: customer.instagramUserId,
         instagramProfilePicture: profilePicture,
         instagramAccountType: customer.instagramAccountType,
-        followerCount: customer.followerCount,
+        followerCount,
       });
     } catch (error) {
       console.error("Get customer profile error:", error);
