@@ -1,13 +1,13 @@
 import { Card } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { ShoppingBag, ChevronRight } from "lucide-react";
+import { ShoppingBag, ChevronRight, CheckCircle2, Clock } from "lucide-react";
 import type { Order } from "@shared/schema";
 
 function getStatusLabel(order: Order) {
   if (order.verificationStatus === "verified") return "Verified";
-  if (order.verificationStatus === "failed") return "Reversed";
-  if (order.status === "delivered") return "Awaiting Story";
+  if (order.verificationStatus === "story_detected") return "Story Received";
+  if (order.status === "delivered") return "Post Your Story";
   if (order.status === "fulfilled") return "On the way";
   return "Ordered";
 }
@@ -16,31 +16,15 @@ function getStatusColor(status: string) {
   switch (status) {
     case "Verified":
       return "bg-[hsl(var(--status-verified))] text-[hsl(var(--status-verified-foreground))]";
-    case "Reversed":
-      return "bg-[hsl(var(--status-failed))] text-[hsl(var(--status-failed-foreground))]";
-    case "Awaiting Story":
+    case "Story Received":
+      return "bg-[hsl(var(--status-delivered))] text-[hsl(var(--status-delivered-foreground))]";
+    case "Post Your Story":
       return "bg-[hsl(var(--status-awaiting))] text-[hsl(var(--status-awaiting-foreground))]";
     case "On the way":
       return "bg-[hsl(var(--status-delivered))] text-[hsl(var(--status-delivered-foreground))]";
     default:
       return "bg-[hsl(var(--status-pending))] text-[hsl(var(--status-pending-foreground))]";
   }
-}
-
-function formatDeadline(deadline: Date | string | null) {
-  if (!deadline) return null;
-  const date = new Date(deadline);
-  const now = new Date();
-  const diff = date.getTime() - now.getTime();
-  
-  if (diff < 0) return "Expired";
-  
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  
-  if (days > 0) return `${days}d ${hours}h left`;
-  if (hours > 0) return `${hours}h left`;
-  return "Less than 1h left";
 }
 
 export default function Orders() {
@@ -54,7 +38,7 @@ export default function Orders() {
         <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent" />
         <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-primary/20 to-transparent rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
         <div className="relative">
-          <h1 className="text-2xl font-semibold text-foreground">Your Discounts</h1>
+          <h1 className="text-2xl font-semibold text-foreground" data-testid="text-page-title">Your Discounts</h1>
           <p className="text-muted-foreground mt-1">Track your purchases and savings</p>
         </div>
       </header>
@@ -78,7 +62,6 @@ export default function Orders() {
           <div className="space-y-3">
             {orders.map((order) => {
               const status = getStatusLabel(order);
-              const deadline = status === "Awaiting Story" ? formatDeadline(order.postDeadline) : null;
               
               return (
                 <Link key={order.id} href={`/orders/${order.id}`}>
@@ -92,12 +75,26 @@ export default function Orders() {
                           <p className="text-sm text-muted-foreground">
                             {new Date(order.createdAt).toLocaleDateString()}
                           </p>
-                          {deadline && (
+                          {status === "Verified" && (
                             <>
                               <span className="text-muted-foreground">·</span>
-                              <p className="text-sm text-[hsl(var(--status-awaiting-foreground))] font-medium">
-                                {deadline}
-                              </p>
+                              <div className="flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3 text-green-600" />
+                                <p className="text-sm text-green-600 font-medium">
+                                  Discount confirmed
+                                </p>
+                              </div>
+                            </>
+                          )}
+                          {status === "Post Your Story" && (
+                            <>
+                              <span className="text-muted-foreground">·</span>
+                              <div className="flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-[hsl(var(--status-awaiting-foreground))]" />
+                                <p className="text-sm text-[hsl(var(--status-awaiting-foreground))] font-medium">
+                                  Share to keep discount
+                                </p>
+                              </div>
                             </>
                           )}
                         </div>

@@ -6,7 +6,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ExternalLink, Clock, CheckCircle, XCircle, Eye } from "lucide-react";
+import { ExternalLink, Clock, CheckCircle, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { Verification } from "@shared/schema";
@@ -20,7 +20,6 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
   pending: { label: "Awaiting Story", variant: "secondary", icon: Clock },
   story_detected: { label: "Story Detected", variant: "outline", icon: Eye },
   verified: { label: "Verified", variant: "default", icon: CheckCircle },
-  failed: { label: "Failed", variant: "destructive", icon: XCircle },
 };
 
 export function VerificationsTable({ verifications }: VerificationsTableProps) {
@@ -59,7 +58,6 @@ export function VerificationsTable({ verifications }: VerificationsTableProps) {
 
   const getRelevantDate = (verification: Verification) => {
     if (verification.verifiedAt) return formatDate(verification.verifiedAt);
-    if (verification.failedAt) return formatDate(verification.failedAt);
     if (verification.storyDetectedAt) return formatDate(verification.storyDetectedAt);
     return formatDate(verification.createdAt);
   };

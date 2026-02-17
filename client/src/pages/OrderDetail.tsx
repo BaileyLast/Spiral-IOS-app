@@ -2,32 +2,15 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
-import { ArrowLeft, CheckCircle, Clock, Package, Instagram, AlertCircle, Camera, Loader2 } from "lucide-react";
+import { ArrowLeft, CheckCircle, Clock, Package, Instagram, Camera, Loader2 } from "lucide-react";
 import type { Order } from "@shared/schema";
 
 function getStatusLabel(order: Order) {
   if (order.verificationStatus === "verified") return "verified";
-  if (order.verificationStatus === "failed") return "reversed";
+  if (order.verificationStatus === "story_detected") return "story_received";
   if (order.status === "delivered") return "awaiting";
   if (order.status === "fulfilled") return "shipped";
   return "ordered";
-}
-
-function formatDeadline(deadline: Date | string | null) {
-  if (!deadline) return null;
-  const date = new Date(deadline);
-  const now = new Date();
-  const diff = date.getTime() - now.getTime();
-  
-  if (diff < 0) return { text: "Deadline passed", urgent: true };
-  
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  
-  if (days > 1) return { text: `${days} days left`, urgent: false };
-  if (days === 1) return { text: `${days} day ${hours}h left`, urgent: false };
-  if (hours > 0) return { text: `${hours} hours left`, urgent: true };
-  return { text: "Less than 1 hour left", urgent: true };
 }
 
 export default function OrderDetail() {
@@ -65,13 +48,12 @@ export default function OrderDetail() {
   }
 
   const status = getStatusLabel(order);
-  const deadline = status === "awaiting" ? formatDeadline(order.postDeadline) : null;
 
   const steps = [
     { id: "ordered", label: "Order placed", icon: Package, complete: true },
     { id: "shipped", label: "On the way", icon: Clock, complete: status !== "ordered" },
-    { id: "delivered", label: "Delivered", icon: CheckCircle, complete: ["awaiting", "verified", "reversed"].includes(status) },
-    { id: "verified", label: "Verified", icon: CheckCircle, complete: status === "verified", failed: status === "reversed" },
+    { id: "delivered", label: "Delivered", icon: CheckCircle, complete: ["awaiting", "story_received", "verified"].includes(status) },
+    { id: "verified", label: "Story verified", icon: CheckCircle, complete: status === "verified" || status === "story_received" },
   ];
 
   return (
@@ -120,31 +102,20 @@ export default function OrderDetail() {
                 <div key={step.id} className="flex gap-3">
                   <div className="flex flex-col items-center">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                      step.failed 
-                        ? "bg-[hsl(var(--status-failed))]" 
-                        : step.complete 
-                          ? "bg-primary" 
-                          : "bg-muted"
+                      step.complete 
+                        ? "bg-primary" 
+                        : "bg-muted"
                     }`}>
-                      {step.failed ? (
-                        <AlertCircle className="w-4 h-4 text-[hsl(var(--status-failed-foreground))]" />
-                      ) : (
-                        <Icon className={`w-4 h-4 ${step.complete ? "text-primary-foreground" : "text-muted-foreground"}`} />
-                      )}
+                      <Icon className={`w-4 h-4 ${step.complete ? "text-primary-foreground" : "text-muted-foreground"}`} />
                     </div>
                     {!isLast && (
                       <div className={`w-0.5 h-6 mt-1 ${step.complete ? "bg-primary" : "bg-muted"}`} />
                     )}
                   </div>
                   <div className="flex-1 pb-2">
-                    <p className={`font-medium ${step.failed ? "text-[hsl(var(--status-failed-foreground))]" : step.complete ? "text-foreground" : "text-muted-foreground"}`}>
-                      {step.failed ? "Discount reversed" : step.label}
+                    <p className={`font-medium ${step.complete ? "text-foreground" : "text-muted-foreground"}`}>
+                      {step.label}
                     </p>
-                    {step.id === "verified" && status === "awaiting" && deadline && (
-                      <p className={`text-sm mt-0.5 ${deadline.urgent ? "text-[hsl(var(--status-awaiting-foreground))] font-medium" : "text-muted-foreground"}`}>
-                        {deadline.text}
-                      </p>
-                    )}
                   </div>
                 </div>
               );
@@ -163,7 +134,7 @@ export default function OrderDetail() {
                   Share to keep your discount
                 </h3>
                 <p className="text-sm text-[hsl(var(--status-awaiting-foreground))] opacity-80 mt-1">
-                  Post an Instagram Story featuring your purchase and tag the brand
+                  Post an Instagram Story tagging the brand to confirm your discount
                 </p>
               </div>
             </div>
@@ -176,9 +147,29 @@ export default function OrderDetail() {
               <ol className="text-sm text-[hsl(var(--status-awaiting-foreground))] space-y-2 ml-6 list-decimal">
                 <li>Take a photo or video of your purchase</li>
                 <li>Add it to your Instagram Story</li>
-                <li>Tag the brand in your story</li>
-                <li>Keep it up for 24 hours</li>
+                <li>Tag the brand using the @ mention sticker</li>
               </ol>
+              <p className="text-xs text-[hsl(var(--status-awaiting-foreground))] opacity-70 mt-2">
+                We'll verify your story automatically once you tag the brand
+              </p>
+            </div>
+          </Card>
+        )}
+
+        {status === "story_received" && (
+          <Card className="p-5 rounded-2xl bg-[hsl(var(--status-delivered))] border-0">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-xl bg-white/30 flex items-center justify-center flex-shrink-0">
+                <CheckCircle className="w-5 h-5 text-[hsl(var(--status-delivered-foreground))]" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-[hsl(var(--status-delivered-foreground))]">
+                  Story received
+                </h3>
+                <p className="text-sm text-[hsl(var(--status-delivered-foreground))] opacity-80 mt-1">
+                  We detected your story mention and are processing your verification
+                </p>
+              </div>
             </div>
           </Card>
         )}
@@ -195,24 +186,6 @@ export default function OrderDetail() {
                 </h3>
                 <p className="text-sm text-[hsl(var(--status-verified-foreground))] opacity-80 mt-1">
                   Your story was verified and your discount is confirmed
-                </p>
-              </div>
-            </div>
-          </Card>
-        )}
-
-        {status === "reversed" && (
-          <Card className="p-5 rounded-2xl bg-[hsl(var(--status-failed))] border-0">
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-white/30 flex items-center justify-center flex-shrink-0">
-                <AlertCircle className="w-5 h-5 text-[hsl(var(--status-failed-foreground))]" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-[hsl(var(--status-failed-foreground))]">
-                  Discount was reversed
-                </h3>
-                <p className="text-sm text-[hsl(var(--status-failed-foreground))] opacity-80 mt-1">
-                  We couldn't verify your story within the posting window. The discount amount will be charged to your original payment method.
                 </p>
               </div>
             </div>

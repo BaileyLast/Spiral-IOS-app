@@ -9,6 +9,7 @@ import {
   spiralCustomers,
   orders,
   spiralCodes,
+  merchantScopedUserMap,
   type StoreSettings, 
   type DiscountTier, 
   type Verification,
@@ -17,6 +18,7 @@ import {
   type SpiralCustomer,
   type Order,
   type SpiralCode,
+  type MerchantScopedUserMap,
   type InsertStoreSettings,
   type InsertDiscountTier,
   type InsertVerification,
@@ -24,7 +26,8 @@ import {
   type InsertShopifyCollection,
   type InsertSpiralCustomer,
   type InsertOrder,
-  type InsertSpiralCode
+  type InsertSpiralCode,
+  type InsertMerchantScopedUserMap
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, inArray, and, lt, isNull } from "drizzle-orm";
@@ -45,10 +48,9 @@ export interface IStorage {
   getVerificationById(id: string): Promise<Verification | undefined>;
   getVerificationByInstagramUserId(instagramUserId: string, orderId: string): Promise<Verification | undefined>;
   getPendingVerificationsForCheck(): Promise<Verification[]>;
-  markStoryDetected(verificationId: string, storyMediaId: string, storyUrl: string): Promise<Verification>;
+  markStoryDetected(verificationId: string, storyMediaId: string, storyUrl: string, senderScopedId?: string): Promise<Verification>;
   markVerified(verificationId: string): Promise<Verification>;
-  markFailed(verificationId: string, reason: string): Promise<Verification>;
-  triggerClawback(verificationId: string, refundId: string): Promise<Verification>;
+  markStoryDetectedAndVerified(verificationId: string, storyUrl: string, senderScopedId: string): Promise<Verification>;
   // Orders
   createOrder(order: InsertOrder): Promise<Order>;
   getOrders(): Promise<Order[]>;
@@ -91,6 +93,18 @@ export interface IStorage {
   getPendingSpiralCodeByCustomerId(customerId: string): Promise<SpiralCode | undefined>;
   verifySpiralCode(code: string, instagramUserId: string, instagramHandle: string): Promise<SpiralCode>;
   invalidateSpiralCode(code: string): Promise<void>;
+  // Merchant scoped user map
+  createMerchantScopedUserMap(map: InsertMerchantScopedUserMap): Promise<MerchantScopedUserMap>;
+  getMerchantScopedUserMap(merchantId: string, senderScopedId: string): Promise<MerchantScopedUserMap | undefined>;
+  getMerchantScopedUserMapByCustomer(merchantId: string, customerId: string): Promise<MerchantScopedUserMap | undefined>;
+  // Store settings webhook tracking
+  updateStoreWebhookStatus(id: string, status: string): Promise<void>;
+  updateStoreLastWebhookReceived(id: string): Promise<void>;
+  // Customer lookup by Instagram handle
+  getSpiralCustomerByInstagramHandle(handle: string): Promise<SpiralCustomer | undefined>;
+  // Order webhook tracking
+  updateOrderWebhookTimestamp(orderId: string): Promise<void>;
+  updateOrderVerificationId(orderId: string, verificationId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -261,23 +275,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPendingVerificationsForCheck(): Promise<Verification[]> {
-    const now = new Date();
     return await db
       .select()
       .from(verifications)
       .where(
         and(
-          eq(verifications.status, "story_detected"),
-          lt(verifications.confirmationDueAt, now),
-          isNull(verifications.verifiedAt),
-          isNull(verifications.failedAt)
+          eq(verifications.status, "pending"),
+          isNull(verifications.verifiedAt)
         )
       );
   }
 
-  async markStoryDetected(verificationId: string, storyMediaId: string, storyUrl: string): Promise<Verification> {
+  async markStoryDetected(verificationId: string, storyMediaId: string, storyUrl: string, senderScopedId?: string): Promise<Verification> {
     const now = new Date();
-    const confirmationDueAt = new Date(now.getTime() + 22 * 60 * 60 * 1000); // 22 hours from now
     
     const [updated] = await db
       .update(verifications)
@@ -286,7 +296,8 @@ export class DatabaseStorage implements IStorage {
         storyMediaId,
         storyUrl,
         storyDetectedAt: now,
-        confirmationDueAt,
+        webhookTimestamp: now,
+        senderScopedId: senderScopedId || null,
       })
       .where(eq(verifications.id, verificationId))
       .returning();
@@ -307,33 +318,20 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async markFailed(verificationId: string, reason: string): Promise<Verification> {
+  async markStoryDetectedAndVerified(verificationId: string, storyUrl: string, senderScopedId: string): Promise<Verification> {
+    const now = new Date();
     const [updated] = await db
       .update(verifications)
       .set({
-        status: "failed",
-        failedAt: new Date(),
-        failureReason: reason,
+        status: "verified",
+        storyUrl,
+        storyDetectedAt: now,
+        webhookTimestamp: now,
+        verifiedAt: now,
+        senderScopedId,
       })
       .where(eq(verifications.id, verificationId))
       .returning();
-    
-    return updated;
-  }
-
-  async triggerClawback(verificationId: string, refundId: string): Promise<Verification> {
-    const verification = await this.getVerificationById(verificationId);
-    
-    const [updated] = await db
-      .update(verifications)
-      .set({
-        clawbackTriggered: true,
-        clawbackAmount: verification?.discountAmount || "0",
-        clawbackRefundId: refundId,
-      })
-      .where(eq(verifications.id, verificationId))
-      .returning();
-    
     return updated;
   }
 
@@ -360,7 +358,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(orders.instagramUserId, instagramUserId),
-          eq(orders.verificationStatus, "pending_verification")
+          eq(orders.verificationStatus, "pending")
         )
       );
     return order;
@@ -662,6 +660,76 @@ export class DatabaseStorage implements IStorage {
       .update(spiralCodes)
       .set({ status: "expired" })
       .where(eq(spiralCodes.code, code.toUpperCase()));
+  }
+
+  async createMerchantScopedUserMap(map: InsertMerchantScopedUserMap): Promise<MerchantScopedUserMap> {
+    const [created] = await db
+      .insert(merchantScopedUserMap)
+      .values(map)
+      .returning();
+    return created;
+  }
+
+  async getMerchantScopedUserMap(merchantId: string, senderScopedId: string): Promise<MerchantScopedUserMap | undefined> {
+    const [result] = await db
+      .select()
+      .from(merchantScopedUserMap)
+      .where(
+        and(
+          eq(merchantScopedUserMap.merchantId, merchantId),
+          eq(merchantScopedUserMap.senderScopedId, senderScopedId)
+        )
+      );
+    return result;
+  }
+
+  async getMerchantScopedUserMapByCustomer(merchantId: string, customerId: string): Promise<MerchantScopedUserMap | undefined> {
+    const [result] = await db
+      .select()
+      .from(merchantScopedUserMap)
+      .where(
+        and(
+          eq(merchantScopedUserMap.merchantId, merchantId),
+          eq(merchantScopedUserMap.spiralCustomerId, customerId)
+        )
+      );
+    return result;
+  }
+
+  async updateStoreWebhookStatus(id: string, status: string): Promise<void> {
+    await db
+      .update(storeSettings)
+      .set({ webhookSubscriptionStatus: status })
+      .where(eq(storeSettings.id, id));
+  }
+
+  async updateStoreLastWebhookReceived(id: string): Promise<void> {
+    await db
+      .update(storeSettings)
+      .set({ lastWebhookReceivedAt: new Date() })
+      .where(eq(storeSettings.id, id));
+  }
+
+  async getSpiralCustomerByInstagramHandle(handle: string): Promise<SpiralCustomer | undefined> {
+    const normalizedHandle = handle.toLowerCase().replace('@', '');
+    const allCustomers = await db.select().from(spiralCustomers);
+    return allCustomers.find(c => 
+      c.instagramHandle?.toLowerCase().replace('@', '') === normalizedHandle
+    );
+  }
+
+  async updateOrderWebhookTimestamp(orderId: string): Promise<void> {
+    await db
+      .update(orders)
+      .set({ webhookTimestamp: new Date() })
+      .where(eq(orders.id, orderId));
+  }
+
+  async updateOrderVerificationId(orderId: string, verificationId: string): Promise<void> {
+    await db
+      .update(orders)
+      .set({ verificationId })
+      .where(eq(orders.id, orderId));
   }
 }
 

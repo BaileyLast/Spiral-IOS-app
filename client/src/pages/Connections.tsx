@@ -1,7 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { CreditCard, RefreshCw } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { CreditCard, RefreshCw, Wifi, WifiOff } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { StoreSettings } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
@@ -153,6 +154,32 @@ export default function Connections() {
                     <p className="text-sm font-mono text-xs mt-1" data-testid="text-page-id">
                       {settings?.instagramPageId}
                     </p>
+                  </div>
+                  <div className="border-t pt-4 mt-4">
+                    <Label className="text-sm text-muted-foreground">Story Mention Webhook</Label>
+                    <div className="flex items-center gap-2 mt-1" data-testid="webhook-status">
+                      {settings?.webhookSubscriptionStatus === 'active' ? (
+                        <Badge variant="outline" className="text-green-700 border-green-300 bg-green-50 dark:text-green-400 dark:border-green-700 dark:bg-green-950">
+                          <Wifi className="w-3 h-3 mr-1" />
+                          Active
+                        </Badge>
+                      ) : settings?.webhookSubscriptionStatus === 'subscription_failed' ? (
+                        <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50 dark:text-amber-400 dark:border-amber-700 dark:bg-amber-950">
+                          <WifiOff className="w-3 h-3 mr-1" />
+                          Subscription Failed
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-muted-foreground">
+                          <WifiOff className="w-3 h-3 mr-1" />
+                          Inactive
+                        </Badge>
+                      )}
+                    </div>
+                    {settings?.lastWebhookReceivedAt && (
+                      <p className="text-xs text-muted-foreground mt-2" data-testid="text-last-webhook">
+                        Last story mention received: {new Date(settings.lastWebhookReceivedAt).toLocaleString()}
+                      </p>
+                    )}
                   </div>
                   <Button 
                     onClick={handleConnectInstagram} 

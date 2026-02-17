@@ -2,7 +2,7 @@
 
 ## Overview
 
-Spiral is a customer-facing mobile application that allows shoppers to earn instant discounts at checkout by agreeing to post one Instagram Story after delivery. The app handles login & identity, Instagram connection, follower verification, order tracking, posting reminders, and post verification status. Designed with minimal, calm, trust-led principles inspired by Klarna and Apple.
+Spiral is a customer-facing mobile application that allows shoppers to earn instant discounts at checkout by agreeing to post one Instagram Story after delivery. The app handles login & identity, Instagram connection, follower verification, order tracking, and automated story verification. Designed with minimal, calm, trust-led principles inspired by Klarna and Apple.
 
 ## User Preferences
 
@@ -13,7 +13,7 @@ Preferred communication style: Simple, everyday language.
 ### Frontend
 - **Framework**: React 18 with TypeScript, Vite for build and development.
 - **UI/UX**: Mobile-first design with shadcn/ui components, Tailwind CSS. Minimal, calm aesthetic with trust-led interactions.
-- **Layout**: Bottom navigation bar with Home, Orders, Profile tabs. Single-column mobile layouts.
+- **Layout**: Bottom navigation bar with Home, Marketplace, Discounts, Profile tabs. Single-column mobile layouts.
 - **State Management**: React Query for server state, localStorage for customer session.
 - **Theming**: HSL-based color system with CSS custom properties, branded purple primary color, soft status colors for order states.
 - **Design**: Rounded cards (rounded-2xl), generous padding, soft shadows, mobile-safe areas.
@@ -23,7 +23,8 @@ Preferred communication style: Simple, everyday language.
 - **Login** (`/login`): Email/password authentication with signup toggle
 - **Instagram Connect** (`/connect-instagram`): Connect Instagram to verify follower count
 - **Home** (`/home`): Dashboard with stats, pending actions, recent orders
-- **Orders** (`/orders`): List of all orders with status badges and deadlines
+- **Marketplace** (`/marketplace`): Browse participating brands
+- **Discounts** (`/discounts`): List of all orders with status badges
 - **Order Detail** (`/orders/:id`): Progress timeline, discount info, posting instructions
 - **Profile** (`/profile`): Account info, Instagram status, settings, logout
 
@@ -31,16 +32,19 @@ Preferred communication style: Simple, everyday language.
 - **Server**: Express.js with middleware for request handling, logging, and JSON body parsing.
 - **Data Layer**: Drizzle ORM with PostgreSQL (Neon serverless) for type-safe operations.
 - **Data Models**:
-    - `store_settings`: Shopify and Instagram OAuth data, store configuration, Spiral settings.
+    - `store_settings`: Shopify and Instagram OAuth data, store configuration, webhook health monitoring.
     - `discount_tiers`: Follower ranges mapped to discount percentages.
-    - `verifications`: Story post verification records.
+    - `verifications`: Story post verification records with webhook metadata.
     - `spiral_customers`: Customer accounts with Instagram credentials.
     - `orders`: Order tracking with discount info and verification status.
+    - `merchant_scoped_user_map`: Maps merchant-scoped Instagram sender IDs to Spiral customers.
+    - `spiral_codes`: DM-based Instagram verification codes for account linking.
 
 ### Customer API Endpoints
 - `POST /api/customer/signup`: Create new customer account
 - `POST /api/customer/login`: Authenticate customer
 - `POST /api/customer/logout`: End session
+- `GET /api/customer/me`: Get current customer profile
 - `POST /api/customer/spiral-code`: Generate or get existing verification code
 - `GET /api/customer/spiral-code/status`: Poll for verification status
 - `POST /api/customer/spiral-code/regenerate`: Generate a new code (invalidates old)
@@ -51,18 +55,35 @@ Preferred communication style: Simple, everyday language.
 
 ### Webhook Endpoints
 - `GET /webhooks/instagram-dm`: Webhook verification (Meta challenge)
-- `POST /webhooks/instagram-dm`: Receive DMs to @joinspiral for code verification
+- `POST /webhooks/instagram-dm`: Receive DMs to @joinspiral for code verification AND story_mention events
+- `GET /webhooks/instagram`: Instagram webhook verification for merchant's connected account
+- `POST /webhooks/instagram`: Receive story_mention events on merchant's connected Instagram
 
-### Instagram Integration (DM Verification)
-- **Verification Flow**: Customers verify ownership by DMing a unique code to @joinspiral
+### Instagram Integration
+
+#### Account Verification (DM-based)
+- **Flow**: Customers verify Instagram ownership by DMing a unique code to @joinspiral
 - **How It Works**:
   1. Customer gets a 6-character verification code (24-hour expiry)
   2. Customer opens Instagram and DMs the code to @joinspiral
   3. Webhook receives DM, extracts Instagram user ID from sender metadata
   4. Code is matched and customer's Instagram is verified automatically
 - **Follower Lookup**: RapidAPI (Instagram API - Fast & Reliable Data Scraper) fetches follower count
-- **Data Retrieved**: Instagram user ID (from DM sender), username, follower count via RapidAPI
 - **Code Table**: `spiral_codes` tracks verification sessions with status (pending/verified/expired)
+
+#### Story Verification (Automated via Story Mention Webhook)
+- **Architecture**: Fully automated using Instagram Messaging webhooks on the merchant's connected Instagram account
+- **How It Works**:
+  1. Customer posts Instagram Story and tags the merchant using @ mention sticker
+  2. Instagram sends a `story_mention` event to our webhook via the Messaging platform
+  3. Webhook extracts sender's scoped ID and story URL from the event payload
+  4. System resolves sender identity: checks `merchant_scoped_user_map` first, then falls back to Instagram Profile API to resolve username
+  5. Matches resolved customer to their pending order(s)
+  6. Creates scoped ID mapping for future lookups and marks order as verified
+  7. Sends confirmation DM to customer via Instagram API
+- **Scoped ID Mapping**: Instagram sends merchant-scoped sender IDs (not global user IDs). The `merchant_scoped_user_map` table caches the mapping between scoped IDs and Spiral customer accounts for fast repeat lookups.
+- **OAuth Scopes Required**: `instagram_basic`, `instagram_manage_messages`, `pages_show_list`, `pages_read_engagement`, `pages_manage_metadata`
+- **Webhook Subscription**: Automatically subscribed to `messages` and `messaging_postbacks` fields on the Facebook Page after merchant connects Instagram
 
 ### Required Secrets
 - `RAPIDAPI_KEY`: For fetching Instagram follower counts
@@ -73,16 +94,18 @@ Preferred communication style: Simple, everyday language.
 ### Order Status Flow
 1. **Ordered** - Order placed, waiting for delivery
 2. **Fulfilled/Shipped** - On the way to customer
-3. **Delivered** - Arrived, prompting customer to share story
-4. **Awaiting Story** - Countdown timer active, customer needs to post
-5. **Verified** - Story confirmed, discount kept
-6. **Reversed** - Story not detected, clawback triggered
+3. **Delivered** - Arrived, customer sees "Post Your Story" prompt
+4. **Verified** - Story mention detected via webhook, discount confirmed
 
-### Verification Lifecycle
-1. **pending**: Order delivered, awaiting customer to post Instagram story
-2. **story_detected**: Story found tagging brand, 22-hour timer starts
-3. **verified**: Story confirmed still up after 22 hours, discount confirmed
-4. **failed**: Story removed or never posted, clawback triggered
+### Verification Lifecycle (Simplified)
+1. **pending**: Order placed/delivered, awaiting customer to post Instagram Story tagging merchant
+2. **story_detected**: Story mention webhook received, matched to order
+3. **verified**: Verification complete, discount confirmed
+
+### Webhook Health Monitoring
+- `store_settings.webhookSubscriptionStatus`: Tracks whether messaging webhook is active/inactive/failed
+- `store_settings.lastWebhookReceivedAt`: Timestamp of most recent story mention received
+- Displayed on merchant Connections page with visual status indicators
 
 ### Development & Build
 - **TypeScript**: Strict mode, ESNext modules, path aliases.
@@ -124,9 +147,10 @@ Preferred communication style: Simple, everyday language.
 3. Displays brand name and maximum discount
 4. After confirmation, returns calculated discount to checkout
 
-### Post-Delivery Verification
-1. Delivery notification triggers "Share your story" prompt
-2. Customer posts Instagram Story tagging brand
-3. Story detected, 22-hour verification timer starts
-4. If verified: discount confirmed, celebration state
-5. If failed: calm explanation of reversal
+### Post-Delivery Verification (Automated)
+1. Delivery notification triggers "Post Your Story" prompt in app
+2. Customer posts Instagram Story tagging merchant's Instagram handle
+3. Story mention webhook fires automatically to our server
+4. System identifies customer via scoped ID mapping or profile API lookup
+5. Order marked as verified, confirmation DM sent to customer
+6. Customer sees "You saved $X!" celebration in app

@@ -18,6 +18,8 @@ export const storeSettings = pgTable("store_settings", {
   spiralEnabled: boolean("spiral_enabled").notNull().default(false),
   productSelectionType: text("product_selection_type").notNull().default("all"),
   postingWindowDays: integer("posting_window_days").notNull().default(7),
+  webhookSubscriptionStatus: text("webhook_subscription_status").default("inactive"),
+  lastWebhookReceivedAt: timestamp("last_webhook_received_at"),
 });
 
 export const discountTiers = pgTable("discount_tiers", {
@@ -27,11 +29,10 @@ export const discountTiers = pgTable("discount_tiers", {
   discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }).notNull(),
 });
 
-// Verification status lifecycle:
-// - pending: Order placed, waiting for customer to post story
-// - story_detected: Story found tagging brand, 22-hour timer started
-// - verified: Story confirmed still up after 22 hours, discount kept
-// - failed: Story not found or removed before 22 hours, clawback triggered
+// Verification status lifecycle (simplified):
+// - pending: Order delivered, waiting for customer to post Story tagging merchant
+// - story_detected: Story mention webhook received, matched to order
+// - verified: Verification complete, discount confirmed
 export const verifications = pgTable("verifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   orderId: varchar("order_id").notNull(),
@@ -40,22 +41,13 @@ export const verifications = pgTable("verifications", {
   instagramUserId: text("instagram_user_id").notNull(),
   followerCount: integer("follower_count").notNull(),
   discountAmount: numeric("discount_amount", { precision: 10, scale: 2 }).notNull(),
-  // Verification lifecycle status
   status: text("status").notNull().default("pending"),
-  // Story tracking
   storyMediaId: text("story_media_id"),
   storyUrl: text("story_url"),
   storyDetectedAt: timestamp("story_detected_at"),
-  confirmationDueAt: timestamp("confirmation_due_at"),
-  // Final verification
   verifiedAt: timestamp("verified_at"),
-  failedAt: timestamp("failed_at"),
-  failureReason: text("failure_reason"),
-  // Clawback tracking
-  clawbackTriggered: boolean("clawback_triggered").notNull().default(false),
-  clawbackAmount: numeric("clawback_amount", { precision: 10, scale: 2 }),
-  clawbackRefundId: text("clawback_refund_id"),
-  // Timestamps
+  webhookTimestamp: timestamp("webhook_timestamp"),
+  senderScopedId: text("sender_scoped_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -123,14 +115,14 @@ export const orders = pgTable("orders", {
   discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }).notNull(),
   orderTotal: numeric("order_total", { precision: 10, scale: 2 }).notNull(),
   discountAmount: numeric("discount_amount", { precision: 10, scale: 2 }).notNull(),
-  // Order status: pending, fulfilled, delivered
   status: text("status").notNull().default("pending"),
   fulfilledAt: timestamp("fulfilled_at"),
   deliveredAt: timestamp("delivered_at"),
   postDeadline: timestamp("post_deadline"),
-  // Verification status: metadata_missing, pending_verification, verified, failed, clawback_complete
-  verificationStatus: text("verification_status").notNull().default("metadata_missing"),
+  // Verification status: pending, story_detected, verified
+  verificationStatus: text("verification_status").notNull().default("pending"),
   verificationId: varchar("verification_id"),
+  webhookTimestamp: timestamp("webhook_timestamp"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -148,6 +140,15 @@ export const spiralCodes = pgTable("spiral_codes", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   expiresAt: timestamp("expires_at").notNull(),
   verifiedAt: timestamp("verified_at"),
+});
+
+export const merchantScopedUserMap = pgTable("merchant_scoped_user_map", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  merchantId: varchar("merchant_id").notNull(),
+  senderScopedId: text("sender_scoped_id").notNull(),
+  spiralCustomerId: varchar("spiral_customer_id").notNull(),
+  instagramHandle: text("instagram_handle"),
+  firstSeenAt: timestamp("first_seen_at").notNull().defaultNow(),
 });
 
 export const insertStoreSettingsSchema = createInsertSchema(storeSettings).omit({ id: true });
@@ -169,10 +170,10 @@ export const insertVerificationSchema = createInsertSchema(verifications).omit({
   id: true, 
   createdAt: true,
   verifiedAt: true,
-  failedAt: true,
   storyDetectedAt: true,
-  confirmationDueAt: true,
+  webhookTimestamp: true,
 });
+export const insertMerchantScopedUserMapSchema = createInsertSchema(merchantScopedUserMap).omit({ id: true, firstSeenAt: true });
 export const insertShopifyProductSchema = createInsertSchema(shopifyProducts).omit({ id: true, syncedAt: true });
 export const insertShopifyCollectionSchema = createInsertSchema(shopifyCollections).omit({ id: true, syncedAt: true });
 export const insertSelectedProductSchema = createInsertSchema(selectedProducts).omit({ id: true });
@@ -201,3 +202,5 @@ export type InsertOrder = z.infer<typeof insertOrderSchema>;
 export type Order = typeof orders.$inferSelect;
 export type InsertSpiralCode = z.infer<typeof insertSpiralCodeSchema>;
 export type SpiralCode = typeof spiralCodes.$inferSelect;
+export type InsertMerchantScopedUserMap = z.infer<typeof insertMerchantScopedUserMapSchema>;
+export type MerchantScopedUserMap = typeof merchantScopedUserMap.$inferSelect;

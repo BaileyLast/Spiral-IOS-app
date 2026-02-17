@@ -38,7 +38,6 @@ type PerformanceData = {
   summary: {
     totalVerifications: number;
     verifiedPosts: number;
-    failedPosts: number;
     pendingPosts: number;
     completionRate: number;
     totalDiscountsGiven: number;
@@ -416,12 +415,6 @@ export default function Performance() {
                     <span className="text-muted-foreground">Pending</span>
                     <Badge className="bg-yellow-500/10 text-yellow-600 hover:bg-yellow-500/20">
                       {data.summary.pendingPosts}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
-                    <span className="text-muted-foreground">Failed</span>
-                    <Badge className="bg-red-500/10 text-red-600 hover:bg-red-500/20">
-                      {data.summary.failedPosts}
                     </Badge>
                   </div>
                   <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">

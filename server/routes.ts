@@ -323,7 +323,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const totalVerifications = verifications.length;
       const verifiedVerifications = verifications.filter(v => v.status === 'verified');
       const verifiedPosts = verifiedVerifications.length;
-      const failedPosts = verifications.filter(v => v.status === 'failed').length;
       const pendingPosts = verifications.filter(v => v.status === 'pending' || v.status === 'story_detected').length;
       const completionRate = totalVerifications > 0 ? (verifiedPosts / totalVerifications) * 100 : 0;
       
@@ -425,7 +424,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         summary: {
           totalVerifications,
           verifiedPosts,
-          failedPosts,
           pendingPosts,
           completionRate: Math.round(completionRate * 10) / 10,
           totalDiscountsGiven: Math.round(totalDiscountsGiven * 100) / 100,
@@ -715,7 +713,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/auth/instagram", (req, res) => {
     const redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
     const appId = process.env.INSTAGRAM_APP_ID;
-    const scopes = 'instagram_basic,pages_show_list,pages_read_engagement';
+    const scopes = 'instagram_basic,instagram_manage_messages,pages_show_list,pages_read_engagement,pages_manage_metadata';
 
     if (!redirectUri || !appId) {
       return res.status(500).json({ error: "Instagram credentials not configured" });
@@ -840,7 +838,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       console.log('Instagram Business Account connected:', igAccount.username);
-      res.send(`✅ Successfully connected Instagram account @${igAccount.username}! You can close this window and return to the dashboard.`);
+
+      // Subscribe the Facebook Page to Instagram messaging webhooks (for story_mention events)
+      try {
+        const subscribeUrl = `https://graph.facebook.com/v18.0/${pageWithInstagram.id}/subscribed_apps`;
+        const subscribeRes = await fetch(subscribeUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            subscribed_fields: ['messages', 'messaging_postbacks'],
+            access_token: longLivedToken,
+          }),
+        });
+        
+        if (subscribeRes.ok) {
+          console.log('Subscribed to Instagram messaging webhooks (story_mention) for page:', pageWithInstagram.id);
+          const updatedSettings = await storage.getStoreSettings();
+          if (updatedSettings) {
+            await storage.updateStoreWebhookStatus(updatedSettings.id, 'active');
+          }
+        } else {
+          const subscribeError = await subscribeRes.text();
+          console.error('Failed to subscribe to messaging webhooks:', subscribeError);
+          const updatedSettings = await storage.getStoreSettings();
+          if (updatedSettings) {
+            await storage.updateStoreWebhookStatus(updatedSettings.id, 'subscription_failed');
+          }
+        }
+      } catch (webhookSubError) {
+        console.error('Error subscribing to messaging webhooks:', webhookSubError);
+      }
+
+      res.send("Successfully connected Instagram account @" + igAccount.username + "! You can close this window and return to the dashboard.");
     } catch (error) {
       console.error("Error during Instagram OAuth:", error);
       res.status(500).send("Failed to complete Instagram authentication");
@@ -982,10 +1011,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const postDeadline = new Date(orderDate);
       postDeadline.setDate(postDeadline.getDate() + postingWindowDays);
       
-      // Determine initial verification status based on available metadata
-      const initialVerificationStatus = hasCompleteInstagramData 
-        ? 'pending_verification' 
-        : 'metadata_missing';
+      const initialVerificationStatus = 'pending';
       
       // Create order record (always persist, even without complete Instagram data)
       const newOrder = await storage.createOrder({
@@ -1019,7 +1045,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         
         // Link verification to order
-        await storage.updateOrderVerificationStatus(newOrder.id, 'pending_verification', verification.id);
+        await storage.updateOrderVerificationStatus(newOrder.id, 'pending', verification.id);
         
         console.log('Created verification record:', verification.id);
       } else {
@@ -1146,33 +1172,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const body = req.body;
       console.log('Instagram webhook received:', JSON.stringify(body, null, 2));
 
-      // Process story_mentions events
+      // Process story_mention events via merchant's Instagram messaging webhook
       if (body.object === 'instagram' && body.entry) {
         for (const entry of body.entry) {
+          const recipientId = entry.id;
           if (entry.messaging) {
             for (const event of entry.messaging) {
-              // Handle story mention
-              if (event.message?.attachments?.[0]?.type === 'story_mention') {
-                const senderInstagramId = event.sender?.id;
-                const storyMediaId = event.message.attachments[0].payload?.url;
-                
-                if (senderInstagramId) {
-                  await handleStoryMention(senderInstagramId, storyMediaId || '');
-                }
-              }
-            }
-          }
-          
-          // Handle mention events (alternative webhook format)
-          if (entry.changes) {
-            for (const change of entry.changes) {
-              if (change.field === 'mentions' || change.field === 'story_insights') {
-                const mentionData = change.value;
-                const mentionerId = mentionData?.from?.id || mentionData?.media_creator_id;
-                const mediaId = mentionData?.media_id;
-                
-                if (mentionerId) {
-                  await handleStoryMention(mentionerId, mediaId || '');
+              if (event.message?.attachments) {
+                for (const attachment of event.message.attachments) {
+                  if (attachment.type === 'story_mention') {
+                    const senderScopedId = event.sender?.id;
+                    const storyUrl = attachment.payload?.url || '';
+                    
+                    console.log(`Story mention received on /webhooks/instagram from scoped ID ${senderScopedId} on merchant IG ${recipientId}`);
+                    
+                    if (senderScopedId) {
+                      await handleStoryMentionWebhook(recipientId, senderScopedId, storyUrl);
+                    }
+                  }
                 }
               }
             }
@@ -1184,79 +1201,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(200).json({ received: true });
     } catch (error) {
       console.error('Error processing Instagram webhook:', error);
-      // Still respond 200 to prevent Meta from retrying
       res.status(200).json({ received: true });
     }
   });
-
-  // Helper function to handle story mentions
-  async function handleStoryMention(instagramUserId: string, storyMediaId: string) {
-    try {
-      console.log(`Processing story mention from Instagram user: ${instagramUserId}`);
-      
-      // Find pending order for this Instagram user
-      const order = await storage.getOrderByInstagramUserId(instagramUserId);
-      
-      if (!order) {
-        console.log(`No pending order found for Instagram user: ${instagramUserId}`);
-        return;
-      }
-
-      // Check if verification already exists for this order
-      const existingVerification = await storage.getVerificationByInstagramUserId(instagramUserId, order.id);
-      
-      // Skip if already processed (story_detected, verified, or failed)
-      if (existingVerification && existingVerification.status !== 'pending') {
-        console.log(`Verification already in progress/completed for order: ${order.id}, status: ${existingVerification.status}`);
-        return;
-      }
-      
-      // Also check order verification status to prevent reprocessing
-      if (order.verificationStatus !== 'pending_verification') {
-        console.log(`Order ${order.id} already has verification status: ${order.verificationStatus}`);
-        return;
-      }
-
-      let verificationId: string;
-      
-      if (existingVerification) {
-        // Update existing verification
-        const updated = await storage.markStoryDetected(
-          existingVerification.id,
-          storyMediaId,
-          `https://instagram.com/stories/${instagramUserId}/${storyMediaId}`
-        );
-        verificationId = updated.id;
-      } else {
-        // Create new verification record
-        // Note: order.instagramHandle/instagramUserId must exist since we looked up by instagramUserId
-        const verification = await storage.createVerification({
-          orderId: order.id,
-          shopperEmail: order.shopperEmail,
-          instagramHandle: order.instagramHandle || instagramUserId,
-          instagramUserId: order.instagramUserId || instagramUserId,
-          followerCount: order.followerCount || 0,
-          discountAmount: order.discountAmount,
-          status: 'pending',
-        });
-        
-        // Mark story detected and start 22-hour timer
-        const updated = await storage.markStoryDetected(
-          verification.id,
-          storyMediaId,
-          `https://instagram.com/stories/${instagramUserId}/${storyMediaId}`
-        );
-        verificationId = updated.id;
-      }
-
-      // Update order to link verification (keep order status as pending_verification until final check)
-      await storage.updateOrderVerificationStatus(order.id, 'pending_verification', verificationId);
-      
-      console.log(`Story detected for order ${order.id}, verification ${verificationId}. 22-hour timer started.`);
-    } catch (error) {
-      console.error('Error handling story mention:', error);
-    }
-  }
 
   // ============================================
   // Verification Check Job (run periodically)
@@ -1276,110 +1223,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       for (const verification of pendingVerifications) {
         results.checked++;
-        
-        // Check if story still exists on Instagram
-        const storyExists = await checkStoryExists(verification);
-        
-        if (storyExists) {
-          await storage.markVerified(verification.id);
-          await storage.updateOrderVerificationStatus(verification.orderId, 'verified');
-          results.verified++;
-          console.log(`Verification ${verification.id} VERIFIED - story still up after 22 hours`);
-        } else {
-          await storage.markFailed(verification.id, 'Story removed before 22-hour verification window');
-          await storage.updateOrderVerificationStatus(verification.orderId, 'failed');
-          
-          // Trigger clawback
-          const refundId = await triggerClawback(verification);
-          if (refundId) {
-            await storage.triggerClawback(verification.id, refundId);
-            await storage.updateOrderVerificationStatus(verification.orderId, 'clawback_complete');
-          }
-          
-          results.failed++;
-          console.log(`Verification ${verification.id} FAILED - story was removed`);
-        }
+        console.log(`Pending verification ${verification.id} for order ${verification.orderId} - awaiting Story mention webhook`);
       }
 
-      res.json({ success: true, results });
+      res.json({ success: true, results, message: 'Verification is automated via Story mention webhooks' });
     } catch (error) {
       console.error('Error running verification checks:', error);
       res.status(500).json({ error: 'Failed to run verification checks' });
     }
   });
-
-  // Check if Instagram story still exists
-  async function checkStoryExists(verification: any): Promise<boolean> {
-    try {
-      const settings = await storage.getStoreSettings();
-      
-      if (!settings?.instagramAccessToken || !verification.storyMediaId) {
-        console.log('Missing Instagram access token or story media ID');
-        return false;
-      }
-
-      // Use Instagram Graph API to check if story exists
-      const url = `https://graph.instagram.com/${verification.storyMediaId}?fields=id,media_type&access_token=${settings.instagramAccessToken}`;
-      
-      const response = await fetch(url);
-      
-      if (response.ok) {
-        const data = await response.json();
-        return !!data.id;
-      } else {
-        // 404 or error means story no longer exists
-        const errorData = await response.json().catch(() => ({}));
-        console.log('Story check API response:', response.status, errorData);
-        return false;
-      }
-    } catch (error) {
-      console.error('Error checking story existence:', error);
-      return false;
-    }
-  }
-
-  // Trigger Shopify clawback/refund
-  // NOTE: This is a placeholder implementation. Full Shopify refund integration requires:
-  // 1. Storing the Shopify order ID in the orders table
-  // 2. Using the Shopify Admin API to create a refund or adjustment
-  // 3. Handling refund failures and retries
-  async function triggerClawback(verification: any): Promise<string | null> {
-    try {
-      const settings = await storage.getStoreSettings();
-      
-      if (!settings?.shopDomain || !settings?.accessToken) {
-        console.error('Shopify not connected - cannot trigger clawback');
-        return null;
-      }
-
-      const discountAmount = parseFloat(verification.discountAmount || '0');
-      
-      if (discountAmount <= 0) {
-        console.log('No discount amount to claw back');
-        return null;
-      }
-
-      // Log the clawback for now - actual Shopify refund API requires order ID lookup
-      console.log(`CLAWBACK TRIGGERED for verification ${verification.id}`);
-      console.log(`  - Order ID: ${verification.orderId}`);
-      console.log(`  - Amount: $${discountAmount.toFixed(2)}`);
-      console.log(`  - Reason: Story removed before 22-hour verification`);
-      
-      // Generate tracking ID for the clawback record
-      const clawbackId = `clawback_${verification.id}_${Date.now()}`;
-      console.log(`  - Clawback ID: ${clawbackId}`);
-      
-      // TODO: Full Shopify refund implementation
-      // 1. Look up Shopify order by orderId
-      // 2. POST to /admin/api/2024-01/orders/{shopify_order_id}/refunds.json
-      // 3. Handle response and store refund ID
-      
-      return clawbackId;
-    } catch (error) {
-      console.error('Error triggering clawback:', error);
-      return null;
-    }
-  }
 
   // ============================================
   // Checkout API (for Shopify Checkout Extension)
@@ -1557,7 +1409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         discountAmount: discountAmount?.toString() || '0',
         status: 'pending',
         postDeadline,
-        verificationStatus: 'pending_verification',
+        verificationStatus: 'pending',
       });
       
       // Create verification record
@@ -1572,7 +1424,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // Link verification to order
-      await storage.updateOrderVerificationStatus(order.id, 'pending_verification', verification.id);
+      await storage.updateOrderVerificationStatus(order.id, 'pending', verification.id);
       
       console.log(`Checkout confirmed: Order ${order.id} for customer ${customer.email}, ${customer.followerCount} followers, ${discountPercent}% discount`);
       
@@ -2455,6 +2307,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Process story_mention events (customer tags merchant in their Story)
+      if (body.object === 'instagram' && body.entry) {
+        for (const entry of body.entry) {
+          const recipientId = entry.id;
+          if (entry.messaging) {
+            for (const event of entry.messaging) {
+              if (event.message?.attachments) {
+                for (const attachment of event.message.attachments) {
+                  if (attachment.type === 'story_mention') {
+                    const senderScopedId = event.sender?.id;
+                    const storyUrl = attachment.payload?.url || '';
+                    
+                    console.log(`Story mention received from scoped ID ${senderScopedId} on merchant IG ${recipientId}`);
+                    console.log(`  Story URL: ${storyUrl}`);
+                    
+                    await handleStoryMention(recipientId, senderScopedId, storyUrl);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
       // Always respond with 200 to acknowledge receipt
       res.status(200).json({ received: true });
     } catch (error) {
@@ -2500,6 +2376,138 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Failed to fetch Instagram data from RapidAPI:', error);
       throw error;
+    }
+  }
+
+  // Alias for the /webhooks/instagram endpoint (uses same logic)
+  async function handleStoryMentionWebhook(merchantInstagramId: string, senderScopedId: string, storyUrl: string): Promise<void> {
+    return handleStoryMention(merchantInstagramId, senderScopedId, storyUrl);
+  }
+
+  // Handle story_mention webhook: match sender to customer and verify their pending order
+  async function handleStoryMention(merchantInstagramId: string, senderScopedId: string, storyUrl: string): Promise<void> {
+    try {
+      const settings = await storage.getStoreSettings();
+      if (!settings) {
+        console.error('Story mention: No store settings found');
+        return;
+      }
+
+      // Update last webhook received timestamp
+      await storage.updateStoreLastWebhookReceived(settings.id);
+
+      // Check if the merchant IG ID matches our store's connected Instagram
+      if (settings.instagramBusinessAccountId !== merchantInstagramId) {
+        console.log(`Story mention: Merchant IG ${merchantInstagramId} does not match store IG ${settings.instagramBusinessAccountId}`);
+        return;
+      }
+
+      // Step 1: Look up existing scoped ID mapping
+      let mapping = await storage.getMerchantScopedUserMap(settings.id, senderScopedId);
+      let customerId = mapping?.spiralCustomerId;
+
+      // Step 2: If no mapping exists, try to resolve username via Instagram Profile API and match
+      if (!mapping) {
+        console.log(`Story mention: No scoped ID mapping for ${senderScopedId}, attempting profile lookup`);
+        
+        let resolvedUsername = '';
+        try {
+          // Use the merchant's Instagram access token to resolve the sender's profile
+          if (settings.instagramAccessToken) {
+            const profileUrl = `https://graph.instagram.com/v18.0/${senderScopedId}?fields=username&access_token=${settings.instagramAccessToken}`;
+            const profileRes = await fetch(profileUrl);
+            if (profileRes.ok) {
+              const profileData = await profileRes.json();
+              resolvedUsername = profileData.username || '';
+              console.log(`Story mention: Resolved scoped ID ${senderScopedId} to @${resolvedUsername}`);
+            } else {
+              console.log(`Story mention: Could not resolve profile for ${senderScopedId} (${profileRes.status})`);
+            }
+          }
+        } catch (err) {
+          console.error('Story mention: Error resolving profile:', err);
+        }
+
+        // Match by Instagram username
+        if (resolvedUsername) {
+          const customer = await storage.getSpiralCustomerByInstagramHandle(resolvedUsername);
+          if (customer) {
+            customerId = customer.id;
+            // Create the mapping for future lookups
+            await storage.createMerchantScopedUserMap({
+              merchantId: settings.id,
+              senderScopedId,
+              spiralCustomerId: customer.id,
+              instagramHandle: resolvedUsername,
+            });
+            console.log(`Story mention: Created scoped ID mapping: ${senderScopedId} -> customer ${customer.id} (@${resolvedUsername})`);
+          } else {
+            console.log(`Story mention: No Spiral customer found for @${resolvedUsername}`);
+          }
+        }
+      }
+
+      if (!customerId) {
+        console.log(`Story mention: Could not identify customer for scoped ID ${senderScopedId}`);
+        return;
+      }
+
+      // Step 3: Find pending orders for this customer
+      const customerOrders = await storage.getOrdersByCustomerId(customerId);
+      const pendingOrders = customerOrders.filter(o => 
+        o.verificationStatus === 'pending' || o.verificationStatus === 'story_detected'
+      );
+
+      if (pendingOrders.length === 0) {
+        console.log(`Story mention: No pending orders for customer ${customerId}`);
+        // Send a DM letting them know
+        await sendInstagramDM(senderScopedId, "Thanks for tagging us! We don't see any pending orders for your account right now.");
+        return;
+      }
+
+      // Step 4: Verify the most recent pending order
+      const orderToVerify = pendingOrders.sort((a, b) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )[0];
+
+      console.log(`Story mention: Verifying order ${orderToVerify.id} for customer ${customerId}`);
+
+      // If there's an existing verification record, update it
+      if (orderToVerify.verificationId) {
+        await storage.markStoryDetectedAndVerified(orderToVerify.verificationId, storyUrl, senderScopedId);
+      } else {
+        // Create a new verification record and mark it verified
+        const customer = await storage.getSpiralCustomerById(customerId);
+        if (customer) {
+          const verification = await storage.createVerification({
+            orderId: orderToVerify.id,
+            shopperEmail: orderToVerify.shopperEmail,
+            instagramHandle: customer.instagramHandle || '',
+            instagramUserId: customer.instagramUserId || '',
+            followerCount: customer.followerCount || 0,
+            discountAmount: orderToVerify.discountAmount,
+            status: 'verified',
+            storyMediaId: null,
+            storyUrl,
+            senderScopedId,
+          });
+          await storage.updateOrderVerificationId(orderToVerify.id, verification.id);
+        }
+      }
+
+      // Update order verification status
+      await storage.updateOrderVerificationStatus(orderToVerify.id, 'verified');
+      await storage.updateOrderWebhookTimestamp(orderToVerify.id);
+
+      console.log(`Story mention: Order ${orderToVerify.id} VERIFIED via story mention`);
+
+      // Send confirmation DM
+      const discountAmt = parseFloat(orderToVerify.discountAmount || '0');
+      await sendInstagramDM(senderScopedId, 
+        `Your story has been verified! You saved $${discountAmt.toFixed(2)} on your order. Thanks for sharing!`
+      );
+    } catch (error) {
+      console.error('Error handling story mention:', error);
     }
   }
 

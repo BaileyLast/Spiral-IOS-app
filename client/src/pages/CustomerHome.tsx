@@ -8,8 +8,8 @@ import type { Order } from "@shared/schema";
 
 function getStatusLabel(order: Order) {
   if (order.verificationStatus === "verified") return "Verified";
-  if (order.verificationStatus === "failed") return "Reversed";
-  if (order.status === "delivered") return "Awaiting Story";
+  if (order.verificationStatus === "story_detected") return "Story Received";
+  if (order.status === "delivered") return "Post Your Story";
   if (order.status === "fulfilled") return "On the way";
   return "Ordered";
 }
@@ -18,9 +18,9 @@ function getStatusColor(status: string) {
   switch (status) {
     case "Verified":
       return "bg-[hsl(var(--status-verified))] text-[hsl(var(--status-verified-foreground))]";
-    case "Reversed":
-      return "bg-[hsl(var(--status-failed))] text-[hsl(var(--status-failed-foreground))]";
-    case "Awaiting Story":
+    case "Story Received":
+      return "bg-[hsl(var(--status-delivered))] text-[hsl(var(--status-delivered-foreground))]";
+    case "Post Your Story":
       return "bg-[hsl(var(--status-awaiting))] text-[hsl(var(--status-awaiting-foreground))]";
     case "On the way":
       return "bg-[hsl(var(--status-delivered))] text-[hsl(var(--status-delivered-foreground))]";
@@ -51,7 +51,7 @@ export default function CustomerHome() {
 
   const recentOrders = orders.slice(0, 3);
   const pendingActions = orders.filter(
-    (o) => o.status === "delivered" && o.verificationStatus !== "verified" && o.verificationStatus !== "failed"
+    (o) => o.status === "delivered" && o.verificationStatus !== "verified" && o.verificationStatus !== "story_detected"
   );
 
   return (
