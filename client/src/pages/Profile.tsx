@@ -1,4 +1,3 @@
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -99,8 +98,8 @@ export default function Profile() {
 
   if (profileLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-white/50" />
       </div>
     );
   }
@@ -108,60 +107,56 @@ export default function Profile() {
   const isInstagramConnected = !!profile?.instagramHandle;
 
   return (
-    <div className="min-h-screen bg-background safe-top">
-      <header className="relative overflow-hidden px-6 pt-8 pb-6">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent" />
-        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-primary/20 to-transparent rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
-        <div className="relative">
-          <h1 className="text-2xl font-semibold text-foreground">Profile</h1>
-        </div>
+    <div className="min-h-screen safe-top">
+      <header className="px-6 pt-8 pb-6">
+        <h1 className="text-2xl font-semibold text-white">Profile</h1>
       </header>
 
       <main className="px-6 pb-8 space-y-6">
-        <Card className="p-5 rounded-2xl">
+        <div className="p-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10">
           <div className="flex items-center gap-4">
-            <Avatar className="w-14 h-14">
+            <Avatar className="w-14 h-14 border-2 border-white/20">
               {profile?.instagramProfilePicture ? (
                 <AvatarImage 
-                  src={profile.instagramProfilePicture} 
+                  src="/api/customer/instagram-avatar"
                   alt={profile.instagramHandle || profile.email}
                 />
               ) : null}
-              <AvatarFallback className="bg-primary text-primary-foreground text-xl font-semibold">
+              <AvatarFallback className="bg-white/15 text-white text-xl font-semibold">
                 {profile?.email?.[0]?.toUpperCase() || "?"}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-foreground truncate" data-testid="text-email">
+              <p className="font-semibold text-white truncate" data-testid="text-email">
                 {profile?.name || profile?.email || "Guest"}
               </p>
-              <p className="text-sm text-muted-foreground truncate">
+              <p className="text-sm text-white/50 truncate">
                 {profile?.email}
               </p>
             </div>
           </div>
-        </Card>
+        </div>
 
         {isInstagramConnected ? (
-          <Card className="p-5 rounded-2xl">
+          <div className="p-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10">
             <div className="flex items-center gap-4">
-              <Avatar className="w-12 h-12 border-2 border-primary/20">
+              <Avatar className="w-12 h-12 border-2 border-white/20">
                 <AvatarImage 
                   src="/api/customer/instagram-avatar"
                   alt={profile.instagramHandle}
                 />
-                <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white">
+                <AvatarFallback className="bg-gradient-to-br from-purple-400 to-pink-400 text-white">
                   <Instagram className="w-5 h-5" />
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-foreground" data-testid="text-instagram-handle">
+                  <span className="font-medium text-white" data-testid="text-instagram-handle">
                     @{profile.instagramHandle}
                   </span>
-                  <CheckCircle className="w-4 h-4 text-green-600" />
+                  <CheckCircle className="w-4 h-4 text-green-400" />
                 </div>
-                <div className="flex items-center gap-3 text-sm text-muted-foreground mt-0.5">
+                <div className="flex items-center gap-3 text-sm text-white/50 mt-0.5">
                   {profile.followerCount && (
                     <div className="flex items-center gap-1">
                       <Users className="w-3.5 h-3.5" />
@@ -178,61 +173,55 @@ export default function Profile() {
                 </div>
               </div>
             </div>
-          </Card>
+          </div>
         ) : (
-          <Card 
-            className="p-5 rounded-2xl hover-elevate cursor-pointer"
+          <div 
+            className="p-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 cursor-pointer hover-elevate"
             onClick={handleConnectInstagram}
             data-testid="card-connect-instagram"
           >
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center">
                 <Instagram className="w-6 h-6 text-white" />
               </div>
               <div className="flex-1">
-                <p className="font-medium text-foreground">Connect Instagram</p>
-                <p className="text-sm text-muted-foreground">
+                <p className="font-medium text-white">Connect Instagram</p>
+                <p className="text-sm text-white/50">
                   Link your Instagram to unlock discounts
                 </p>
               </div>
-              <Plus className="w-5 h-5 text-muted-foreground" />
+              <Plus className="w-5 h-5 text-white/40" />
             </div>
-          </Card>
+          </div>
         )}
 
         <div className="grid grid-cols-2 gap-4">
-          <Card className="p-4 rounded-2xl text-center relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent" />
-            <div className="relative">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center mx-auto mb-2 shadow-md shadow-primary/20">
-                <Gift className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <p className="text-xl font-semibold text-foreground" data-testid="text-total-saved">
-                ${stats?.totalSaved?.toFixed(2) || "0.00"}
-              </p>
-              <p className="text-xs text-muted-foreground">Total saved</p>
+          <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 text-center">
+            <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center mx-auto mb-2">
+              <Gift className="w-5 h-5 text-white" />
             </div>
-          </Card>
-          <Card className="p-4 rounded-2xl text-center relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent" />
-            <div className="relative">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center mx-auto mb-2 shadow-md shadow-primary/20">
-                <Shield className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <p className="text-xl font-semibold text-foreground" data-testid="text-orders-verified">
-                {stats?.ordersCompleted || 0}
-              </p>
-              <p className="text-xs text-muted-foreground">Verified orders</p>
+            <p className="text-xl font-semibold text-white" data-testid="text-total-saved">
+              ${stats?.totalSaved?.toFixed(2) || "0.00"}
+            </p>
+            <p className="text-xs text-white/50">Total saved</p>
+          </div>
+          <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 text-center">
+            <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center mx-auto mb-2">
+              <Shield className="w-5 h-5 text-white" />
             </div>
-          </Card>
+            <p className="text-xl font-semibold text-white" data-testid="text-orders-verified">
+              {stats?.ordersCompleted || 0}
+            </p>
+            <p className="text-xs text-white/50">Verified orders</p>
+          </div>
         </div>
 
-        <Card className="rounded-2xl overflow-hidden">
-          <div className="divide-y divide-border">
+        <div className="rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 overflow-hidden">
+          <div className="divide-y divide-white/10">
             <div className="flex items-center justify-between p-4">
               <div className="flex items-center gap-3">
-                <Bell className="w-5 h-5 text-muted-foreground" />
-                <span className="font-medium text-foreground">Push notifications</span>
+                <Bell className="w-5 h-5 text-white/50" />
+                <span className="font-medium text-white">Push notifications</span>
               </div>
               <Switch defaultChecked data-testid="switch-notifications" />
             </div>
@@ -245,10 +234,10 @@ export default function Profile() {
                 data-testid="button-disconnect-instagram"
               >
                 <div className="flex items-center gap-3">
-                  <Instagram className="w-5 h-5 text-muted-foreground" />
-                  <span className="font-medium text-foreground">Disconnect Instagram</span>
+                  <Instagram className="w-5 h-5 text-white/50" />
+                  <span className="font-medium text-white">Disconnect Instagram</span>
                 </div>
-                <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                <ChevronRight className="w-5 h-5 text-white/30" />
               </button>
             )}
 
@@ -258,10 +247,10 @@ export default function Profile() {
               data-testid="button-logout"
             >
               <div className="flex items-center gap-3">
-                <LogOut className="w-5 h-5 text-muted-foreground" />
-                <span className="font-medium text-foreground">Sign out</span>
+                <LogOut className="w-5 h-5 text-white/50" />
+                <span className="font-medium text-white">Sign out</span>
               </div>
-              <ChevronRight className="w-5 h-5 text-muted-foreground" />
+              <ChevronRight className="w-5 h-5 text-white/30" />
             </button>
 
             <button
@@ -269,21 +258,21 @@ export default function Profile() {
               data-testid="button-delete-account"
             >
               <div className="flex items-center gap-3">
-                <Trash2 className="w-5 h-5 text-destructive" />
-                <span className="font-medium text-destructive">Delete account</span>
+                <Trash2 className="w-5 h-5 text-red-400" />
+                <span className="font-medium text-red-400">Delete account</span>
               </div>
-              <ChevronRight className="w-5 h-5 text-muted-foreground" />
+              <ChevronRight className="w-5 h-5 text-white/30" />
             </button>
           </div>
-        </Card>
+        </div>
 
         <div className="text-center pt-4">
           <img 
             src={spiralLogoUrl} 
             alt="Spiral" 
-            className="h-6 mx-auto opacity-50 mb-2"
+            className="h-6 mx-auto opacity-30 mb-2 brightness-0 invert"
           />
-          <p className="text-xs text-muted-foreground">Version 1.0.0</p>
+          <p className="text-xs text-white/30">Version 1.0.0</p>
         </div>
       </main>
     </div>

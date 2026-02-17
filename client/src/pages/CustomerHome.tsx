@@ -1,4 +1,3 @@
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
@@ -15,18 +14,18 @@ function getStatusLabel(order: Order) {
   return "Ordered";
 }
 
-function getStatusColor(status: string) {
+function getStatusBadge(status: string) {
   switch (status) {
     case "Verified":
-      return "bg-[hsl(var(--status-verified))] text-[hsl(var(--status-verified-foreground))]";
+      return "bg-green-500/20 text-green-300 border border-green-400/20";
     case "Story Received":
-      return "bg-[hsl(var(--status-delivered))] text-[hsl(var(--status-delivered-foreground))]";
+      return "bg-blue-500/20 text-blue-300 border border-blue-400/20";
     case "Post Your Story":
-      return "bg-[hsl(var(--status-awaiting))] text-[hsl(var(--status-awaiting-foreground))]";
+      return "bg-amber-500/20 text-amber-300 border border-amber-400/20";
     case "On the way":
-      return "bg-[hsl(var(--status-delivered))] text-[hsl(var(--status-delivered-foreground))]";
+      return "bg-blue-500/20 text-blue-300 border border-blue-400/20";
     default:
-      return "bg-[hsl(var(--status-pending))] text-[hsl(var(--status-pending-foreground))]";
+      return "bg-white/10 text-white/70 border border-white/10";
   }
 }
 
@@ -65,15 +64,13 @@ export default function CustomerHome() {
   );
 
   return (
-    <div className="min-h-screen bg-background safe-top">
-      <header className="relative overflow-hidden px-6 pt-6 pb-4">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent" />
-        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-primary/20 to-transparent rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
-        <div className="relative flex items-center justify-between">
+    <div className="min-h-screen safe-top">
+      <header className="px-6 pt-6 pb-4">
+        <div className="flex items-center justify-between">
           <img 
             src={spiralLogoUrl} 
             alt="Spiral" 
-            className="h-7 object-contain"
+            className="h-7 object-contain brightness-0 invert"
             data-testid="img-spiral-logo"
           />
         </div>
@@ -81,33 +78,33 @@ export default function CustomerHome() {
 
       <main className="px-6 pb-8 space-y-6">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground" data-testid="text-greeting">
-            Hi{profile?.email ? `, ${profile.email.split("@")[0]}` : ""}
+          <h1 className="text-2xl font-semibold text-white" data-testid="text-greeting">
+            Hi{profile?.name ? `, ${profile.name}` : profile?.email ? `, ${profile.email.split("@")[0]}` : ""}
           </h1>
-          <p className="text-muted-foreground mt-1">Here's your Spiral activity</p>
+          <p className="text-white/60 mt-1">Here's your Spiral activity</p>
         </div>
 
         {profile?.instagramHandle && (
-          <Card className="p-4 rounded-2xl" data-testid="card-instagram-profile">
+          <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10" data-testid="card-instagram-profile">
             <div className="flex items-center gap-3">
-              <Avatar className="w-11 h-11 border-2 border-primary/20">
+              <Avatar className="w-11 h-11 border-2 border-white/20">
                 <AvatarImage
                   src="/api/customer/instagram-avatar"
                   alt={profile.instagramHandle}
                 />
-                <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white">
+                <AvatarFallback className="bg-gradient-to-br from-purple-400 to-pink-400 text-white">
                   <Instagram className="w-5 h-5" />
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-medium text-foreground truncate" data-testid="text-instagram-handle">
+                  <span className="font-medium text-white truncate" data-testid="text-instagram-handle">
                     @{profile.instagramHandle}
                   </span>
-                  <CheckCircle className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
+                  <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
                 </div>
                 {profile.followerCount ? (
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5">
+                  <div className="flex items-center gap-1 text-sm text-white/50 mt-0.5">
                     <Users className="w-3.5 h-3.5" />
                     <span data-testid="text-follower-count">
                       {formatFollowerCount(profile.followerCount)} followers
@@ -116,75 +113,68 @@ export default function CustomerHome() {
                 ) : null}
               </div>
             </div>
-          </Card>
+          </div>
         )}
 
         <div className="grid grid-cols-2 gap-4">
-          <Card className="p-5 rounded-2xl relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent" />
-            <div className="relative">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-md shadow-primary/20">
-                  <Gift className="w-5 h-5 text-primary-foreground" />
-                </div>
+          <div className="p-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
+                <Gift className="w-5 h-5 text-white" />
               </div>
-              <p className="text-2xl font-semibold text-foreground" data-testid="text-total-saved">
-                ${stats?.totalSaved?.toFixed(2) || "0.00"}
-              </p>
-              <p className="text-sm text-muted-foreground">Total saved</p>
             </div>
-          </Card>
+            <p className="text-2xl font-semibold text-white" data-testid="text-total-saved">
+              ${stats?.totalSaved?.toFixed(2) || "0.00"}
+            </p>
+            <p className="text-sm text-white/50">Total saved</p>
+          </div>
 
-          <Card className="p-5 rounded-2xl relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent" />
-            <div className="relative">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-md shadow-primary/20">
-                  <TrendingUp className="w-5 h-5 text-primary-foreground" />
-                </div>
+          <div className="p-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 text-white" />
               </div>
-              <p className="text-2xl font-semibold text-foreground" data-testid="text-orders-completed">
-                {stats?.ordersCompleted || 0}
-              </p>
-              <p className="text-sm text-muted-foreground">Orders verified</p>
             </div>
-          </Card>
+            <p className="text-2xl font-semibold text-white" data-testid="text-orders-completed">
+              {stats?.ordersCompleted || 0}
+            </p>
+            <p className="text-sm text-white/50">Orders verified</p>
+          </div>
         </div>
 
         {pendingActions.length > 0 && (
-          <Card className="p-5 rounded-2xl bg-[hsl(var(--status-awaiting))] border-0">
+          <div className="p-5 rounded-2xl bg-amber-500/15 backdrop-blur-sm border border-amber-400/20">
             <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-white/30 flex items-center justify-center flex-shrink-0">
-                <Sparkles className="w-5 h-5 text-[hsl(var(--status-awaiting-foreground))]" />
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                <Sparkles className="w-5 h-5 text-amber-300" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-[hsl(var(--status-awaiting-foreground))]">
+                <p className="font-medium text-amber-200">
                   {pendingActions.length} order{pendingActions.length > 1 ? "s" : ""} awaiting your story
                 </p>
-                <p className="text-sm text-[hsl(var(--status-awaiting-foreground))] opacity-80 mt-1">
+                <p className="text-sm text-amber-300/70 mt-1">
                   Share to keep your discount
                 </p>
               </div>
               <Link href="/discounts">
                 <Button 
                   size="sm" 
-                  variant="secondary"
-                  className="bg-white/90 text-[hsl(var(--status-awaiting-foreground))] rounded-lg"
+                  className="bg-white/20 text-amber-200 border border-amber-400/30 rounded-lg"
                   data-testid="button-view-pending"
                 >
                   View
                 </Button>
               </Link>
             </div>
-          </Card>
+          </div>
         )}
 
         {recentOrders.length > 0 ? (
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-foreground">Recent Orders</h2>
+              <h2 className="text-lg font-semibold text-white">Recent Orders</h2>
               <Link href="/discounts">
-                <Button variant="ghost" size="sm" className="text-muted-foreground" data-testid="link-view-all-orders">
+                <Button variant="ghost" size="sm" className="text-white/50" data-testid="link-view-all-orders">
                   View all
                   <ChevronRight className="w-4 h-4 ml-1" />
                 </Button>
@@ -196,44 +186,41 @@ export default function CustomerHome() {
                 const status = getStatusLabel(order);
                 return (
                   <Link key={order.id} href={`/orders/${order.id}`}>
-                    <Card className="p-4 rounded-2xl hover-elevate cursor-pointer" data-testid={`card-order-${order.id}`}>
+                    <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 cursor-pointer hover-elevate" data-testid={`card-order-${order.id}`}>
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-foreground truncate">
+                          <p className="font-medium text-white truncate">
                             Order #{order.shopifyOrderId.slice(-6)}
                           </p>
-                          <p className="text-sm text-muted-foreground mt-0.5">
+                          <p className="text-sm text-white/50 mt-0.5">
                             {new Date(order.createdAt).toLocaleDateString()}
                           </p>
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className="text-sm font-medium text-primary">
+                          <span className="text-sm font-medium text-green-300">
                             -${Number(order.discountAmount).toFixed(2)}
                           </span>
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(status)}`}>
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusBadge(status)}`}>
                             {status}
                           </span>
                         </div>
                       </div>
-                    </Card>
+                    </div>
                   </Link>
                 );
               })}
             </div>
           </div>
         ) : (
-          <Card className="p-8 rounded-2xl text-center relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/5" />
-            <div className="relative">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/20">
-                <ShoppingBag className="w-8 h-8 text-primary-foreground" />
-              </div>
-              <h3 className="font-semibold text-foreground mb-2">No orders yet</h3>
-              <p className="text-sm text-muted-foreground">
-                When you make a purchase with Spiral, it will appear here
-              </p>
+          <div className="p-8 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-white/15 flex items-center justify-center mx-auto mb-4">
+              <ShoppingBag className="w-8 h-8 text-white/70" />
             </div>
-          </Card>
+            <h3 className="font-semibold text-white mb-2">No orders yet</h3>
+            <p className="text-sm text-white/50">
+              When you make a purchase with Spiral, it will appear here
+            </p>
+          </div>
         )}
       </main>
     </div>

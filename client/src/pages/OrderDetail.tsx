@@ -1,4 +1,3 @@
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
@@ -24,24 +23,24 @@ export default function OrderDetail() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-white/50" />
       </div>
     );
   }
 
   if (!order) {
     return (
-      <div className="min-h-screen bg-background safe-top">
+      <div className="min-h-screen safe-top">
         <header className="flex items-center px-4 h-14">
-          <Link href="/orders">
-            <Button variant="ghost" size="icon" data-testid="button-back">
+          <Link href="/discounts">
+            <Button variant="ghost" size="icon" className="text-white/70" data-testid="button-back">
               <ArrowLeft className="w-5 h-5" />
             </Button>
           </Link>
         </header>
         <div className="px-6 py-12 text-center">
-          <p className="text-muted-foreground">Order not found</p>
+          <p className="text-white/50">Order not found</p>
         </div>
       </div>
     );
@@ -57,42 +56,42 @@ export default function OrderDetail() {
   ];
 
   return (
-    <div className="min-h-screen bg-background safe-top">
+    <div className="min-h-screen safe-top">
       <header className="flex items-center px-4 h-14">
-        <Link href="/orders">
-          <Button variant="ghost" size="icon" data-testid="button-back">
+        <Link href="/discounts">
+          <Button variant="ghost" size="icon" className="text-white/70" data-testid="button-back">
             <ArrowLeft className="w-5 h-5" />
           </Button>
         </Link>
-        <h1 className="ml-2 text-lg font-medium">Order Details</h1>
+        <h1 className="ml-2 text-lg font-medium text-white">Order Details</h1>
       </header>
 
       <main className="px-6 pb-8 space-y-6">
-        <Card className="p-5 rounded-2xl">
+        <div className="p-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <p className="text-sm text-muted-foreground">Order</p>
-              <p className="text-lg font-semibold text-foreground" data-testid="text-order-id">
+              <p className="text-sm text-white/50">Order</p>
+              <p className="text-lg font-semibold text-white" data-testid="text-order-id">
                 #{order.shopifyOrderId.slice(-6)}
               </p>
             </div>
             <div className="text-right">
-              <p className="text-sm text-muted-foreground">Your discount</p>
-              <p className="text-lg font-semibold text-primary" data-testid="text-discount">
+              <p className="text-sm text-white/50">Your discount</p>
+              <p className="text-lg font-semibold text-green-300" data-testid="text-discount">
                 -${Number(order.discountAmount).toFixed(2)}
               </p>
             </div>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Order total</span>
-            <span className="font-medium text-foreground" data-testid="text-order-total">
+            <span className="text-white/50">Order total</span>
+            <span className="font-medium text-white" data-testid="text-order-total">
               ${Number(order.orderTotal).toFixed(2)}
             </span>
           </div>
-        </Card>
+        </div>
 
-        <Card className="p-5 rounded-2xl">
-          <h2 className="font-semibold text-foreground mb-4">Order Progress</h2>
+        <div className="p-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10">
+          <h2 className="font-semibold text-white mb-4">Order Progress</h2>
           <div className="space-y-4">
             {steps.map((step, index) => {
               const isLast = index === steps.length - 1;
@@ -103,17 +102,17 @@ export default function OrderDetail() {
                   <div className="flex flex-col items-center">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                       step.complete 
-                        ? "bg-primary" 
-                        : "bg-muted"
+                        ? "bg-white/20" 
+                        : "bg-white/5"
                     }`}>
-                      <Icon className={`w-4 h-4 ${step.complete ? "text-primary-foreground" : "text-muted-foreground"}`} />
+                      <Icon className={`w-4 h-4 ${step.complete ? "text-white" : "text-white/30"}`} />
                     </div>
                     {!isLast && (
-                      <div className={`w-0.5 h-6 mt-1 ${step.complete ? "bg-primary" : "bg-muted"}`} />
+                      <div className={`w-0.5 h-6 mt-1 ${step.complete ? "bg-white/20" : "bg-white/5"}`} />
                     )}
                   </div>
                   <div className="flex-1 pb-2">
-                    <p className={`font-medium ${step.complete ? "text-foreground" : "text-muted-foreground"}`}>
+                    <p className={`font-medium ${step.complete ? "text-white" : "text-white/40"}`}>
                       {step.label}
                     </p>
                   </div>
@@ -121,75 +120,75 @@ export default function OrderDetail() {
               );
             })}
           </div>
-        </Card>
+        </div>
 
         {status === "awaiting" && (
-          <Card className="p-5 rounded-2xl bg-[hsl(var(--status-awaiting))] border-0">
+          <div className="p-5 rounded-2xl bg-amber-500/15 backdrop-blur-sm border border-amber-400/20">
             <div className="flex items-start gap-4 mb-5">
-              <div className="w-10 h-10 rounded-xl bg-white/30 flex items-center justify-center flex-shrink-0">
-                <Camera className="w-5 h-5 text-[hsl(var(--status-awaiting-foreground))]" />
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                <Camera className="w-5 h-5 text-amber-300" />
               </div>
               <div>
-                <h3 className="font-semibold text-[hsl(var(--status-awaiting-foreground))]">
+                <h3 className="font-semibold text-amber-200">
                   Share to keep your discount
                 </h3>
-                <p className="text-sm text-[hsl(var(--status-awaiting-foreground))] opacity-80 mt-1">
+                <p className="text-sm text-amber-300/70 mt-1">
                   Post an Instagram Story tagging the brand to confirm your discount
                 </p>
               </div>
             </div>
             
-            <div className="bg-white/20 rounded-xl p-4 space-y-3">
-              <div className="flex items-center gap-2 text-sm text-[hsl(var(--status-awaiting-foreground))]">
+            <div className="bg-white/10 rounded-xl p-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm text-amber-200">
                 <Instagram className="w-4 h-4" />
                 <span className="font-medium">How to post:</span>
               </div>
-              <ol className="text-sm text-[hsl(var(--status-awaiting-foreground))] space-y-2 ml-6 list-decimal">
+              <ol className="text-sm text-amber-200/80 space-y-2 ml-6 list-decimal">
                 <li>Take a photo or video of your purchase</li>
                 <li>Add it to your Instagram Story</li>
                 <li>Tag the brand using the @ mention sticker</li>
               </ol>
-              <p className="text-xs text-[hsl(var(--status-awaiting-foreground))] opacity-70 mt-2">
+              <p className="text-xs text-amber-300/50 mt-2">
                 We'll verify your story automatically once you tag the brand
               </p>
             </div>
-          </Card>
+          </div>
         )}
 
         {status === "story_received" && (
-          <Card className="p-5 rounded-2xl bg-[hsl(var(--status-delivered))] border-0">
+          <div className="p-5 rounded-2xl bg-blue-500/15 backdrop-blur-sm border border-blue-400/20">
             <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-white/30 flex items-center justify-center flex-shrink-0">
-                <CheckCircle className="w-5 h-5 text-[hsl(var(--status-delivered-foreground))]" />
+              <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                <CheckCircle className="w-5 h-5 text-blue-300" />
               </div>
               <div>
-                <h3 className="font-semibold text-[hsl(var(--status-delivered-foreground))]">
+                <h3 className="font-semibold text-blue-200">
                   Story received
                 </h3>
-                <p className="text-sm text-[hsl(var(--status-delivered-foreground))] opacity-80 mt-1">
+                <p className="text-sm text-blue-300/70 mt-1">
                   We detected your story mention and are processing your verification
                 </p>
               </div>
             </div>
-          </Card>
+          </div>
         )}
 
         {status === "verified" && (
-          <Card className="p-5 rounded-2xl bg-[hsl(var(--status-verified))] border-0">
+          <div className="p-5 rounded-2xl bg-green-500/15 backdrop-blur-sm border border-green-400/20">
             <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-white/30 flex items-center justify-center flex-shrink-0">
-                <CheckCircle className="w-5 h-5 text-[hsl(var(--status-verified-foreground))]" />
+              <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                <CheckCircle className="w-5 h-5 text-green-300" />
               </div>
               <div>
-                <h3 className="font-semibold text-[hsl(var(--status-verified-foreground))]">
+                <h3 className="font-semibold text-green-200">
                   You saved ${Number(order.discountAmount).toFixed(2)}!
                 </h3>
-                <p className="text-sm text-[hsl(var(--status-verified-foreground))] opacity-80 mt-1">
+                <p className="text-sm text-green-300/70 mt-1">
                   Your story was verified and your discount is confirmed
                 </p>
               </div>
             </div>
-          </Card>
+          </div>
         )}
       </main>
     </div>

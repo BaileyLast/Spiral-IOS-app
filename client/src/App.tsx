@@ -35,7 +35,7 @@ function BottomNav() {
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border safe-bottom z-50">
+    <nav className="fixed bottom-0 left-0 right-0 bg-white/10 backdrop-blur-xl border-t border-white/10 safe-bottom z-50">
       <div className="flex items-center justify-around h-16 max-w-md mx-auto">
         {navItems.map((item) => {
           const active = isActive(item.path);
@@ -44,8 +44,8 @@ function BottomNav() {
               <button
                 className={`flex flex-col items-center justify-center w-20 h-full gap-1 transition-colors ${
                   active 
-                    ? "text-primary" 
-                    : "text-muted-foreground"
+                    ? "text-white" 
+                    : "text-white/50"
                 }`}
                 data-testid={`nav-${item.label.toLowerCase()}`}
               >
@@ -83,10 +83,39 @@ function AppContent() {
   const [location] = useLocation();
   
   const hideBottomNav = location === "/" || location === "/login" || location === "/verify-email" || location === "/connect-instagram" || location === "/instagram-help" || location === "/privacy" || location === "/data-deletion";
+  const showGradient = !hideBottomNav;
   
   return (
-    <div className="min-h-screen bg-background">
-      <main className={`${hideBottomNav ? "" : "pb-20"}`}>
+    <div className="min-h-screen relative">
+      {showGradient && (
+        <>
+          <div 
+            className="fixed inset-0 z-0"
+            style={{
+              background: `
+                linear-gradient(135deg, 
+                  hsl(265, 60%, 20%) 0%, 
+                  hsl(280, 55%, 30%) 25%, 
+                  hsl(290, 50%, 35%) 50%, 
+                  hsl(320, 45%, 30%) 75%, 
+                  hsl(340, 40%, 25%) 100%
+                )
+              `,
+            }}
+          />
+          <div 
+            className="fixed inset-0 z-0 opacity-30"
+            style={{
+              background: `
+                radial-gradient(ellipse at 30% 20%, hsl(270, 70%, 50%) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, hsl(320, 60%, 45%) 0%, transparent 40%)
+              `,
+            }}
+          />
+        </>
+      )}
+      {!showGradient && <div className="fixed inset-0 z-0 bg-background" />}
+      <main className={`relative z-10 ${hideBottomNav ? "" : "pb-20"}`}>
         <Router />
       </main>
       {!hideBottomNav && <BottomNav />}
