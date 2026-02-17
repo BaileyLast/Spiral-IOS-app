@@ -113,9 +113,9 @@ export default function Profile() {
       </header>
 
       <main className="px-6 pb-8 space-y-6">
-        <div className="p-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10">
+        <div className="p-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 cursor-pointer hover-elevate" data-testid="card-manage-account">
           <div className="flex items-center gap-4">
-            <Avatar className="w-14 h-14 border-2 border-white/20">
+            <Avatar className="w-14 h-14 border-0">
               {profile?.instagramProfilePicture ? (
                 <AvatarImage 
                   src="/api/customer/instagram-avatar"
@@ -130,10 +130,9 @@ export default function Profile() {
               <p className="font-semibold text-white truncate" data-testid="text-email">
                 {profile?.name || profile?.email || "Guest"}
               </p>
-              <p className="text-sm text-white/50 truncate">
-                {profile?.email}
-              </p>
+              <p className="text-sm text-white/50 mt-0.5">Manage account</p>
             </div>
+            <ChevronRight className="w-5 h-5 text-white/30 flex-shrink-0" />
           </div>
         </div>
 
