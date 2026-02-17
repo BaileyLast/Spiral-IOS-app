@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Gift, TrendingUp, ChevronRight, Instagram, Sparkles, Users, CheckCircle } from "lucide-react";
-import spiralLogoUrl from "@assets/Spiral logo (2)_1763051288266.png";
 import type { Order } from "@shared/schema";
 
 function getStatusLabel(order: Order) {
@@ -65,18 +64,7 @@ export default function CustomerHome() {
 
   return (
     <div className="min-h-screen safe-top">
-      <header className="px-6 pt-6 pb-4">
-        <div className="flex items-center justify-between">
-          <img 
-            src={spiralLogoUrl} 
-            alt="Spiral" 
-            className="h-7 object-contain brightness-0 invert"
-            data-testid="img-spiral-logo"
-          />
-        </div>
-      </header>
-
-      <main className="px-6 pb-8 space-y-6">
+      <main className="px-6 pt-8 pb-8 space-y-6">
         <div>
           <h1 className="text-2xl font-semibold text-white" data-testid="text-greeting">
             Hi{profile?.name ? `, ${profile.name}` : profile?.email ? `, ${profile.email.split("@")[0]}` : ""}
