@@ -137,44 +137,7 @@ export default function Profile() {
           </div>
         </div>
 
-        {isInstagramConnected ? (
-          <div className="p-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10">
-            <div className="flex items-center gap-4">
-              <Avatar className="w-12 h-12 border-2 border-white/20">
-                <AvatarImage 
-                  src="/api/customer/instagram-avatar"
-                  alt={profile.instagramHandle}
-                />
-                <AvatarFallback className="bg-gradient-to-br from-purple-400 to-pink-400 text-white">
-                  <Instagram className="w-5 h-5" />
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-white" data-testid="text-instagram-handle">
-                    @{profile.instagramHandle}
-                  </span>
-                  <CheckCircle className="w-4 h-4 text-green-400" />
-                </div>
-                <div className="flex items-center gap-3 text-sm text-white/50 mt-0.5">
-                  {profile.followerCount && (
-                    <div className="flex items-center gap-1">
-                      <Users className="w-3.5 h-3.5" />
-                      <span data-testid="text-follower-count">
-                        {formatFollowerCount(profile.followerCount)} followers
-                      </span>
-                    </div>
-                  )}
-                  {profile.instagramAccountType && (
-                    <span className="capitalize text-xs">
-                      {profile.instagramAccountType.toLowerCase()}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : (
+        {!isInstagramConnected && (
           <div 
             className="p-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 cursor-pointer hover-elevate"
             onClick={handleConnectInstagram}
