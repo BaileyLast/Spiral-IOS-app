@@ -2,7 +2,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Gift, TrendingUp, ChevronRight, Instagram, Sparkles } from "lucide-react";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Gift, TrendingUp, ChevronRight, Instagram, Sparkles, Users, CheckCircle } from "lucide-react";
 import spiralLogoUrl from "@assets/Spiral logo (2)_1763051288266.png";
 import type { Order } from "@shared/schema";
 
@@ -34,6 +35,15 @@ interface CustomerProfile {
   email: string;
   name?: string;
   instagramHandle?: string;
+  instagramProfilePicture?: string;
+  instagramAccountType?: string;
+  followerCount?: number;
+}
+
+function formatFollowerCount(count: number): string {
+  if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
+  if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
+  return count.toString();
 }
 
 export default function CustomerHome() {
@@ -66,12 +76,6 @@ export default function CustomerHome() {
             className="h-7 object-contain"
             data-testid="img-spiral-logo"
           />
-          {profile?.instagramHandle && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Instagram className="w-4 h-4" />
-              <span data-testid="text-instagram-handle">@{profile.instagramHandle}</span>
-            </div>
-          )}
         </div>
       </header>
 
@@ -82,6 +86,40 @@ export default function CustomerHome() {
           </h1>
           <p className="text-muted-foreground mt-1">Here's your Spiral activity</p>
         </div>
+
+        {profile?.instagramHandle && (
+          <Card className="p-4 rounded-2xl" data-testid="card-instagram-profile">
+            <div className="flex items-center gap-3">
+              <Avatar className="w-11 h-11 border-2 border-primary/20">
+                {profile.instagramProfilePicture ? (
+                  <AvatarImage
+                    src={profile.instagramProfilePicture}
+                    alt={profile.instagramHandle}
+                  />
+                ) : null}
+                <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white">
+                  <Instagram className="w-5 h-5" />
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-medium text-foreground truncate" data-testid="text-instagram-handle">
+                    @{profile.instagramHandle}
+                  </span>
+                  <CheckCircle className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
+                </div>
+                {profile.followerCount ? (
+                  <div className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5">
+                    <Users className="w-3.5 h-3.5" />
+                    <span data-testid="text-follower-count">
+                      {formatFollowerCount(profile.followerCount)} followers
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </Card>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <Card className="p-5 rounded-2xl relative overflow-hidden">
