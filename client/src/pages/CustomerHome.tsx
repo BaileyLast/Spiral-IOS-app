@@ -91,12 +91,10 @@ export default function CustomerHome() {
           <Card className="p-4 rounded-2xl" data-testid="card-instagram-profile">
             <div className="flex items-center gap-3">
               <Avatar className="w-11 h-11 border-2 border-primary/20">
-                {profile.instagramProfilePicture ? (
-                  <AvatarImage
-                    src={profile.instagramProfilePicture}
-                    alt={profile.instagramHandle}
-                  />
-                ) : null}
+                <AvatarImage
+                  src="/api/customer/instagram-avatar"
+                  alt={profile.instagramHandle}
+                />
                 <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white">
                   <Instagram className="w-5 h-5" />
                 </AvatarFallback>

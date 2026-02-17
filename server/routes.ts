@@ -1700,6 +1700,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Proxy Instagram profile pictures to avoid CORS/expiry issues
+  app.get("/api/customer/instagram-avatar", async (req, res) => {
+    try {
+      const customerId = req.session.customerId;
+      if (!customerId) {
+        return res.status(401).end();
+      }
+
+      const customer = await storage.getSpiralCustomerById(customerId);
+      if (!customer?.instagramUserId) {
+        return res.status(404).end();
+      }
+
+      let picUrl = customer.instagramProfilePicture;
+
+      if (!picUrl && process.env.RAPIDAPI_KEY) {
+        try {
+          const igData = await fetchInstagramDataByUserId(customer.instagramUserId, process.env.RAPIDAPI_KEY);
+          if (igData.profilePicture) {
+            picUrl = igData.profilePicture;
+            await storage.updateSpiralCustomerInstagram(customer.id, {
+              instagramHandle: customer.instagramHandle,
+              instagramUserId: customer.instagramUserId,
+              instagramAccessToken: null,
+              instagramTokenExpiry: null,
+              instagramProfilePicture: picUrl,
+              instagramAccountType: customer.instagramAccountType || "UNKNOWN",
+              followerCount: igData.followerCount || customer.followerCount || 0,
+            });
+          }
+        } catch (e) {
+          console.error("Failed to fetch IG pic from RapidAPI:", e);
+        }
+      }
+
+      if (!picUrl) {
+        return res.status(404).end();
+      }
+
+      const imgResponse = await fetch(picUrl);
+      if (!imgResponse.ok) {
+        // URL expired — refetch from RapidAPI
+        if (process.env.RAPIDAPI_KEY) {
+          try {
+            const igData = await fetchInstagramDataByUserId(customer.instagramUserId, process.env.RAPIDAPI_KEY);
+            if (igData.profilePicture) {
+              picUrl = igData.profilePicture;
+              await storage.updateSpiralCustomerInstagram(customer.id, {
+                instagramHandle: customer.instagramHandle,
+                instagramUserId: customer.instagramUserId,
+                instagramAccessToken: null,
+                instagramTokenExpiry: null,
+                instagramProfilePicture: picUrl,
+                instagramAccountType: customer.instagramAccountType || "UNKNOWN",
+                followerCount: igData.followerCount || customer.followerCount || 0,
+              });
+              const retryResponse = await fetch(picUrl);
+              if (retryResponse.ok) {
+                const contentType = retryResponse.headers.get("content-type") || "image/jpeg";
+                res.setHeader("Content-Type", contentType);
+                res.setHeader("Cache-Control", "public, max-age=3600");
+                const buffer = await retryResponse.arrayBuffer();
+                return res.send(Buffer.from(buffer));
+              }
+            }
+          } catch (e) {
+            console.error("Failed to refetch IG pic:", e);
+          }
+        }
+        return res.status(404).end();
+      }
+
+      const contentType = imgResponse.headers.get("content-type") || "image/jpeg";
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      const buffer = await imgResponse.arrayBuffer();
+      res.send(Buffer.from(buffer));
+    } catch (error) {
+      console.error("Instagram avatar proxy error:", error);
+      res.status(500).end();
+    }
+  });
+
   // Helper to get fixed redirect URI
   const getInstagramRedirectUri = (req: any): string => {
     // Use configured base URL if available

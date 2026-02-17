@@ -146,12 +146,10 @@ export default function Profile() {
           <Card className="p-5 rounded-2xl">
             <div className="flex items-center gap-4">
               <Avatar className="w-12 h-12 border-2 border-primary/20">
-                {profile?.instagramProfilePicture ? (
-                  <AvatarImage 
-                    src={profile.instagramProfilePicture} 
-                    alt={profile.instagramHandle}
-                  />
-                ) : null}
+                <AvatarImage 
+                  src="/api/customer/instagram-avatar"
+                  alt={profile.instagramHandle}
+                />
                 <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white">
                   <Instagram className="w-5 h-5" />
                 </AvatarFallback>
