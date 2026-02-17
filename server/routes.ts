@@ -1661,6 +1661,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Customer not found" });
       }
 
+      let profilePicture = customer.instagramProfilePicture;
+
+      if (!profilePicture && customer.instagramUserId && process.env.RAPIDAPI_KEY) {
+        try {
+          const igData = await fetchInstagramDataByUserId(customer.instagramUserId, process.env.RAPIDAPI_KEY);
+          if (igData.profilePicture) {
+            profilePicture = igData.profilePicture;
+            await storage.updateSpiralCustomerInstagram(customer.id, {
+              instagramHandle: customer.instagramHandle,
+              instagramUserId: customer.instagramUserId,
+              instagramAccessToken: null,
+              instagramTokenExpiry: null,
+              instagramProfilePicture: profilePicture,
+              instagramAccountType: customer.instagramAccountType || "UNKNOWN",
+              followerCount: igData.followerCount || customer.followerCount || 0,
+            });
+          }
+        } catch (igError) {
+          console.error("Failed to backfill Instagram profile picture:", igError);
+        }
+      }
+
       res.json({
         id: customer.id,
         email: customer.email,
@@ -1668,7 +1690,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         emailVerified: customer.emailVerified,
         instagramHandle: customer.instagramHandle,
         instagramUserId: customer.instagramUserId,
-        instagramProfilePicture: customer.instagramProfilePicture,
+        instagramProfilePicture: profilePicture,
         instagramAccountType: customer.instagramAccountType,
         followerCount: customer.followerCount,
       });
