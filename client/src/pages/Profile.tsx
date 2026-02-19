@@ -1,22 +1,16 @@
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
 import { 
-  Instagram, 
   Bell, 
   LogOut, 
   ChevronRight, 
-  Shield, 
-  Gift,
   Trash2,
-  Users,
-  CheckCircle,
   Plus,
-  Loader2
+  Loader2,
+  Instagram,
 } from "lucide-react";
 import spiralLogoUrl from "@assets/Spiral logo (2)_1763051288266.png";
 
@@ -45,8 +39,6 @@ function formatFollowerCount(count: number | null | undefined): string {
 
 export default function Profile() {
   const [, setLocation] = useLocation();
-  const { toast } = useToast();
-
   const { data: profile, isLoading: profileLoading } = useQuery<CustomerProfile>({
     queryKey: ["/api/customer/me"],
   });
@@ -63,28 +55,6 @@ export default function Profile() {
       localStorage.removeItem("spiral_customer");
       queryClient.clear();
       setLocation("/");
-    },
-  });
-
-  const disconnectMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/customer/disconnect-instagram");
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Instagram disconnected",
-        description: "Your Instagram account has been unlinked",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/customer/me"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/customer/stats"] });
-    },
-    onError: () => {
-      toast({
-        title: "Failed to disconnect",
-        description: "Please try again",
-        variant: "destructive",
-      });
     },
   });
 
@@ -113,7 +83,7 @@ export default function Profile() {
       </header>
 
       <main className="px-6 pb-8 space-y-6">
-        <div className="p-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 cursor-pointer hover-elevate" data-testid="card-manage-account">
+        <div className="p-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 cursor-pointer hover-elevate" onClick={() => setLocation("/manage-account")} data-testid="card-manage-account">
           <div className="flex items-center gap-4">
             <Avatar className="w-14 h-14 border-0">
               {profile?.instagramProfilePicture ? (
@@ -166,21 +136,6 @@ export default function Profile() {
               </div>
               <Switch defaultChecked data-testid="switch-notifications" />
             </div>
-
-            {isInstagramConnected && (
-              <button
-                onClick={() => disconnectMutation.mutate()}
-                disabled={disconnectMutation.isPending}
-                className="w-full flex items-center justify-between p-4 hover-elevate"
-                data-testid="button-disconnect-instagram"
-              >
-                <div className="flex items-center gap-3">
-                  <Instagram className="w-5 h-5 text-white/50" />
-                  <span className="font-medium text-white">Disconnect Instagram</span>
-                </div>
-                <ChevronRight className="w-5 h-5 text-white/30" />
-              </button>
-            )}
 
             <button
               onClick={handleLogout}

@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import crypto from "crypto";
 import { Resend } from "resend";
 import { storage } from "./storage";
+import { z } from "zod";
 import { insertStoreSettingsSchema, insertDiscountTierSchema, insertVerificationSchema } from "@shared/schema";
 import { fetchShopifyProducts, fetchShopifyCollections } from "./shopify";
 
@@ -1701,6 +1702,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         instagramProfilePicture: profilePicture,
         instagramAccountType: customer.instagramAccountType,
         followerCount,
+        dateOfBirth: customer.dateOfBirth,
+        address: customer.address,
       });
     } catch (error) {
       console.error("Get customer profile error:", error);
@@ -2064,6 +2067,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Instagram disconnect error:", error);
       res.status(500).json({ error: "Failed to disconnect Instagram" });
+    }
+  });
+
+  app.patch("/api/customer/profile", async (req, res) => {
+    try {
+      const customerId = req.session.customerId;
+      if (!customerId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const profileUpdateSchema = z.object({
+        name: z.string().max(100).optional(),
+        dateOfBirth: z.string().max(20).nullable().optional(),
+        address: z.string().max(500).nullable().optional(),
+      });
+
+      const parsed = profileUpdateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+      }
+
+      const { name, dateOfBirth, address } = parsed.data;
+      const updateData: { name?: string; dateOfBirth?: string | null; address?: string | null } = {};
+      if (name !== undefined) updateData.name = name;
+      if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth;
+      if (address !== undefined) updateData.address = address;
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ error: "No fields to update" });
+      }
+
+      const updated = await storage.updateSpiralCustomerProfile(customerId, updateData);
+      res.json({
+        name: updated.name,
+        email: updated.email,
+        dateOfBirth: updated.dateOfBirth,
+        address: updated.address,
+      });
+    } catch (error) {
+      console.error("Profile update error:", error);
+      res.status(500).json({ error: "Failed to update profile" });
     }
   });
 

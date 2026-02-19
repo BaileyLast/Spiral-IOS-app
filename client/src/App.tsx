@@ -14,6 +14,7 @@ import OrderDetail from "@/pages/OrderDetail";
 import Profile from "@/pages/Profile";
 import Marketplace from "@/pages/Marketplace";
 import CustomerHome from "@/pages/CustomerHome";
+import ManageAccount from "@/pages/ManageAccount";
 import Privacy from "@/pages/Privacy";
 import DataDeletion from "@/pages/DataDeletion";
 
@@ -73,6 +74,7 @@ function Router() {
       <Route path="/discounts" component={Orders} />
       <Route path="/orders/:id" component={OrderDetail} />
       <Route path="/profile" component={Profile} />
+      <Route path="/manage-account" component={ManageAccount} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/data-deletion" component={DataDeletion} />
     </Switch>
@@ -82,8 +84,8 @@ function Router() {
 function AppContent() {
   const [location] = useLocation();
   
-  const hideBottomNav = location === "/" || location === "/login" || location === "/verify-email" || location === "/connect-instagram" || location === "/instagram-help" || location === "/privacy" || location === "/data-deletion";
-  const showGradient = !hideBottomNav;
+  const hideBottomNav = location === "/" || location === "/login" || location === "/verify-email" || location === "/connect-instagram" || location === "/instagram-help" || location === "/privacy" || location === "/data-deletion" || location === "/manage-account";
+  const showGradient = location !== "/" && location !== "/login" && location !== "/verify-email" && location !== "/privacy" && location !== "/data-deletion";
   
   return (
     <div className="min-h-screen relative">

@@ -27,6 +27,7 @@ Preferred communication style: Simple, everyday language.
 - **Discounts** (`/discounts`): List of all orders with status badges
 - **Order Detail** (`/orders/:id`): Progress timeline, discount info, posting instructions
 - **Profile** (`/profile`): Account info, Instagram status, settings, logout
+- **Manage Account** (`/manage-account`): Instagram disconnect card with profile pic, editable account info (email, name, date of birth, address)
 
 ### Backend
 - **Server**: Express.js with middleware for request handling, logging, and JSON body parsing.
@@ -49,6 +50,7 @@ Preferred communication style: Simple, everyday language.
 - `GET /api/customer/spiral-code/status`: Poll for verification status
 - `POST /api/customer/spiral-code/regenerate`: Generate a new code (invalidates old)
 - `POST /api/customer/disconnect-instagram`: Unlink Instagram account
+- `PATCH /api/customer/profile`: Update customer profile (name, dateOfBirth, address)
 - `GET /api/customer/orders`: Get customer's orders
 - `GET /api/customer/orders/:id`: Get single order details
 - `GET /api/customer/stats`: Get total saved and orders completed
