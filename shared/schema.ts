@@ -99,6 +99,8 @@ export const spiralCustomers = pgTable("spiral_customers", {
   instagramAccountType: text("instagram_account_type"),
   followerCount: integer("follower_count"),
   followerCountUpdatedAt: timestamp("follower_count_updated_at"),
+  dateOfBirth: text("date_of_birth"),
+  address: text("address"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   lastLoginAt: timestamp("last_login_at"),
