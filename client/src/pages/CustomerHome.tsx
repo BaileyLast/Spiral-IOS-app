@@ -67,7 +67,7 @@ export default function CustomerHome() {
       <main className="px-6 pt-14 pb-8 space-y-6">
         {profile?.instagramHandle && (
           <div className="text-center" data-testid="card-instagram-profile">
-            <Avatar className="w-20 h-20 mx-auto border-0">
+            <Avatar className="w-20 h-20 mx-auto border-2 border-white/20">
               <AvatarImage
                 src="/api/customer/instagram-avatar"
                 alt={profile.instagramHandle}
