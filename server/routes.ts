@@ -2376,7 +2376,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Webhook verification endpoint (Meta requires this for setup)
   app.get("/webhooks/instagram-dm", (req, res) => {
-    const VERIFY_TOKEN = process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN || 'Spiral_Verification';
+    const VERIFY_TOKEN = process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN || 'spiral_verify_token';
     
     const mode = req.query['hub.mode'];
     const token = req.query['hub.verify_token'];
