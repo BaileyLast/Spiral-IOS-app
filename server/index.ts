@@ -7,6 +7,11 @@ import { pool } from "./db";
 
 const app = express();
 
+app.use((req, _res, next) => {
+  console.log(`[INCOMING] ${req.method} ${req.path} from ${req.ip}`);
+  next();
+});
+
 app.get("/health", (_req, res) => {
   res.status(200).send("ok");
 });
