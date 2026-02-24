@@ -2371,6 +2371,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ============================================
+  // Re-subscribe Facebook Page to Instagram messaging webhooks
+  // ============================================
+
+  app.post("/api/admin/resubscribe-webhooks", async (_req, res) => {
+    try {
+      const settings = await storage.getStoreSettings();
+      if (!settings) {
+        return res.status(404).json({ error: "No store settings found" });
+      }
+
+      const pageId = settings.instagramPageId;
+      const accessToken = settings.instagramAccessToken;
+
+      if (!pageId || !accessToken) {
+        return res.status(400).json({ error: "Missing Instagram Page ID or access token in store settings" });
+      }
+
+      const subscribeUrl = `https://graph.facebook.com/v18.0/${pageId}/subscribed_apps`;
+      const subscribeRes = await fetch(subscribeUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subscribed_fields: ['messages', 'messaging_postbacks'],
+          access_token: accessToken,
+        }),
+      });
+
+      const result = await subscribeRes.json();
+      console.log('Resubscribe webhook result:', JSON.stringify(result));
+
+      if (subscribeRes.ok) {
+        await storage.updateStoreWebhookStatus(settings.id, 'active');
+        return res.json({ success: true, result });
+      } else {
+        await storage.updateStoreWebhookStatus(settings.id, 'subscription_failed');
+        return res.status(400).json({ success: false, error: result });
+      }
+    } catch (error: any) {
+      console.error('Resubscribe webhook error:', error);
+      return res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================
   // Instagram DM Webhook (for receiving verification DMs)
   // ============================================
 
