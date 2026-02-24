@@ -5,9 +5,12 @@ import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
 
-app.use((_req, res, next) => {
-  if (_req.path === "/" && _req.method === "GET" && process.env.NODE_ENV === "production") {
-    return res.status(200).send("ok");
+app.use((req, res, next) => {
+  if (process.env.NODE_ENV === "production") {
+    console.log(`[INCOMING] ${req.method} ${req.path} from ${req.ip}`);
+    if (req.path === "/" && req.method === "GET") {
+      return res.status(200).send("ok");
+    }
   }
   next();
 });
