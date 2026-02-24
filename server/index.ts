@@ -1,20 +1,31 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { pool } from "./db";
 
 const app = express();
+
+app.get("/health", (_req, res) => {
+  res.status(200).send("ok");
+});
 
 app.set('trust proxy', 1);
 
 const isProduction = process.env.NODE_ENV === 'production';
 const isReplit = !!process.env.REPL_SLUG;
 
+const PgStore = connectPgSimple(session);
+
 app.use(session({
   secret: process.env.SESSION_SECRET || 'spiral-dev-secret-change-in-production',
   resave: false,
   saveUninitialized: false,
-  store: undefined,
+  store: new PgStore({
+    pool: pool as any,
+    createTableIfMissing: true,
+  }),
   cookie: {
     secure: isProduction || isReplit,
     httpOnly: true,
