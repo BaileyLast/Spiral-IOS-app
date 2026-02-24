@@ -2376,16 +2376,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/admin/resubscribe-webhooks", async (_req, res) => {
     try {
-      const settings = await storage.getStoreSettings();
-      if (!settings) {
-        return res.status(404).json({ error: "No store settings found" });
-      }
-
-      const pageId = settings.instagramPageId;
-      const accessToken = settings.instagramAccessToken;
+      const pageId = process.env.SPIRAL_INSTAGRAM_BUSINESS_ID;
+      const accessToken = process.env.SPIRAL_INSTAGRAM_ACCESS_TOKEN;
 
       if (!pageId || !accessToken) {
-        return res.status(400).json({ error: "Missing Instagram Page ID or access token in store settings" });
+        return res.status(400).json({ error: "Missing SPIRAL_INSTAGRAM_BUSINESS_ID or SPIRAL_INSTAGRAM_ACCESS_TOKEN env vars" });
       }
 
       const subscribeUrl = `https://graph.facebook.com/v18.0/${pageId}/subscribed_apps`;
@@ -2402,10 +2397,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('Resubscribe webhook result:', JSON.stringify(result));
 
       if (subscribeRes.ok) {
-        await storage.updateStoreWebhookStatus(settings.id, 'active');
         return res.json({ success: true, result });
       } else {
-        await storage.updateStoreWebhookStatus(settings.id, 'subscription_failed');
         return res.status(400).json({ success: false, error: result });
       }
     } catch (error: any) {
