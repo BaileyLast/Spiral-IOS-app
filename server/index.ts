@@ -5,6 +5,13 @@ import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
 
+app.use((_req, res, next) => {
+  if (_req.path === "/" && _req.method === "GET" && process.env.NODE_ENV === "production") {
+    return res.status(200).send("ok");
+  }
+  next();
+});
+
 // Trust proxy for Render deployment (required for secure cookies behind reverse proxy)
 app.set('trust proxy', 1);
 
