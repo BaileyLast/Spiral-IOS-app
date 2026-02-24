@@ -56,10 +56,6 @@ declare module 'express-session' {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  app.get("/__health", (_req, res) => {
-    res.status(200).send("ok");
-  });
-
   // Store Settings Routes
   app.get("/api/settings", async (req, res) => {
     try {
