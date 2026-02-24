@@ -5,21 +5,8 @@ import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
 
-app.use((req, res, next) => {
-  if (process.env.NODE_ENV === "production") {
-    console.log(`[INCOMING] ${req.method} ${req.path} from ${req.ip}`);
-    if (req.path === "/" && req.method === "GET") {
-      return res.status(200).send("ok");
-    }
-  }
-  next();
-});
-
-// Trust proxy for Render deployment (required for secure cookies behind reverse proxy)
 app.set('trust proxy', 1);
 
-// Session middleware for OAuth state management
-// In Replit, we're always behind HTTPS even in development
 const isProduction = process.env.NODE_ENV === 'production';
 const isReplit = !!process.env.REPL_SLUG;
 
@@ -27,11 +14,12 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'spiral-dev-secret-change-in-production',
   resave: false,
   saveUninitialized: false,
+  store: undefined,
   cookie: {
-    secure: isProduction || isReplit, // Replit uses HTTPS
+    secure: isProduction || isReplit,
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    sameSite: isReplit ? 'none' : 'lax', // 'none' required for Replit iframe context
+    maxAge: 24 * 60 * 60 * 1000,
+    sameSite: isReplit ? 'none' : 'lax',
   }
 }));
 
@@ -88,19 +76,12 @@ app.use((req, res, next) => {
     throw err;
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
   if (app.get("env") === "development") {
     await setupVite(app, server);
   } else {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
   server.listen({
     port,
