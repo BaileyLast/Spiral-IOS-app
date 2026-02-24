@@ -56,6 +56,10 @@ declare module 'express-session' {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  app.get("/", (_req, res) => {
+    res.status(200).json({ status: "healthy", app: "spiral-customer" });
+  });
+
   // Store Settings Routes
   app.get("/api/settings", async (req, res) => {
     try {
