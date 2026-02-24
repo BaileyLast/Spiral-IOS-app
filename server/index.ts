@@ -16,13 +16,6 @@ app.get("/health", (_req, res) => {
   res.status(200).send("ok");
 });
 
-app.get("/", (_req, res, next) => {
-  if (process.env.NODE_ENV === "production") {
-    return res.status(200).type("html").send("<!DOCTYPE html><html><body>ok</body></html>");
-  }
-  next();
-});
-
 app.set('trust proxy', 1);
 
 const isProduction = process.env.NODE_ENV === 'production';
