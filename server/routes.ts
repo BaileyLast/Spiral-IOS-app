@@ -1237,6 +1237,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============================================
   // Checkout API (for Shopify Checkout Extension)
   // ============================================
+  console.log("[Spiral] Registering checkout API endpoints...");
 
   // CORS preflight for all checkout endpoints (merchant plugin calls cross-origin)
   app.options("/api/checkout/*", (req, res) => {
