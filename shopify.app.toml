@@ -8,11 +8,11 @@
 
 name = "Spiral"
 client_id = "edf4e15492cfecf8934f5084e4f8e686"
-application_url = "https://joinspiral.app"
+application_url = "https://spiral-app-1.replit.app"
 embedded = true
 
 [auth]
-redirect_urls = ["https://joinspiral.app/shopify/callback"]
+redirect_urls = ["https://spiral-app-1.replit.app/shopify/callback"]
 
 [access_scopes]
 scopes = "read_products,read_orders,write_discounts,read_fulfillments"
