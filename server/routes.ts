@@ -1238,49 +1238,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Checkout API (for Shopify Checkout Extension)
   // ============================================
 
-  // Authenticate Spiral customer and get their discount entitlement
-  // Called by checkout extension when customer logs in
+  // CORS preflight for all checkout endpoints (merchant plugin calls cross-origin)
+  app.options("/api/checkout/*", (req, res) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.header("Access-Control-Max-Age", "86400");
+    res.status(204).end();
+  });
+
+  // CORS middleware for all checkout endpoints
+  app.use("/api/checkout", (req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    next();
+  });
+
+  // Health check endpoint for merchant plugin connectivity test
+  app.get("/api/checkout/config", (req, res) => {
+    res.json({ status: "ok", version: "1.0" });
+  });
+
+  // Authenticate Spiral customer and return their profile data
+  // Called by merchant plugin when shopper logs in at checkout
   app.post("/api/checkout/authenticate", async (req, res) => {
     try {
       const { email, password } = req.body;
       
       if (!email || !password) {
-        return res.status(400).json({ error: 'Email and password required' });
+        return res.status(400).json({ authenticated: false, error: 'Email and password required' });
       }
-      
-      const customer = await storage.getSpiralCustomerByEmail(email);
+
+      const normalizedEmail = email.toLowerCase().trim();
+      const customer = await storage.getSpiralCustomerByEmail(normalizedEmail);
       
       if (!customer) {
-        return res.status(401).json({ error: 'Invalid credentials' });
+        return res.status(401).json({ authenticated: false, error: 'Invalid email or password' });
+      }
+
+      // Verify password with salt (same logic as customer login)
+      const [storedHash, salt] = customer.passwordHash.split(":");
+      let isValid = false;
+
+      if (salt) {
+        const passwordHash = crypto.createHash("sha256").update(salt + password).digest("hex");
+        isValid = storedHash === passwordHash;
+      } else {
+        const passwordHash = crypto.createHash("sha256").update(password).digest("hex");
+        isValid = customer.passwordHash === passwordHash;
       }
       
-      // Verify password (simple comparison for now - iOS app handles actual hashing)
-      // In production, use bcrypt or similar
-      const passwordValid = customer.passwordHash === password; // Placeholder - iOS app sends hashed password
-      
-      if (!passwordValid) {
-        return res.status(401).json({ error: 'Invalid credentials' });
+      if (!isValid) {
+        return res.status(401).json({ authenticated: false, error: 'Invalid email or password' });
       }
       
       if (!customer.isActive) {
-        return res.status(403).json({ error: 'Account is deactivated' });
+        return res.status(403).json({ authenticated: false, error: 'Account is deactivated' });
       }
       
       // Update last login
       await storage.updateSpiralCustomerLastLogin(customer.id);
       
-      // Return customer info (without password)
       res.json({
+        authenticated: true,
         customerId: customer.id,
         email: customer.email,
-        instagramHandle: customer.instagramHandle,
+        instagramHandle: customer.instagramHandle ? `@${customer.instagramHandle}` : null,
         instagramUserId: customer.instagramUserId,
-        followerCount: customer.followerCount,
-        followerCountUpdatedAt: customer.followerCountUpdatedAt,
+        followerCount: customer.followerCount || 0,
       });
     } catch (error) {
       console.error('Checkout authentication error:', error);
-      res.status(500).json({ error: 'Authentication failed' });
+      res.status(500).json({ authenticated: false, error: 'Authentication failed' });
     }
   });
 
@@ -1366,38 +1396,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Confirm discount was applied to order
-  // Called by checkout extension after discount is applied
+  // Called by merchant plugin after a Shopify order is placed with a Spiral discount
   app.post("/api/checkout/confirm-discount", async (req, res) => {
     try {
       const { 
         customerId, 
-        shopifyOrderId, 
+        // Accept both merchant plugin field names and legacy field names
+        orderId: merchantOrderId,
+        shopifyOrderId: legacyShopifyOrderId,
+        orderNumber,
+        shopDomain,
         discountPercent, 
-        discountAmount, 
-        orderTotal 
+        discountCode,
+        discountAmount: legacyDiscountAmount,
+        totalPrice,
+        orderTotal: legacyOrderTotal,
+        currency,
       } = req.body;
+
+      const shopifyOrderId = merchantOrderId || legacyShopifyOrderId;
       
       if (!customerId || !shopifyOrderId) {
-        return res.status(400).json({ error: 'Customer ID and Shopify Order ID required' });
+        return res.status(400).json({ error: 'Customer ID and order ID required' });
       }
       
-      // Get customer
       const customer = await storage.getSpiralCustomerById(customerId);
       
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
       
-      // Get store settings for posting window
       const settings = await storage.getStoreSettings();
       const postingWindowDays = settings?.postingWindowDays || 7;
       
-      // Calculate post deadline
       const now = new Date();
       const postDeadline = new Date(now);
       postDeadline.setDate(postDeadline.getDate() + postingWindowDays);
+
+      // Calculate discount amount from percent and total if not provided directly
+      const orderTotal = parseFloat(totalPrice || legacyOrderTotal || '0');
+      const discountPct = parseFloat(discountPercent || '0');
+      const discountAmount = legacyDiscountAmount 
+        ? parseFloat(legacyDiscountAmount.toString()) 
+        : (orderTotal * discountPct / 100);
       
-      // Create order record
+      // Check for existing order (idempotency)
+      const existingOrder = await storage.getOrderByShopifyOrderId(shopifyOrderId.toString());
+      if (existingOrder) {
+        return res.json({ success: true });
+      }
+      
       const order = await storage.createOrder({
         shopifyOrderId: shopifyOrderId.toString(),
         shopperEmail: customer.email,
@@ -1405,37 +1453,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         instagramHandle: customer.instagramHandle,
         instagramUserId: customer.instagramUserId,
         followerCount: customer.followerCount,
-        discountPercent: discountPercent?.toString() || '0',
-        orderTotal: orderTotal?.toString() || '0',
-        discountAmount: discountAmount?.toString() || '0',
+        discountPercent: discountPct.toFixed(2),
+        orderTotal: orderTotal.toFixed(2),
+        discountAmount: discountAmount.toFixed(2),
         status: 'pending',
         postDeadline,
         verificationStatus: 'pending',
       });
       
-      // Create verification record
       const verification = await storage.createVerification({
         orderId: order.id,
         shopperEmail: customer.email,
         instagramHandle: customer.instagramHandle || '',
         instagramUserId: customer.instagramUserId || '',
         followerCount: customer.followerCount || 0,
-        discountAmount: discountAmount?.toString() || '0',
+        discountAmount: discountAmount.toFixed(2),
         status: 'pending',
       });
       
-      // Link verification to order
       await storage.updateOrderVerificationStatus(order.id, 'pending', verification.id);
       
-      console.log(`Checkout confirmed: Order ${order.id} for customer ${customer.email}, ${customer.followerCount} followers, ${discountPercent}% discount`);
+      console.log(`Checkout confirmed: Order ${order.id} (Shopify ${shopifyOrderId}) for customer ${customer.email}, ${customer.followerCount} followers, ${discountPct}% discount`);
       
-      res.json({
-        success: true,
-        orderId: order.id,
-        verificationId: verification.id,
-        postDeadline,
-        message: 'Discount confirmed. Customer must post Instagram story within posting window.',
-      });
+      res.json({ success: true });
     } catch (error) {
       console.error('Discount confirmation error:', error);
       res.status(500).json({ error: 'Failed to confirm discount' });
