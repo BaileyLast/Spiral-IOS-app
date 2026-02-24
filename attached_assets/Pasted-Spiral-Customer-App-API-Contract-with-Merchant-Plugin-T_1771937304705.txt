@@ -1,0 +1,76 @@
+Spiral Customer App — API Contract with Merchant Plugin
+
+The merchant plugin (Shopify) relies on the following endpoints from the customer-facing app. These must exist and return the expected responses.
+
+1. POST /api/checkout/authenticate
+Called when a shopper logs in at checkout via the merchant's widget.
+
+Request body:
+
+{
+  "email": "customer@example.com",
+  "password": "their-password"
+}
+Expected success response (200):
+
+{
+  "authenticated": true,
+  "customerId": "unique-customer-id",
+  "instagramHandle": "@theirhandle",
+  "instagramUserId": "17841400123456",
+  "followerCount": 2500
+}
+Expected failure response (401):
+
+{
+  "authenticated": false,
+  "error": "Invalid email or password"
+}
+Key points:
+
+customerId must be a stable unique identifier for this customer (used to link orders)
+followerCount must be a current integer — the merchant plugin uses this to match against their own discount tiers
+instagramUserId is the regular Instagram user ID (not a messaging-scoped ID)
+2. POST /api/checkout/confirm-discount
+Called by the merchant plugin after a Shopify order is placed with a Spiral discount. This syncs the order to the customer app so shoppers see it in the iOS app.
+
+Request body:
+
+{
+  "customerId": "unique-customer-id",
+  "orderId": "shopify-order-id",
+  "orderNumber": "#1001",
+  "shopDomain": "merchant-store.myshopify.com",
+  "discountPercent": 15,
+  "discountCode": "SPIRAL-ABC123",
+  "totalPrice": "85.00",
+  "currency": "GBP"
+}
+Expected success response (200):
+
+{
+  "success": true
+}
+This call is non-fatal on the merchant side — if it fails, the order still processes. But the customer won't see the order in their app.
+
+3. GET /api/checkout/config
+Used by the merchant plugin to test connectivity to the customer app. Should return a 200 with any valid JSON.
+
+Expected response (200):
+
+{
+  "status": "ok",
+  "version": "1.0"
+}
+CORS
+All three endpoints must allow cross-origin requests (the merchant plugin calls these from its server, and the widget may call from the shopper's browser). Set Access-Control-Allow-Origin: * or whitelist the merchant's domain.
+
+Auth Flow Summary
+Shopper clicks "Login with Spiral" on merchant's Shopify store
+Widget sends email/password to merchant plugin /api/checkout/login-and-discount
+Merchant plugin proxies to customer app POST /api/checkout/authenticate
+If authenticated, merchant plugin looks up its own discount tiers based on followerCount
+Merchant plugin creates a single-use Shopify discount code via Shopify Admin API
+Discount code returned to widget, auto-applied at cart/checkout
+After order is placed, merchant plugin calls customer app POST /api/checkout/confirm-discount
+Customer registration and Instagram account linking happen exclusively in the iOS app — the merchant plugin never handles sign-ups.
