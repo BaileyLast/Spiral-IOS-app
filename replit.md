@@ -8,6 +8,15 @@ Spiral is a customer-facing mobile application that allows shoppers to earn inst
 
 Preferred communication style: Simple, everyday language.
 
+## Server & Deployment Notes
+
+- Server listener uses `Number(process.env.PORT) || 3000` — no hardcoded port 5000.
+- In development, the workflow sets `PORT=5000` via the command (`PORT=5000 npm run dev`).
+- Deployment target: Reserved VM (`deploymentTarget = "vm"`).
+- Production commands: `npm run build` then `npm run start`.
+- The `/health` endpoint returns "ok" at 200 for health checks.
+- All incoming requests are logged with `[INCOMING]` prefix.
+
 ## System Architecture
 
 ### Frontend
