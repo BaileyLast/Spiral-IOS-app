@@ -710,21 +710,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Instagram OAuth Routes
+  // Instagram OAuth Routes (uses Facebook Login via SPIRAL APP for Page token generation)
   app.get("/auth/instagram", (req, res) => {
-    const redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
-    const appId = process.env.INSTAGRAM_APP_ID;
-    const scopes = 'instagram_basic,instagram_manage_messages,pages_show_list,pages_read_engagement,pages_manage_metadata';
+    const appId = process.env.FACEBOOK_APP_ID;
+    const appSecret = process.env.FACEBOOK_APP_SECRET;
 
-    if (!redirectUri || !appId) {
-      return res.status(500).json({ error: "Instagram credentials not configured" });
+    if (!appId || !appSecret) {
+      return res.status(500).json({ error: "Facebook app credentials not configured" });
     }
 
-    // Generate CSRF protection state nonce
     const state = crypto.randomBytes(16).toString('hex');
     req.session.instagramOauthState = state;
 
-    const authUrl = `https://api.instagram.com/oauth/authorize?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&response_type=code&state=${state}`;
+    const redirectUri = `${req.protocol}://${req.get('host')}/instagram/callback`;
+    const scopes = 'pages_messaging,instagram_manage_messages,pages_manage_metadata,pages_show_list,pages_read_engagement,instagram_basic';
+
+    const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&response_type=code&state=${state}`;
+    console.log('Instagram OAuth initiated via Facebook Login, redirect URI:', redirectUri);
     res.redirect(authUrl);
   });
 
@@ -740,47 +742,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).send("Missing required parameters");
     }
 
-    // Validate state for CSRF protection
     if (state !== req.session.instagramOauthState) {
       console.error("Instagram OAuth state mismatch - possible CSRF attack");
       return res.status(403).send("Invalid state parameter - CSRF validation failed");
     }
 
-    // Clear state from session after validation
     delete req.session.instagramOauthState;
 
     try {
-      // Step 1: Exchange code for short-lived access token
-      const tokenParams = new URLSearchParams({
-        client_id: process.env.INSTAGRAM_APP_ID!,
-        client_secret: process.env.INSTAGRAM_APP_SECRET!,
-        grant_type: 'authorization_code',
-        redirect_uri: process.env.INSTAGRAM_REDIRECT_URI!,
-        code: code as string,
-      });
+      const appId = process.env.FACEBOOK_APP_ID!;
+      const appSecret = process.env.FACEBOOK_APP_SECRET!;
+      const redirectUri = `${req.protocol}://${req.get('host')}/instagram/callback`;
 
-      const tokenResponse = await fetch('https://api.instagram.com/oauth/access_token', {
-        method: 'POST',
-        body: tokenParams,
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      });
+      // Step 1: Exchange code for short-lived user token via Facebook
+      const tokenUrl = `https://graph.facebook.com/v18.0/oauth/access_token?client_id=${appId}&client_secret=${appSecret}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${code}`;
+      const tokenResponse = await fetch(tokenUrl);
 
       if (!tokenResponse.ok) {
         const errorText = await tokenResponse.text();
-        console.error("Failed to get Instagram access token:", errorText);
-        return res.status(500).send("Failed to authenticate with Instagram");
+        console.error("Failed to get Facebook access token:", errorText);
+        return res.status(500).send("Failed to authenticate with Facebook");
       }
 
-      const tokenData = await tokenResponse.json() as { access_token: string; user_id: number };
+      const tokenData = await tokenResponse.json() as { access_token: string };
       const shortLivedToken = tokenData.access_token;
 
-      // Step 2: Exchange short-lived token for long-lived token
-      const longTokenUrl = `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${process.env.INSTAGRAM_APP_SECRET}&access_token=${shortLivedToken}`;
-      
+      // Step 2: Exchange for long-lived user token
+      const longTokenUrl = `https://graph.facebook.com/v18.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${shortLivedToken}`;
       const longTokenResponse = await fetch(longTokenUrl);
-      
+
       if (!longTokenResponse.ok) {
         const errorText = await longTokenResponse.text();
         console.error("Failed to exchange for long-lived token:", errorText);
@@ -788,23 +778,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const longTokenData = await longTokenResponse.json() as { access_token: string; expires_in: number };
-      const longLivedToken = longTokenData.access_token;
+      const longLivedUserToken = longTokenData.access_token;
 
-      // Step 3: Get Instagram Business Account info from Facebook Pages
-      const accountInfoUrl = `https://graph.facebook.com/v19.0/me/accounts?fields=id,name,instagram_business_account{id,username}&access_token=${longLivedToken}`;
-      
+      // Step 3: Get Page tokens (these don't expire when derived from a long-lived user token)
+      const accountInfoUrl = `https://graph.facebook.com/v18.0/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}&access_token=${longLivedUserToken}`;
       const accountInfoResponse = await fetch(accountInfoUrl);
-      
+
       if (!accountInfoResponse.ok) {
         const errorText = await accountInfoResponse.text();
-        console.error("Failed to get Instagram account info:", errorText);
-        return res.status(500).send("Failed to retrieve Instagram account information");
+        console.error("Failed to get Page accounts:", errorText);
+        return res.status(500).send("Failed to retrieve Facebook Page information");
       }
 
       const accountData = await accountInfoResponse.json() as {
         data: Array<{
           id: string;
           name: string;
+          access_token: string;
           instagram_business_account?: {
             id: string;
             username: string;
@@ -812,19 +802,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }>;
       };
 
-      // Find the first page with an Instagram Business Account
       const pageWithInstagram = accountData.data.find(page => page.instagram_business_account);
-      
+
       if (!pageWithInstagram || !pageWithInstagram.instagram_business_account) {
         return res.status(400).send("No Instagram Business Account found. Please connect an Instagram Business Account to your Facebook Page and try again.");
       }
 
       const igAccount = pageWithInstagram.instagram_business_account;
-      
-      // Get existing settings to preserve non-Instagram fields
+      const pageAccessToken = pageWithInstagram.access_token;
+
       const existingSettings = await storage.getStoreSettings();
-      
-      // Update settings with Instagram connection data
+
       await storage.updateStoreSettings({
         storeName: existingSettings?.storeName || "My Store",
         instagramHandle: `@${igAccount.username}`,
@@ -835,12 +823,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         instagramBusinessAccountId: igAccount.id,
         instagramPageId: pageWithInstagram.id,
         instagramUsername: igAccount.username,
-        instagramAccessToken: longLivedToken,
+        instagramAccessToken: pageAccessToken,
       });
 
       console.log('Instagram Business Account connected:', igAccount.username);
+      console.log('Page ID:', pageWithInstagram.id);
+      console.log('Instagram Business Account ID:', igAccount.id);
 
-      // Subscribe the Facebook Page to Instagram messaging webhooks (for story_mention events)
+      // Subscribe the Facebook Page to Instagram messaging webhooks
+      let webhookStatus = 'unknown';
       try {
         const subscribeUrl = `https://graph.facebook.com/v18.0/${pageWithInstagram.id}/subscribed_apps`;
         const subscribeRes = await fetch(subscribeUrl, {
@@ -848,29 +839,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             subscribed_fields: ['messages', 'messaging_postbacks'],
-            access_token: longLivedToken,
+            access_token: pageAccessToken,
           }),
         });
-        
+
         if (subscribeRes.ok) {
-          console.log('Subscribed to Instagram messaging webhooks (story_mention) for page:', pageWithInstagram.id);
+          webhookStatus = 'active';
+          console.log('Subscribed to messaging webhooks for page:', pageWithInstagram.id);
           const updatedSettings = await storage.getStoreSettings();
           if (updatedSettings) {
             await storage.updateStoreWebhookStatus(updatedSettings.id, 'active');
           }
         } else {
           const subscribeError = await subscribeRes.text();
+          webhookStatus = 'failed: ' + subscribeError;
           console.error('Failed to subscribe to messaging webhooks:', subscribeError);
-          const updatedSettings = await storage.getStoreSettings();
-          if (updatedSettings) {
-            await storage.updateStoreWebhookStatus(updatedSettings.id, 'subscription_failed');
-          }
         }
       } catch (webhookSubError) {
+        webhookStatus = 'error';
         console.error('Error subscribing to messaging webhooks:', webhookSubError);
       }
 
-      res.send("Successfully connected Instagram account @" + igAccount.username + "! You can close this window and return to the dashboard.");
+      res.send(`
+        <html><body style="font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 20px;">
+          <h2>Instagram Connected Successfully</h2>
+          <p><strong>Account:</strong> @${igAccount.username}</p>
+          <p><strong>Page ID:</strong> ${pageWithInstagram.id}</p>
+          <p><strong>Instagram Business ID:</strong> ${igAccount.id}</p>
+          <p><strong>Webhook subscription:</strong> ${webhookStatus}</p>
+          <hr/>
+          <p><strong>Page Access Token (copy this to SPIRAL_INSTAGRAM_ACCESS_TOKEN):</strong></p>
+          <textarea rows="4" cols="60" onclick="this.select()" readonly>${pageAccessToken}</textarea>
+          <p><strong>Instagram Business ID (copy this to SPIRAL_INSTAGRAM_BUSINESS_ID):</strong></p>
+          <textarea rows="2" cols="60" onclick="this.select()" readonly>${igAccount.id}</textarea>
+          <p style="color: #666; margin-top: 20px;">Copy the values above and paste them into your Replit secrets. This Page token does not expire.</p>
+        </body></html>
+      `);
     } catch (error) {
       console.error("Error during Instagram OAuth:", error);
       res.status(500).send("Failed to complete Instagram authentication");
