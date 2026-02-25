@@ -1,0 +1,31 @@
+Instagram DM Verification Flow — How It Works
+The Flow
+Customer requests a verification code via POST /api/customer/spiral-code
+App generates a 6-character code stored in the spiral_codes table (24-hour expiry, status: pending)
+Customer opens Instagram and DMs that code to @joinspiral
+Instagram sends a webhook to POST /webhooks/instagram-dm on our server
+Webhook extracts the sender's Instagram user ID and the message text
+Server matches the code text to a pending spiral_codes entry
+Server looks up the customer's follower count via RapidAPI
+Updates the spiral_customers record with Instagram username, user ID, and follower count
+Marks the code as verified
+Customer polls GET /api/customer/spiral-code/status and sees it's verified
+Key Things That Must Be Set Up
+Environment Secrets — all of these must be set in the new project:
+
+SPIRAL_INSTAGRAM_ACCESS_TOKEN — page access token for @joinspiral's Instagram account
+SPIRAL_INSTAGRAM_BUSINESS_ID — the Instagram business account ID for @joinspiral
+FACEBOOK_APP_SECRET — used to verify webhook signature (X-Hub-Signature-256 header)
+RAPIDAPI_KEY — for fetching follower counts
+Facebook/Meta Webhook Configuration — In the Meta App Dashboard:
+
+The webhook callback URL must point to the new deployment URL: https://<new-app>.replit.app/webhooks/instagram-dm
+Subscribed to the messages field on the Facebook Page connected to @joinspiral
+The webhook verify token must match what the server expects (check the GET /webhooks/instagram-dm handler for the verify token string)
+Webhook Signature Verification — The server verifies incoming webhooks using FACEBOOK_APP_SECRET to compute HMAC-SHA256 of the raw request body. The rawBody is captured via express.json({ verify: ... }) middleware.
+
+Database — The spiral_codes and spiral_customers tables must exist. Run npm run db:push (or equivalent Drizzle push) to create them.
+
+Most Likely Reason It's Not Working After Remix
+The webhook URL in Meta's dashboard still points to the old deployment URL. You need to update it to the new .replit.app domain. Without that, Instagram DMs never reach your server.
+
