@@ -870,8 +870,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <hr/>
           <p><strong>Page Access Token (copy this to SPIRAL_INSTAGRAM_ACCESS_TOKEN):</strong></p>
           <textarea rows="4" cols="60" onclick="this.select()" readonly>${pageAccessToken}</textarea>
-          <p><strong>Instagram Business ID (copy this to SPIRAL_INSTAGRAM_BUSINESS_ID):</strong></p>
-          <textarea rows="2" cols="60" onclick="this.select()" readonly>${igAccount.id}</textarea>
+          <p><strong>Facebook Page ID (copy this to SPIRAL_INSTAGRAM_BUSINESS_ID):</strong></p>
+          <textarea rows="2" cols="60" onclick="this.select()" readonly>${pageWithInstagram.id}</textarea>
           <p style="color: #666; margin-top: 20px;">Copy the values above and paste them into your Replit secrets. This Page token does not expire.</p>
         </body></html>
       `);
