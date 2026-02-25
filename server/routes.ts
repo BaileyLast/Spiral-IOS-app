@@ -710,23 +710,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Instagram OAuth Routes (uses Facebook Login via SPIRAL APP for Page token generation)
+  // Instagram OAuth Routes (uses Instagram Basic Display API)
   app.get("/auth/instagram", (req, res) => {
-    const appId = process.env.FACEBOOK_APP_ID;
-    const appSecret = process.env.FACEBOOK_APP_SECRET;
+    const redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
+    const appId = process.env.INSTAGRAM_APP_ID;
+    const scopes = 'instagram_basic,instagram_manage_messages,pages_show_list,pages_read_engagement,pages_manage_metadata';
 
-    if (!appId || !appSecret) {
-      return res.status(500).json({ error: "Facebook app credentials not configured" });
+    if (!redirectUri || !appId) {
+      return res.status(500).json({ error: "Instagram credentials not configured" });
     }
 
     const state = crypto.randomBytes(16).toString('hex');
     req.session.instagramOauthState = state;
 
-    const redirectUri = `${req.protocol}://${req.get('host')}/instagram/callback`;
-    const scopes = 'pages_show_list,pages_manage_metadata,pages_read_engagement';
-
-    const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&response_type=code&state=${state}`;
-    console.log('Instagram OAuth initiated via Facebook Login, redirect URI:', redirectUri);
+    const authUrl = `https://api.instagram.com/oauth/authorize?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&response_type=code&state=${state}`;
+    console.log('Instagram OAuth initiated, redirect URI:', redirectUri);
     res.redirect(authUrl);
   });
 
@@ -750,25 +748,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     delete req.session.instagramOauthState;
 
     try {
-      const appId = process.env.FACEBOOK_APP_ID!;
-      const appSecret = process.env.FACEBOOK_APP_SECRET!;
-      const redirectUri = `${req.protocol}://${req.get('host')}/instagram/callback`;
+      // Step 1: Exchange code for short-lived access token via Instagram
+      const tokenParams = new URLSearchParams({
+        client_id: process.env.INSTAGRAM_APP_ID!,
+        client_secret: process.env.INSTAGRAM_APP_SECRET!,
+        grant_type: 'authorization_code',
+        redirect_uri: process.env.INSTAGRAM_REDIRECT_URI!,
+        code: code as string,
+      });
 
-      // Step 1: Exchange code for short-lived user token via Facebook
-      const tokenUrl = `https://graph.facebook.com/v18.0/oauth/access_token?client_id=${appId}&client_secret=${appSecret}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${code}`;
-      const tokenResponse = await fetch(tokenUrl);
+      const tokenResponse = await fetch('https://api.instagram.com/oauth/access_token', {
+        method: 'POST',
+        body: tokenParams,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
 
       if (!tokenResponse.ok) {
         const errorText = await tokenResponse.text();
-        console.error("Failed to get Facebook access token:", errorText);
-        return res.status(500).send("Failed to authenticate with Facebook");
+        console.error("Failed to get Instagram access token:", errorText);
+        return res.status(500).send("Failed to authenticate with Instagram");
       }
 
-      const tokenData = await tokenResponse.json() as { access_token: string };
+      const tokenData = await tokenResponse.json() as { access_token: string; user_id: number };
       const shortLivedToken = tokenData.access_token;
 
-      // Step 2: Exchange for long-lived user token
-      const longTokenUrl = `https://graph.facebook.com/v18.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${shortLivedToken}`;
+      // Step 2: Exchange short-lived token for long-lived token
+      const longTokenUrl = `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${process.env.INSTAGRAM_APP_SECRET}&access_token=${shortLivedToken}`;
       const longTokenResponse = await fetch(longTokenUrl);
 
       if (!longTokenResponse.ok) {
@@ -778,16 +785,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const longTokenData = await longTokenResponse.json() as { access_token: string; expires_in: number };
-      const longLivedUserToken = longTokenData.access_token;
+      const longLivedToken = longTokenData.access_token;
 
-      // Step 3: Get Page tokens (these don't expire when derived from a long-lived user token)
-      const accountInfoUrl = `https://graph.facebook.com/v18.0/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}&access_token=${longLivedUserToken}`;
+      // Step 3: Get Instagram Business Account info from Facebook Pages
+      const accountInfoUrl = `https://graph.facebook.com/v19.0/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}&access_token=${longLivedToken}`;
       const accountInfoResponse = await fetch(accountInfoUrl);
 
       if (!accountInfoResponse.ok) {
         const errorText = await accountInfoResponse.text();
-        console.error("Failed to get Page accounts:", errorText);
-        return res.status(500).send("Failed to retrieve Facebook Page information");
+        console.error("Failed to get Instagram account info:", errorText);
+        return res.status(500).send("Failed to retrieve Instagram account information");
       }
 
       const accountData = await accountInfoResponse.json() as {
