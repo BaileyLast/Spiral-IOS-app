@@ -96,11 +96,20 @@ Preferred communication style: Simple, everyday language.
 - **OAuth Scopes Required**: `instagram_basic`, `instagram_manage_messages`, `pages_show_list`, `pages_read_engagement`, `pages_manage_metadata`
 - **Webhook Subscription**: Automatically subscribed to `messages` and `messaging_postbacks` fields on the Facebook Page after merchant connects Instagram
 
+### Meta App Configuration
+- **Spiral app** (ID: 1348945556722394): Business type app with "Facebook Login for Business". Used for Instagram OAuth, DM webhooks, and token generation. Has "Manage messaging & content on Instagram" use case configured.
+  - Webhook configured at `/webhooks/instagram-dm` with verify token `spiral_verify_token`
+  - Token generated via Meta Dashboard "Generate access tokens" for @joinspiral
+- **SPIRAL APP** (ID: 1261954155779121): Consumer type app. Originally used for webhooks but limited by app type restrictions.
+
 ### Required Secrets
 - `RAPIDAPI_KEY`: For fetching Instagram follower counts
-- `FACEBOOK_APP_SECRET`: For webhook signature verification
-- `SPIRAL_INSTAGRAM_ACCESS_TOKEN`: For receiving DMs to @joinspiral
-- `SPIRAL_INSTAGRAM_BUSINESS_ID`: The Instagram business account ID for @joinspiral
+- `FACEBOOK_APP_ID` / `FACEBOOK_APP_SECRET`: Spiral app (1348945556722394) credentials
+- `INSTAGRAM_APP_ID` / `INSTAGRAM_APP_SECRET`: Spiral app's Instagram Basic Display credentials
+- `INSTAGRAM_REDIRECT_URI`: OAuth callback URL (`https://spiral-app-1.replit.app/instagram/callback`)
+- `SPIRAL_INSTAGRAM_ACCESS_TOKEN`: Access token for @joinspiral (generated via Meta Dashboard, non-expiring)
+- `SPIRAL_INSTAGRAM_BUSINESS_ID`: Facebook Page ID for @joinspiral (797294296809569) — used for sending DMs and subscribing webhooks
+- `INSTAGRAM_WEBHOOK_VERIFY_TOKEN`: Webhook verification token (`spiral_verify_token`)
 
 ### Order Status Flow
 1. **Ordered** - Order placed, waiting for delivery
