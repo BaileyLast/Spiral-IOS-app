@@ -723,7 +723,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     req.session.instagramOauthState = state;
 
     const redirectUri = `${req.protocol}://${req.get('host')}/instagram/callback`;
-    const scopes = 'pages_show_list,pages_manage_metadata,pages_read_engagement';
+    const scopes = 'pages_show_list,pages_manage_metadata,pages_read_engagement,pages_messaging';
 
     const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&response_type=code&state=${state}`;
     console.log('Instagram OAuth initiated via Facebook Login, redirect URI:', redirectUri);
