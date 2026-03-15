@@ -181,7 +181,8 @@ export default function ManageAccount() {
                   @{profile?.instagramHandle}
                 </p>
                 {profile?.followerCount != null && (
-                  <p className="text-sm text-white/50 mt-0.5">
+                  <p className="text-sm text-white/50 mt-0.5 flex items-center gap-1">
+                    <Instagram className="w-3 h-3" />
                     {formatFollowerCount(profile.followerCount)} followers
                   </p>
                 )}
