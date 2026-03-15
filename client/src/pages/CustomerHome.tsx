@@ -83,7 +83,8 @@ export default function CustomerHome() {
               <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
             </div>
             {profile.followerCount ? (
-              <p className="text-sm text-white/50 mt-1" data-testid="text-follower-count">
+              <p className="text-sm text-white/50 mt-1 flex items-center justify-center gap-1" data-testid="text-follower-count">
+                <Instagram className="w-3 h-3" />
                 {formatFollowerCount(profile.followerCount)} followers
               </p>
             ) : null}
