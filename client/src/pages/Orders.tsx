@@ -23,7 +23,7 @@ function getStatusLabel(order: Order) {
   if (order.verificationStatus === "story_detected") return "Story Received";
   if (order.status === "delivered") return "Post Your Story";
   if (order.status === "fulfilled") return "On the way";
-  return "Awaiting Shipment";
+  return "Ordered";
 }
 
 function isCompleted(order: Order) {
