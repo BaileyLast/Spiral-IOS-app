@@ -23,7 +23,7 @@ function getStatusLabel(order: Order) {
   if (order.verificationStatus === "story_detected") return "Story Received";
   if (order.status === "delivered") return "Post Your Story";
   if (order.status === "fulfilled") return "On the way";
-  return "Ordered";
+  return "Awaiting Shipment";
 }
 
 function isCompleted(order: Order) {
@@ -170,8 +170,58 @@ const MOCK_ACTIVE: Order[] = [
     discountAmount: "8.50",
     orderTotal: "42.00",
     discountPercent: "15.00",
-    createdAt: new Date("2026-03-18").toISOString(),
+    createdAt: new Date("2026-03-24").toISOString(),
     status: "delivered",
+    verificationStatus: "pending",
+    instagramHandle: null,
+    instagramUserId: null,
+    followerCount: null,
+    fulfilledAt: null,
+    deliveredAt: null,
+    postDeadline: null,
+    verificationId: null,
+    webhookTimestamp: null,
+    shopperEmail: "",
+    spiralCustomerId: null,
+  } as unknown as Order,
+  {
+    id: "mock-active-2",
+    storeName: "Allbirds",
+    storeLogo: "https://www.google.com/s2/favicons?domain=allbirds.com&sz=64",
+    shopifyOrderId: "477842",
+    lineItems: JSON.stringify([
+      { title: "Tree Dasher 2", variantTitle: "Blizzard / Size 9", quantity: 1 },
+    ]),
+    discountAmount: "14.00",
+    orderTotal: "110.00",
+    discountPercent: "12.00",
+    createdAt: new Date("2026-03-20").toISOString(),
+    status: "fulfilled",
+    verificationStatus: "pending",
+    instagramHandle: null,
+    instagramUserId: null,
+    followerCount: null,
+    fulfilledAt: null,
+    deliveredAt: null,
+    postDeadline: null,
+    verificationId: null,
+    webhookTimestamp: null,
+    shopperEmail: "",
+    spiralCustomerId: null,
+  } as unknown as Order,
+  {
+    id: "mock-active-3",
+    storeName: "SKIMS",
+    storeLogo: "https://www.google.com/s2/favicons?domain=skims.com&sz=64",
+    shopifyOrderId: "475610",
+    lineItems: JSON.stringify([
+      { title: "Soft Lounge Long Slip Dress", variantTitle: "Cocoa / XS", quantity: 1 },
+    ]),
+    discountAmount: "15.00",
+    orderTotal: "98.00",
+    discountPercent: "15.00",
+    createdAt: new Date("2026-03-18").toISOString(),
+    status: "pending",
     verificationStatus: "pending",
     instagramHandle: null,
     instagramUserId: null,
