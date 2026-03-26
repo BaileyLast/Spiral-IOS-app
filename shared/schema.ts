@@ -126,6 +126,10 @@ export const orders = pgTable("orders", {
   verificationId: varchar("verification_id"),
   webhookTimestamp: timestamp("webhook_timestamp"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  // Store & product info for customer display
+  storeName: text("store_name"),
+  storeLogo: text("store_logo"),
+  lineItems: text("line_items"), // JSON array of {title, quantity}
 });
 
 // Spiral verification codes - for DM-based Instagram verification

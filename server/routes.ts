@@ -1025,6 +1025,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const initialVerificationStatus = 'pending';
       
+      // Build line items summary for customer display
+      const rawLineItems = order.line_items || [];
+      const lineItemsSummary = JSON.stringify(
+        rawLineItems.slice(0, 5).map((item: any) => ({
+          title: item.title,
+          variantTitle: item.variant_title || null,
+          quantity: item.quantity,
+        }))
+      );
+
+      // Build store logo URL from shop domain
+      const shopDomain = settings?.shopDomain || '';
+      const storeLogo = shopDomain
+        ? `https://www.google.com/s2/favicons?domain=${shopDomain}&sz=64`
+        : null;
+
       // Create order record (always persist, even without complete Instagram data)
       const newOrder = await storage.createOrder({
         shopifyOrderId: order.id.toString(),
@@ -1039,6 +1055,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'pending',
         postDeadline: postDeadline,
         verificationStatus: initialVerificationStatus,
+        storeName: settings?.storeName || null,
+        storeLogo: storeLogo,
+        lineItems: lineItemsSummary,
       });
       
       console.log('Created Spiral order:', newOrder.id, 'for Shopify order:', order.id, 
@@ -1424,6 +1443,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalPrice,
         orderTotal: legacyOrderTotal,
         currency,
+        lineItems: rawLineItemsFromWidget,
       } = req.body;
 
       const shopifyOrderId = merchantOrderId || legacyShopifyOrderId;
@@ -1458,6 +1478,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ success: true });
       }
       
+      // Build store logo and line items for customer display
+      const confirmShopDomain = shopDomain || settings?.shopDomain || '';
+      const confirmStoreLogo = confirmShopDomain
+        ? `https://www.google.com/s2/favicons?domain=${confirmShopDomain}&sz=64`
+        : null;
+      const confirmLineItems = rawLineItemsFromWidget
+        ? JSON.stringify(rawLineItemsFromWidget)
+        : null;
+
       const order = await storage.createOrder({
         shopifyOrderId: shopifyOrderId.toString(),
         shopperEmail: customer.email,
@@ -1471,6 +1500,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'pending',
         postDeadline,
         verificationStatus: 'pending',
+        storeName: settings?.storeName || null,
+        storeLogo: confirmStoreLogo,
+        lineItems: confirmLineItems,
       });
       
       const verification = await storage.createVerification({
