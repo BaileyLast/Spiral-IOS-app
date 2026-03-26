@@ -184,31 +184,6 @@ const MOCK_ACTIVE: Order[] = [
     shopperEmail: "",
     spiralCustomerId: null,
   } as unknown as Order,
-  {
-    id: "mock-active-2",
-    storeName: "SKIMS",
-    storeLogo: "https://www.google.com/s2/favicons?domain=skims.com&sz=64",
-    shopifyOrderId: "472108",
-    lineItems: JSON.stringify([
-      { title: "Soft Lounge Long Slip Dress", variantTitle: "Cocoa / XS", quantity: 1 },
-    ]),
-    discountAmount: "15.00",
-    orderTotal: "98.00",
-    discountPercent: "15.00",
-    createdAt: new Date("2026-03-10").toISOString(),
-    status: "fulfilled",
-    verificationStatus: "pending",
-    instagramHandle: null,
-    instagramUserId: null,
-    followerCount: null,
-    fulfilledAt: null,
-    deliveredAt: null,
-    postDeadline: null,
-    verificationId: null,
-    webhookTimestamp: null,
-    shopperEmail: "",
-    spiralCustomerId: null,
-  } as unknown as Order,
 ];
 
 const MOCK_HISTORY: Order[] = [
@@ -291,13 +266,16 @@ export default function Orders() {
             )}
 
             {activeOrders.length === 0 && historyOrders.length > 0 && (
-              <div className="p-6 rounded-2xl bg-white/5 border border-white/10 text-center">
-                <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center mx-auto mb-3">
-                  <ShoppingBag className="w-6 h-6 text-white/40" />
+              <section>
+                <p className="text-xs text-white/40 uppercase tracking-wider px-1 mb-3">Active</p>
+                <div className="p-6 rounded-2xl bg-white/5 border border-white/10 text-center">
+                  <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center mx-auto mb-3">
+                    <ShoppingBag className="w-6 h-6 text-white/40" />
+                  </div>
+                  <p className="text-sm font-medium text-white/60">No active orders</p>
+                  <p className="text-xs text-white/30 mt-0.5">All your discounts have been confirmed</p>
                 </div>
-                <p className="text-sm font-medium text-white/60">No active orders</p>
-                <p className="text-xs text-white/30 mt-0.5">All your discounts have been confirmed</p>
-              </div>
+              </section>
             )}
 
             {historyOrders.length > 0 && (
