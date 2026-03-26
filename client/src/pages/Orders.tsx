@@ -112,14 +112,49 @@ export default function Orders() {
             })}
           </div>
         ) : (
-          <div className="p-8 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-white/15 flex items-center justify-center mx-auto mb-4">
-              <ShoppingBag className="w-8 h-8 text-white/70" />
-            </div>
-            <h3 className="font-semibold text-white mb-2">No orders yet</h3>
-            <p className="text-sm text-white/50">
-              When you make a purchase with Spiral, it will appear here
-            </p>
+          <div className="space-y-3">
+            <p className="text-xs text-white/30 uppercase tracking-wider px-1 mb-4">Preview — how your orders will look</p>
+            {[
+              { id: "mock-1", label: "Order #481923", date: "26 Mar 2026", discount: "12.00", status: "Verified" },
+              { id: "mock-2", label: "Order #479301", date: "18 Mar 2026", discount: "8.50", status: "Post Your Story" },
+              { id: "mock-3", label: "Order #472108", date: "10 Mar 2026", discount: "15.00", status: "On the way" },
+            ].map((mock) => (
+              <div key={mock.id} className="p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-white truncate">{mock.label}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <p className="text-sm text-white/50">{mock.date}</p>
+                      {mock.status === "Verified" && (
+                        <>
+                          <span className="text-white/30">·</span>
+                          <div className="flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-green-400" />
+                            <p className="text-sm text-green-400 font-medium">Discount confirmed</p>
+                          </div>
+                        </>
+                      )}
+                      {mock.status === "Post Your Story" && (
+                        <>
+                          <span className="text-white/30">·</span>
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-amber-300" />
+                            <p className="text-sm text-amber-300 font-medium">Share to keep discount</p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-green-300">-${mock.discount}</span>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap ${getStatusBadge(mock.status)}`}>
+                      {mock.status}
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-white/30 flex-shrink-0" />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </main>
