@@ -45,10 +45,11 @@ export default function InstagramConnect() {
   const { data: spiralCode } = useQuery<SpiralCodeResponse>({
     queryKey: ["/api/customer/spiral-code"],
     queryFn: async () => {
-      const response = await apiRequest("POST", "/api/customer/spiral-code");
+      const response = await apiRequest("POST", "/api/customer/spiral-code/regenerate");
       return response.json();
     },
     enabled: !!profile && !profile.instagramHandle,
+    staleTime: Infinity,
   });
 
   const { data: verificationStatus } = useQuery<VerificationStatus>({
@@ -73,8 +74,8 @@ export default function InstagramConnect() {
       const response = await apiRequest("POST", "/api/customer/spiral-code/regenerate");
       return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/customer/spiral-code"] });
+    onSuccess: (data) => {
+      queryClient.setQueryData(["/api/customer/spiral-code"], data);
       toast({
         title: "New code generated",
         description: "Your Spiral code has been refreshed",
