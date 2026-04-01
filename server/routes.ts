@@ -710,21 +710,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Instagram OAuth Routes (uses Facebook Login for Business)
+  // Instagram OAuth Routes (uses Instagram API / Instagram Login)
   app.get("/auth/instagram", (req, res) => {
     const redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
-    const appId = process.env.FACEBOOK_APP_ID;
-    const scopes = 'instagram_basic,instagram_manage_messages,pages_show_list,pages_read_engagement,pages_manage_metadata';
+    const appId = process.env.INSTAGRAM_APP_ID;
+    const scopes = 'instagram_business_basic,instagram_business_manage_messages';
 
     if (!redirectUri || !appId) {
-      return res.status(500).json({ error: "Facebook app credentials not configured" });
+      return res.status(500).json({ error: "Instagram credentials not configured" });
     }
 
     const state = crypto.randomBytes(16).toString('hex');
     req.session.instagramOauthState = state;
 
-    const authUrl = `https://www.facebook.com/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&response_type=code&state=${state}`;
-    console.log('Facebook OAuth initiated, redirect URI:', redirectUri);
+    const authUrl = `https://api.instagram.com/oauth/authorize?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&response_type=code&state=${state}`;
+    console.log('Instagram OAuth initiated, redirect URI:', redirectUri);
     res.redirect(authUrl);
   });
 
@@ -748,34 +748,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     delete req.session.instagramOauthState;
 
     try {
-      // Step 1: Exchange code for short-lived access token via Facebook Graph API
+      // Step 1: Exchange code for short-lived Instagram access token
       const tokenParams = new URLSearchParams({
-        client_id: process.env.FACEBOOK_APP_ID!,
-        client_secret: process.env.FACEBOOK_APP_SECRET!,
+        client_id: process.env.INSTAGRAM_APP_ID!,
+        client_secret: process.env.INSTAGRAM_APP_SECRET!,
         grant_type: 'authorization_code',
         redirect_uri: process.env.INSTAGRAM_REDIRECT_URI!,
         code: code as string,
       });
 
-      const tokenResponse = await fetch('https://graph.facebook.com/v19.0/oauth/access_token', {
+      const tokenResponse = await fetch('https://api.instagram.com/oauth/access_token', {
         method: 'POST',
         body: tokenParams,
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       });
 
       if (!tokenResponse.ok) {
         const errorText = await tokenResponse.text();
-        console.error("Failed to get Facebook access token:", errorText);
-        return res.status(500).send("Failed to authenticate with Facebook. Please try again.");
+        console.error("Failed to get Instagram access token:", errorText);
+        return res.status(500).send("Failed to authenticate with Instagram. Please try again.");
       }
 
-      const tokenData = await tokenResponse.json() as { access_token: string; token_type: string };
+      const tokenData = await tokenResponse.json() as { access_token: string; user_id: number };
       const shortLivedToken = tokenData.access_token;
+      const igUserId = String(tokenData.user_id);
 
-      // Step 2: Exchange short-lived token for long-lived token via Facebook
-      const longTokenUrl = `https://graph.facebook.com/v19.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${process.env.FACEBOOK_APP_ID}&client_secret=${process.env.FACEBOOK_APP_SECRET}&fb_exchange_token=${shortLivedToken}`;
+      // Step 2: Exchange short-lived token for long-lived token (60 days)
+      const longTokenUrl = `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${process.env.INSTAGRAM_APP_SECRET}&access_token=${shortLivedToken}`;
       const longTokenResponse = await fetch(longTokenUrl);
 
       if (!longTokenResponse.ok) {
@@ -787,72 +786,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const longTokenData = await longTokenResponse.json() as { access_token: string; expires_in: number };
       const longLivedToken = longTokenData.access_token;
 
-      // Step 3: Get Instagram Business Account info from Facebook Pages
-      const accountInfoUrl = `https://graph.facebook.com/v19.0/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}&access_token=${longLivedToken}`;
-      const accountInfoResponse = await fetch(accountInfoUrl);
-
-      if (!accountInfoResponse.ok) {
-        const errorText = await accountInfoResponse.text();
-        console.error("Failed to get Instagram account info:", errorText);
-        return res.status(500).send("Failed to retrieve Instagram account information");
+      // Step 3: Fetch Instagram username
+      const userInfoResponse = await fetch(`https://graph.instagram.com/v19.0/me?fields=username&access_token=${longLivedToken}`);
+      if (!userInfoResponse.ok) {
+        const errorText = await userInfoResponse.text();
+        console.error("Failed to get Instagram user info:", errorText);
+        return res.status(500).send("Failed to retrieve Instagram account information.");
       }
+      const userInfo = await userInfoResponse.json() as { id: string; username: string };
+      const username = userInfo.username;
 
-      const accountData = await accountInfoResponse.json() as {
-        data: Array<{
-          id: string;
-          name: string;
-          access_token: string;
-          instagram_business_account?: {
-            id: string;
-            username: string;
-          };
-        }>;
-      };
-
-      const pageWithInstagram = accountData.data.find(page => page.instagram_business_account);
-
-      if (!pageWithInstagram || !pageWithInstagram.instagram_business_account) {
-        return res.status(400).send("No Instagram Business Account found. Please connect an Instagram Business Account to your Facebook Page and try again.");
-      }
-
-      const igAccount = pageWithInstagram.instagram_business_account;
-      const pageAccessToken = pageWithInstagram.access_token;
-
+      // Step 4: Store settings
       const existingSettings = await storage.getStoreSettings();
-
       await storage.updateStoreSettings({
         storeName: existingSettings?.storeName || "My Store",
-        instagramHandle: `@${igAccount.username}`,
+        instagramHandle: `@${username}`,
         tokenActive: existingSettings?.tokenActive ?? true,
         shopDomain: existingSettings?.shopDomain,
         accessToken: existingSettings?.accessToken,
         minFollowers: existingSettings?.minFollowers ?? 0,
-        instagramBusinessAccountId: igAccount.id,
-        instagramPageId: pageWithInstagram.id,
-        instagramUsername: igAccount.username,
-        instagramAccessToken: pageAccessToken,
+        instagramBusinessAccountId: igUserId,
+        instagramPageId: igUserId,
+        instagramUsername: username,
+        instagramAccessToken: longLivedToken,
       });
 
-      console.log('Instagram Business Account connected:', igAccount.username);
-      console.log('Page ID:', pageWithInstagram.id);
-      console.log('Instagram Business Account ID:', igAccount.id);
+      console.log('Instagram account connected:', username, 'ID:', igUserId);
 
-      // Subscribe the Instagram Business Account to messaging webhooks
+      // Step 5: Subscribe Instagram account to messaging webhooks
       let webhookStatus = 'unknown';
       try {
-        const subscribeUrl = `https://graph.facebook.com/v19.0/${igAccount.id}/subscribed_apps`;
+        const subscribeUrl = `https://graph.facebook.com/v19.0/${igUserId}/subscribed_apps`;
         const subscribeRes = await fetch(subscribeUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            subscribed_fields: ['messages', 'messaging_postbacks'],
-            access_token: pageAccessToken,
+            subscribed_fields: ['messages'],
+            access_token: longLivedToken,
           }),
         });
 
         if (subscribeRes.ok) {
           webhookStatus = 'active';
-          console.log('Subscribed to messaging webhooks for page:', pageWithInstagram.id);
+          console.log('Subscribed to messaging webhooks for IG account:', igUserId);
           const updatedSettings = await storage.getStoreSettings();
           if (updatedSettings) {
             await storage.updateStoreWebhookStatus(updatedSettings.id, 'active');
@@ -870,16 +846,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.send(`
         <html><body style="font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 20px;">
           <h2>Instagram Connected Successfully</h2>
-          <p><strong>Account:</strong> @${igAccount.username}</p>
-          <p><strong>Page ID:</strong> ${pageWithInstagram.id}</p>
-          <p><strong>Instagram Business ID:</strong> ${igAccount.id}</p>
+          <p><strong>Account:</strong> @${username}</p>
+          <p><strong>Instagram User ID:</strong> ${igUserId}</p>
           <p><strong>Webhook subscription:</strong> ${webhookStatus}</p>
           <hr/>
-          <p><strong>Page Access Token (copy this to SPIRAL_INSTAGRAM_ACCESS_TOKEN):</strong></p>
-          <textarea rows="4" cols="60" onclick="this.select()" readonly>${pageAccessToken}</textarea>
-          <p><strong>Facebook Page ID (copy this to SPIRAL_INSTAGRAM_BUSINESS_ID):</strong></p>
-          <textarea rows="2" cols="60" onclick="this.select()" readonly>${pageWithInstagram.id}</textarea>
-          <p style="color: #666; margin-top: 20px;">Copy the values above and paste them into your Replit secrets. This Page token does not expire.</p>
+          <p><strong>Access Token (copy this to SPIRAL_INSTAGRAM_ACCESS_TOKEN):</strong></p>
+          <textarea rows="4" cols="60" onclick="this.select()" readonly>${longLivedToken}</textarea>
+          <p style="color: #666; margin-top: 20px;">This token lasts 60 days. Re-run /auth/instagram before it expires to refresh it.</p>
         </body></html>
       `);
     } catch (error) {
