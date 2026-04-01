@@ -2654,7 +2654,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         throw new Error('SPIRAL_INSTAGRAM_ACCESS_TOKEN not set — cannot resolve Instagram username');
       }
 
-      const graphUrl = `https://graph.facebook.com/v19.0/${userId}?fields=username&access_token=${pageToken}`;
+      const graphUrl = `https://graph.facebook.com/v19.0/${userId}?fields=username&access_token=${encodeURIComponent(pageToken)}`;
       const graphRes = await fetch(graphUrl);
 
       if (!graphRes.ok) {
@@ -2697,7 +2697,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('RapidAPI Instagram user_data:', JSON.stringify(data?.user_data || {}, null, 2));
 
       if (data.error) {
-        console.error('RapidAPI returned error:', data.error);
+        console.error('RapidAPI returned error (full payload):', JSON.stringify(data, null, 2));
         throw new Error(`RapidAPI error: ${data.error}`);
       }
 
