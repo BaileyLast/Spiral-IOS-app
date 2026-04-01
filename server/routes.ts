@@ -786,8 +786,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const longTokenData = await longTokenResponse.json() as { access_token: string; expires_in: number };
       const longLivedToken = longTokenData.access_token;
 
-      // Step 3: Fetch Instagram username
-      const userInfoResponse = await fetch(`https://graph.instagram.com/v19.0/me?fields=username&access_token=${longLivedToken}`);
+      // Step 3: Fetch Instagram username using explicit user ID
+      const userInfoResponse = await fetch(`https://graph.instagram.com/v19.0/${igUserId}?fields=username&access_token=${longLivedToken}`);
       if (!userInfoResponse.ok) {
         const errorText = await userInfoResponse.text();
         console.error("Failed to get Instagram user info:", errorText);
