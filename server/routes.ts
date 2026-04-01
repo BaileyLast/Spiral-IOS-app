@@ -710,21 +710,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Instagram OAuth Routes (uses Instagram Basic Display API)
+  // Instagram OAuth Routes (uses Facebook Login for Business)
   app.get("/auth/instagram", (req, res) => {
     const redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
-    const appId = process.env.INSTAGRAM_APP_ID;
+    const appId = process.env.FACEBOOK_APP_ID;
     const scopes = 'instagram_basic,instagram_manage_messages,pages_show_list,pages_read_engagement,pages_manage_metadata';
 
     if (!redirectUri || !appId) {
-      return res.status(500).json({ error: "Instagram credentials not configured" });
+      return res.status(500).json({ error: "Facebook app credentials not configured" });
     }
 
     const state = crypto.randomBytes(16).toString('hex');
     req.session.instagramOauthState = state;
 
-    const authUrl = `https://api.instagram.com/oauth/authorize?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&response_type=code&state=${state}`;
-    console.log('Instagram OAuth initiated, redirect URI:', redirectUri);
+    const authUrl = `https://www.facebook.com/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&response_type=code&state=${state}`;
+    console.log('Facebook OAuth initiated, redirect URI:', redirectUri);
     res.redirect(authUrl);
   });
 
@@ -748,16 +748,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     delete req.session.instagramOauthState;
 
     try {
-      // Step 1: Exchange code for short-lived access token via Instagram
+      // Step 1: Exchange code for short-lived access token via Facebook Graph API
       const tokenParams = new URLSearchParams({
-        client_id: process.env.INSTAGRAM_APP_ID!,
-        client_secret: process.env.INSTAGRAM_APP_SECRET!,
+        client_id: process.env.FACEBOOK_APP_ID!,
+        client_secret: process.env.FACEBOOK_APP_SECRET!,
         grant_type: 'authorization_code',
         redirect_uri: process.env.INSTAGRAM_REDIRECT_URI!,
         code: code as string,
       });
 
-      const tokenResponse = await fetch('https://api.instagram.com/oauth/access_token', {
+      const tokenResponse = await fetch('https://graph.facebook.com/v19.0/oauth/access_token', {
         method: 'POST',
         body: tokenParams,
         headers: {
@@ -767,21 +767,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!tokenResponse.ok) {
         const errorText = await tokenResponse.text();
-        console.error("Failed to get Instagram access token:", errorText);
-        return res.status(500).send("Failed to authenticate with Instagram");
+        console.error("Failed to get Facebook access token:", errorText);
+        return res.status(500).send("Failed to authenticate with Facebook: " + errorText);
       }
 
-      const tokenData = await tokenResponse.json() as { access_token: string; user_id: number };
+      const tokenData = await tokenResponse.json() as { access_token: string; token_type: string };
       const shortLivedToken = tokenData.access_token;
 
-      // Step 2: Exchange short-lived token for long-lived token
-      const longTokenUrl = `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${process.env.INSTAGRAM_APP_SECRET}&access_token=${shortLivedToken}`;
+      // Step 2: Exchange short-lived token for long-lived token via Facebook
+      const longTokenUrl = `https://graph.facebook.com/v19.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${process.env.FACEBOOK_APP_ID}&client_secret=${process.env.FACEBOOK_APP_SECRET}&fb_exchange_token=${shortLivedToken}`;
       const longTokenResponse = await fetch(longTokenUrl);
 
       if (!longTokenResponse.ok) {
         const errorText = await longTokenResponse.text();
         console.error("Failed to exchange for long-lived token:", errorText);
-        return res.status(500).send("Failed to get long-lived token");
+        return res.status(500).send("Failed to get long-lived token: " + errorText);
       }
 
       const longTokenData = await longTokenResponse.json() as { access_token: string; expires_in: number };
