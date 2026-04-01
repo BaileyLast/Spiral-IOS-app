@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Instagram, CheckCircle, Loader2, Users, ArrowRight, LogOut, Copy, ExternalLink, RefreshCw } from "lucide-react";
+import { CheckCircle, Loader2, Users, ArrowRight, LogOut, Copy, ExternalLink, RefreshCw } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import spiralLogoUrl from "@assets/Spiral_gradient_logo_1775056007518.png";
 
@@ -242,10 +242,6 @@ export default function InstagramConnect() {
             className="h-10 mx-auto mb-10 object-contain"
             data-testid="img-spiral-logo"
           />
-
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-8" style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976, #962FBF)' }}>
-            <Instagram className="w-8 h-8 text-white" />
-          </div>
 
           <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight mb-3">
             Connect Instagram
