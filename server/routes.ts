@@ -786,15 +786,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const longTokenData = await longTokenResponse.json() as { access_token: string; expires_in: number };
       const longLivedToken = longTokenData.access_token;
 
-      // Step 3: Fetch Instagram username using explicit user ID
-      const userInfoResponse = await fetch(`https://graph.instagram.com/v19.0/${igUserId}?fields=username&access_token=${longLivedToken}`);
-      if (!userInfoResponse.ok) {
-        const errorText = await userInfoResponse.text();
-        console.error("Failed to get Instagram user info:", errorText);
-        return res.status(500).send("Failed to retrieve Instagram account information.");
+      // Step 3: Fetch Instagram username using explicit user ID (non-blocking)
+      let username = 'joinspiral';
+      try {
+        const userInfoResponse = await fetch(`https://graph.instagram.com/v19.0/${igUserId}?fields=username&access_token=${longLivedToken}`);
+        if (userInfoResponse.ok) {
+          const userInfo = await userInfoResponse.json() as { id: string; username: string };
+          if (userInfo.username) username = userInfo.username;
+        } else {
+          const errorText = await userInfoResponse.text();
+          console.error("Failed to get Instagram user info (non-fatal):", errorText);
+        }
+      } catch (userInfoErr) {
+        console.error("Error fetching Instagram user info (non-fatal):", userInfoErr);
       }
-      const userInfo = await userInfoResponse.json() as { id: string; username: string };
-      const username = userInfo.username;
 
       // Step 4: Store settings
       const existingSettings = await storage.getStoreSettings();
