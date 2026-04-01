@@ -714,7 +714,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/auth/instagram", (req, res) => {
     const redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
     const appId = process.env.FACEBOOK_APP_ID;
-    const scopes = 'instagram_basic,instagram_manage_messages,pages_show_list,pages_read_engagement,pages_manage_metadata';
+    const scopes = 'instagram_basic,instagram_manage_messages,pages_show_list,pages_read_engagement,pages_manage_metadata,pages_messaging';
 
     if (!redirectUri || !appId) {
       return res.status(500).json({ error: "Facebook app credentials not configured" });
