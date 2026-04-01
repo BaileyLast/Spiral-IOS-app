@@ -2648,18 +2648,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Helper: Fetch Instagram data by user ID via RapidAPI
   async function fetchInstagramDataByUserId(userId: string, rapidApiKey: string): Promise<{ username: string; followerCount: number; profilePicture: string }> {
     try {
-      // Use Instagram API - Fast & Reliable Data Scraper from RapidAPI
-      // This API can look up user info by Instagram user ID
-      const response = await fetch(
-        `https://instagram-api-fast-reliable-data-scraper.p.rapidapi.com/profile?user_id=${userId}`,
-        {
-          method: 'GET',
-          headers: {
-            'X-RapidAPI-Key': rapidApiKey,
-            'X-RapidAPI-Host': 'instagram-api-fast-reliable-data-scraper.p.rapidapi.com'
-          }
+      // Step 1: Resolve Instagram user ID to username via Graph API
+      const pageToken = process.env.SPIRAL_INSTAGRAM_ACCESS_TOKEN;
+      if (!pageToken) {
+        throw new Error('SPIRAL_INSTAGRAM_ACCESS_TOKEN not set — cannot resolve Instagram username');
+      }
+
+      const graphUrl = `https://graph.facebook.com/v19.0/${userId}?fields=username&access_token=${pageToken}`;
+      const graphRes = await fetch(graphUrl);
+
+      if (!graphRes.ok) {
+        const errorText = await graphRes.text();
+        console.error(`Graph API error resolving IG username (${graphRes.status}):`, errorText);
+        throw new Error(`Graph API failed to resolve username: ${graphRes.status}`);
+      }
+
+      const graphData = await graphRes.json() as { username?: string; error?: { message: string } };
+      if (graphData.error) {
+        console.error('Graph API error:', graphData.error.message);
+        throw new Error(`Graph API error: ${graphData.error.message}`);
+      }
+
+      const username = graphData.username || '';
+      if (!username) {
+        throw new Error(`Could not resolve username for Instagram user ID: ${userId}`);
+      }
+      console.log(`Resolved Instagram user ID ${userId} to @${username}`);
+
+      // Step 2: Fetch profile data from new RapidAPI using username
+      const rapidApiHost = 'instagram-scraper-stable-api.p.rapidapi.com';
+      const scraperUrl = `https://${rapidApiHost}/ig_get_fb_profile_hover.php?username_or_url=${encodeURIComponent(username)}`;
+
+      const response = await fetch(scraperUrl, {
+        method: 'GET',
+        headers: {
+          'x-rapidapi-key': rapidApiKey,
+          'x-rapidapi-host': rapidApiHost,
         }
-      );
+      });
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -2667,18 +2693,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         throw new Error(`RapidAPI request failed: ${response.status}`);
       }
 
-      const data = await response.json();
-      console.log('RapidAPI Instagram data:', JSON.stringify(data, null, 2));
+      const data = await response.json() as { user_data?: { username?: string; follower_count?: number; profile_pic_url?: string; hd_profile_pic_url_info?: { url?: string } }; error?: string };
+      console.log('RapidAPI Instagram user_data:', JSON.stringify(data?.user_data || {}, null, 2));
 
-      // Extract username, follower count, and profile picture from response
-      // API response structure may vary - handle common patterns
-      const username = data.username || data.user?.username || '';
-      const followerCount = data.follower_count || data.followers_count || 
-                           data.user?.follower_count || data.edge_followed_by?.count || 0;
-      const profilePicture = data.profile_pic_url || data.profile_pic_url_hd || 
-                             data.user?.profile_pic_url || data.profile_picture || '';
+      if (data.error) {
+        console.error('RapidAPI returned error:', data.error);
+        throw new Error(`RapidAPI error: ${data.error}`);
+      }
 
-      return { username, followerCount, profilePicture };
+      const userData = data.user_data || {};
+      const resolvedUsername = userData.username || username;
+      const followerCount = userData.follower_count || 0;
+      const profilePicture = userData.profile_pic_url || userData.hd_profile_pic_url_info?.url || '';
+
+      return { username: resolvedUsername, followerCount, profilePicture };
     } catch (error) {
       console.error('Failed to fetch Instagram data from RapidAPI:', error);
       throw error;
