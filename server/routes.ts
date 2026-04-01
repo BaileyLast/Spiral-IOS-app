@@ -2595,7 +2595,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   console.log(`Verified Spiral code ${pendingValidMatchedCode} for customer ${pendingValidCode.customerId} - Instagram: @${instagramHandle} (${senderInstagramId})`);
 
                   // Send confirmation DM back
-                  await sendInstagramDM(senderInstagramId, "You're verified! Head back to the Spiral app.");
+                  await sendInstagramDM(senderInstagramId, "Thanks for verifying your Instagram! Welcome to Spiral");
                 } else if (expiredCode) {
                   console.log(`Spiral code ${expiredMatchedCode} is expired`);
                   await sendInstagramDM(senderInstagramId, "This code has expired. Please get a new code from the Spiral app.");
