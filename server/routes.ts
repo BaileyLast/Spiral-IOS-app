@@ -768,7 +768,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!tokenResponse.ok) {
         const errorText = await tokenResponse.text();
         console.error("Failed to get Facebook access token:", errorText);
-        return res.status(500).send("Failed to authenticate with Facebook: " + errorText);
+        return res.status(500).send("Failed to authenticate with Facebook. Please try again.");
       }
 
       const tokenData = await tokenResponse.json() as { access_token: string; token_type: string };
@@ -781,7 +781,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!longTokenResponse.ok) {
         const errorText = await longTokenResponse.text();
         console.error("Failed to exchange for long-lived token:", errorText);
-        return res.status(500).send("Failed to get long-lived token: " + errorText);
+        return res.status(500).send("Failed to get long-lived token. Please try again.");
       }
 
       const longTokenData = await longTokenResponse.json() as { access_token: string; expires_in: number };
