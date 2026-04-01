@@ -714,7 +714,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/auth/instagram", (req, res) => {
     const redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
     const appId = process.env.FACEBOOK_APP_ID;
-    const scopes = 'instagram_basic,instagram_manage_messages,pages_show_list,pages_read_engagement,pages_manage_metadata,pages_messaging';
+    const scopes = 'instagram_basic,instagram_manage_messages,pages_show_list,pages_read_engagement,pages_manage_metadata';
 
     if (!redirectUri || !appId) {
       return res.status(500).json({ error: "Facebook app credentials not configured" });
@@ -837,10 +837,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('Page ID:', pageWithInstagram.id);
       console.log('Instagram Business Account ID:', igAccount.id);
 
-      // Subscribe the Facebook Page to Instagram messaging webhooks
+      // Subscribe the Instagram Business Account to messaging webhooks
       let webhookStatus = 'unknown';
       try {
-        const subscribeUrl = `https://graph.facebook.com/v18.0/${pageWithInstagram.id}/subscribed_apps`;
+        const subscribeUrl = `https://graph.facebook.com/v19.0/${igAccount.id}/subscribed_apps`;
         const subscribeRes = await fetch(subscribeUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
