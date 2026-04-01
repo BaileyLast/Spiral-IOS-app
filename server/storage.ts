@@ -30,7 +30,7 @@ import {
   type InsertMerchantScopedUserMap
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, inArray, and, lt, isNull } from "drizzle-orm";
+import { eq, inArray, and, lt, isNull, desc } from "drizzle-orm";
 
 export interface IStorage {
   getStoreSettings(): Promise<StoreSettings | undefined>;
@@ -634,7 +634,8 @@ export class DatabaseStorage implements IStorage {
     const [spiralCode] = await db
       .select()
       .from(spiralCodes)
-      .where(eq(spiralCodes.customerId, customerId));
+      .where(eq(spiralCodes.customerId, customerId))
+      .orderBy(desc(spiralCodes.createdAt));
     return spiralCode;
   }
 
@@ -647,7 +648,8 @@ export class DatabaseStorage implements IStorage {
           eq(spiralCodes.customerId, customerId),
           eq(spiralCodes.status, "pending")
         )
-      );
+      )
+      .orderBy(desc(spiralCodes.createdAt));
     return spiralCode;
   }
 
