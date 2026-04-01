@@ -7,7 +7,7 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import spiralLogoUrl from "@assets/Spiral logo (2)_1763051288266.png";
+import spiralLogoUrl from "@assets/Spiral_gradient_logo_1775056007518.png";
 
 type AuthMode = "login" | "signup";
 
@@ -67,7 +67,7 @@ export default function Login() {
       });
       return;
     }
-        authMutation.mutate({ 
+    authMutation.mutate({ 
       email, 
       password,
       ...(mode === "signup" && fullName.trim() && { name: fullName.trim() })
@@ -75,45 +75,20 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col relative overflow-hidden">
-      <div 
-        className="absolute inset-0 z-0"
-        style={{
-          background: `
-            linear-gradient(135deg, 
-              hsl(265, 60%, 20%) 0%, 
-              hsl(280, 55%, 30%) 25%, 
-              hsl(290, 50%, 35%) 50%, 
-              hsl(320, 45%, 30%) 75%, 
-              hsl(340, 40%, 25%) 100%
-            )
-          `,
-        }}
-      />
-      
-      <div 
-        className="absolute inset-0 z-0 opacity-30"
-        style={{
-          background: `
-            radial-gradient(ellipse at 30% 20%, hsl(270, 70%, 50%) 0%, transparent 50%),
-            radial-gradient(ellipse at 80% 80%, hsl(320, 60%, 45%) 0%, transparent 40%)
-          `,
-        }}
-      />
-
-      <div className="relative z-10 flex-1 flex flex-col px-6 py-12 safe-top safe-bottom">
+    <div className="min-h-screen flex flex-col bg-white">
+      <div className="flex-1 flex flex-col px-6 py-12 safe-top safe-bottom">
         <div className="w-full max-w-sm mx-auto flex-1 flex flex-col justify-center">
           <div className="text-center mb-10">
             <img 
               src={spiralLogoUrl} 
               alt="Spiral" 
-              className="h-40 mx-auto mb-6 object-contain brightness-0 invert"
+              className="h-36 mx-auto mb-6 object-contain"
               data-testid="img-spiral-logo"
             />
-            <h1 className="text-3xl font-bold text-white mb-2">
+            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight mb-2">
               {mode === "login" ? "Welcome back" : "Get started"}
             </h1>
-            <p className="text-white/70">
+            <p className="text-gray-500">
               {mode === "login" 
                 ? "Sign in to view your discounts" 
                 : "Create an account to start saving"}
@@ -123,7 +98,7 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === "signup" && (
               <div className="space-y-2">
-                <Label htmlFor="fullName" className="text-white/90 text-sm font-medium">
+                <Label htmlFor="fullName" className="text-gray-700 text-sm font-medium">
                   Full name
                 </Label>
                 <Input
@@ -132,14 +107,14 @@ export default function Login() {
                   placeholder="Your name"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="h-14 rounded-2xl bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:bg-white/15 focus:border-white/40 backdrop-blur-sm"
+                  className="h-14 rounded-2xl bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-[#D62976] focus:ring-[#D62976]/20"
                   data-testid="input-fullname"
                 />
               </div>
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-white/90 text-sm font-medium">
+              <Label htmlFor="email" className="text-gray-700 text-sm font-medium">
                 Email
               </Label>
               <Input
@@ -148,13 +123,13 @@ export default function Login() {
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-14 rounded-2xl bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:bg-white/15 focus:border-white/40 backdrop-blur-sm"
+                className="h-14 rounded-2xl bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-[#D62976] focus:ring-[#D62976]/20"
                 data-testid="input-email"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-white/90 text-sm font-medium">
+              <Label htmlFor="password" className="text-gray-700 text-sm font-medium">
                 Password
               </Label>
               <div className="relative">
@@ -164,12 +139,12 @@ export default function Login() {
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="h-14 rounded-2xl bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:bg-white/15 focus:border-white/40 backdrop-blur-sm pr-14"
+                  className="h-14 rounded-2xl bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-[#D62976] focus:ring-[#D62976]/20 pr-14"
                   data-testid="input-password"
                 />
                 <button
                   type="button"
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/60 hover:text-white p-1"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
                   onClick={() => setShowPassword(!showPassword)}
                   data-testid="button-toggle-password"
                 >
@@ -180,7 +155,8 @@ export default function Login() {
 
             <Button 
               type="submit"
-              className="w-full h-14 text-base font-semibold rounded-2xl mt-6 bg-white text-gray-900 hover:bg-white/90 shadow-lg shadow-black/20"
+              className="w-full h-14 text-base font-semibold rounded-2xl mt-6 text-white border-0"
+              style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976, #962FBF)' }}
               disabled={authMutation.isPending}
               data-testid="button-submit"
             >
@@ -198,19 +174,19 @@ export default function Login() {
             <button
               type="button"
               onClick={() => setMode(mode === "login" ? "signup" : "login")}
-              className="text-sm text-white/70"
+              className="text-sm text-gray-500"
               data-testid="button-toggle-mode"
             >
               {mode === "login" ? (
-                <>Don't have an account? <span className="text-white font-medium">Sign up</span></>
+                <>Don't have an account? <span className="text-[#D62976] font-semibold">Sign up</span></>
               ) : (
-                <>Already have an account? <span className="text-white font-medium">Sign in</span></>
+                <>Already have an account? <span className="text-[#D62976] font-semibold">Sign in</span></>
               )}
             </button>
           </div>
         </div>
 
-        <p className="text-xs text-white/40 text-center mt-auto pt-8">
+        <p className="text-xs text-gray-400 text-center mt-auto pt-8">
           By continuing, you agree to our Terms of Service and Privacy Policy
         </p>
       </div>

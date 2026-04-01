@@ -6,7 +6,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Instagram, CheckCircle, Loader2, Users, ArrowRight, LogOut, Copy, ExternalLink, RefreshCw } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import spiralLogoUrl from "@assets/Spiral logo (2)_1763051288266.png";
+import spiralLogoUrl from "@assets/Spiral_gradient_logo_1775056007518.png";
 
 interface CustomerProfile {
   id: string;
@@ -42,7 +42,7 @@ export default function InstagramConnect() {
     queryKey: ["/api/customer/me"],
   });
 
-  const { data: spiralCode, refetch: refetchCode } = useQuery<SpiralCodeResponse>({
+  const { data: spiralCode } = useQuery<SpiralCodeResponse>({
     queryKey: ["/api/customer/spiral-code"],
     queryFn: async () => {
       const response = await apiRequest("POST", "/api/customer/spiral-code");
@@ -149,8 +149,8 @@ export default function InstagramConnect() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <Loader2 className="w-8 h-8 animate-spin text-[#D62976]" />
       </div>
     );
   }
@@ -159,48 +159,36 @@ export default function InstagramConnect() {
 
   if (isConnected) {
     return (
-      <div className="min-h-screen flex flex-col relative overflow-hidden">
-        <div 
-          className="absolute inset-0 z-0"
-          style={{
-            background: `
-              linear-gradient(135deg, 
-                hsl(280 70% 50%) 0%, 
-                hsl(320 70% 45%) 50%,
-                hsl(340 65% 40%) 100%)
-            `,
-          }}
-        />
-        
-        <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 py-12">
+      <div className="min-h-screen flex flex-col bg-white">
+        <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
           <div className="w-full max-w-sm mx-auto text-center">
             <img 
               src={spiralLogoUrl} 
               alt="Spiral" 
-              className="h-8 mx-auto mb-12 object-contain brightness-0 invert"
+              className="h-12 mx-auto mb-12 object-contain"
               data-testid="img-spiral-logo"
             />
 
-            <div className="bg-white rounded-3xl p-6 shadow-xl mb-6">
+            <div className="bg-gray-50 border border-gray-100 rounded-3xl p-6 mb-6">
               <div className="flex items-center gap-4 mb-4">
-                <Avatar className="w-16 h-16 border-2 border-primary/20">
+                <Avatar className="w-16 h-16 border-2 border-gray-200">
                   <AvatarImage 
                     src={profile.instagramProfilePicture} 
                     alt={profile.instagramHandle}
                   />
-                  <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white text-xl">
+                  <AvatarFallback className="text-white text-xl" style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976)' }}>
                     {profile.instagramHandle?.charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 text-left">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-foreground">
+                    <span className="font-semibold text-gray-900">
                       @{profile.instagramHandle}
                     </span>
                     <CheckCircle className="w-4 h-4 text-green-600" />
                   </div>
                   {profile.followerCount ? (
-                    <div className="flex items-center gap-1 text-muted-foreground text-sm">
+                    <div className="flex items-center gap-1 text-gray-500 text-sm">
                       <Users className="w-3.5 h-3.5" />
                       <span>{formatFollowerCount(profile.followerCount)} followers</span>
                     </div>
@@ -208,9 +196,9 @@ export default function InstagramConnect() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950/30 rounded-xl">
+              <div className="flex items-center gap-2 p-3 bg-green-50 rounded-xl border border-green-100">
                 <CheckCircle className="w-5 h-5 text-green-600" />
-                <span className="text-sm text-green-800 dark:text-green-200">
+                <span className="text-sm text-green-800">
                   Instagram connected
                 </span>
               </div>
@@ -219,7 +207,7 @@ export default function InstagramConnect() {
             <button
               onClick={() => disconnectMutation.mutate()}
               disabled={disconnectMutation.isPending}
-              className="flex items-center justify-center gap-2 text-white/70 hover:text-white transition-colors mx-auto text-sm"
+              className="flex items-center justify-center gap-2 text-gray-400 hover:text-gray-600 transition-colors mx-auto text-sm"
               data-testid="button-disconnect"
             >
               <LogOut className="w-4 h-4" />
@@ -228,9 +216,10 @@ export default function InstagramConnect() {
           </div>
         </div>
 
-        <div className="relative z-10 px-6 pb-8 safe-bottom">
+        <div className="px-6 pb-8 safe-bottom">
           <Button 
-            className="w-full h-14 text-base font-medium rounded-xl bg-white text-primary hover:bg-white/90"
+            className="w-full h-14 text-base font-semibold rounded-2xl text-white border-0"
+            style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976, #962FBF)' }}
             onClick={handleContinue}
             data-testid="button-continue"
           >
@@ -243,42 +232,43 @@ export default function InstagramConnect() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="min-h-screen flex flex-col bg-white">
       <div className="flex-1 flex flex-col items-center px-6 pt-12 pb-6">
         <div className="w-full max-w-sm mx-auto text-center">
           <img 
             src={spiralLogoUrl} 
             alt="Spiral" 
-            className="h-8 mx-auto mb-10 object-contain"
+            className="h-10 mx-auto mb-10 object-contain"
             data-testid="img-spiral-logo"
           />
 
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-8">
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-8" style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976, #962FBF)' }}>
             <Instagram className="w-8 h-8 text-white" />
           </div>
 
-          <h1 className="text-2xl font-semibold text-foreground mb-3">
+          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight mb-3">
             Connect Instagram
           </h1>
-          <p className="text-muted-foreground mb-8">
+          <p className="text-gray-500 mb-8">
             Verify your Instagram to unlock discounts based on your follower count
           </p>
 
           {spiralCode?.status === "pending" && (
-            <div className="bg-card rounded-2xl border border-border p-6 mb-6">
-              <p className="text-sm text-muted-foreground mb-3">
+            <div className="bg-gray-50 rounded-2xl border border-gray-100 p-6 mb-6">
+              <p className="text-sm text-gray-500 mb-3">
                 Send this code to @joinspiral on Instagram:
               </p>
               
-              <div className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl p-4 mb-4">
-                <span className="text-3xl font-bold tracking-[0.3em] text-primary font-mono">
+              <div className="bg-white rounded-xl border border-gray-100 p-4 mb-4">
+                <span className="text-3xl font-bold tracking-[0.3em] text-[#D62976] font-mono">
                   {spiralCode.code}
                 </span>
               </div>
 
               <Button 
                 onClick={handleCopyAndMessage}
-                className="w-full h-14 text-base font-medium rounded-xl bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 text-white mb-3"
+                className="w-full h-14 text-base font-semibold rounded-xl text-white border-0 mb-3"
+                style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976, #962FBF)' }}
                 data-testid="button-copy-message"
               >
                 {copied ? (
@@ -295,7 +285,7 @@ export default function InstagramConnect() {
                 )}
               </Button>
 
-              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 <span>Waiting for your message...</span>
               </div>
@@ -303,16 +293,16 @@ export default function InstagramConnect() {
           )}
 
           {verificationStatus?.status === "verified" && (
-            <div className="bg-green-50 dark:bg-green-950/30 rounded-2xl border border-green-200 dark:border-green-900 p-6 mb-6">
+            <div className="bg-green-50 rounded-2xl border border-green-100 p-6 mb-6">
               <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-3" />
-              <p className="text-lg font-semibold text-green-800 dark:text-green-200 mb-1">
+              <p className="text-lg font-semibold text-green-800 mb-1">
                 Verified!
               </p>
-              <p className="text-sm text-green-700 dark:text-green-300">
+              <p className="text-sm text-green-700">
                 Connected as @{verificationStatus.instagramHandle}
               </p>
               {verificationStatus.followerCount ? (
-                <p className="text-sm text-green-600 dark:text-green-400 mt-1">
+                <p className="text-sm text-green-600 mt-1">
                   {formatFollowerCount(verificationStatus.followerCount)} followers
                 </p>
               ) : null}
@@ -323,7 +313,7 @@ export default function InstagramConnect() {
             <button
               onClick={() => regenerateCodeMutation.mutate()}
               disabled={regenerateCodeMutation.isPending}
-              className="flex items-center justify-center gap-2 text-muted-foreground hover:text-foreground transition-colors mx-auto text-sm"
+              className="flex items-center justify-center gap-2 text-gray-400 hover:text-gray-600 transition-colors mx-auto text-sm"
               data-testid="button-regenerate"
             >
               <RefreshCw className={`w-4 h-4 ${regenerateCodeMutation.isPending ? 'animate-spin' : ''}`} />
@@ -336,7 +326,8 @@ export default function InstagramConnect() {
       <div className="px-6 pb-8 safe-bottom">
         {verificationStatus?.status === "verified" ? (
           <Button 
-            className="w-full h-14 text-base font-medium rounded-xl"
+            className="w-full h-14 text-base font-semibold rounded-2xl text-white border-0"
+            style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976, #962FBF)' }}
             onClick={handleContinue}
             data-testid="button-continue"
           >
@@ -346,7 +337,7 @@ export default function InstagramConnect() {
         ) : (
           <Button 
             variant="ghost"
-            className="w-full h-12 text-base text-muted-foreground"
+            className="w-full h-12 text-base text-gray-400"
             onClick={handleSkip}
             data-testid="button-skip"
           >

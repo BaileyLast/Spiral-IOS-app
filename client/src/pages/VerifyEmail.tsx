@@ -5,7 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Mail } from "lucide-react";
-import spiralLogoUrl from "@assets/Spiral logo (2)_1763051288266.png";
+import spiralLogoUrl from "@assets/Spiral_gradient_logo_1775056007518.png";
 
 export default function VerifyEmail() {
   const [, setLocation] = useLocation();
@@ -28,7 +28,6 @@ export default function VerifyEmail() {
       return response.json();
     },
     onSuccess: (data) => {
-      // Account is created on verification success - store the customer data
       localStorage.setItem("spiral_customer", JSON.stringify({
         id: data.id,
         email: data.email,
@@ -101,52 +100,27 @@ export default function VerifyEmail() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col relative overflow-hidden">
-      <div 
-        className="absolute inset-0 z-0"
-        style={{
-          background: `
-            linear-gradient(135deg, 
-              hsl(265, 60%, 20%) 0%, 
-              hsl(280, 55%, 30%) 25%, 
-              hsl(290, 50%, 35%) 50%, 
-              hsl(320, 45%, 30%) 75%, 
-              hsl(340, 40%, 25%) 100%
-            )
-          `,
-        }}
-      />
-      
-      <div 
-        className="absolute inset-0 z-0 opacity-30"
-        style={{
-          background: `
-            radial-gradient(ellipse at 30% 20%, hsl(270, 70%, 50%) 0%, transparent 50%),
-            radial-gradient(ellipse at 80% 80%, hsl(320, 60%, 45%) 0%, transparent 40%)
-          `,
-        }}
-      />
-
-      <div className="relative z-10 flex-1 flex flex-col px-6 py-12 safe-top safe-bottom">
+    <div className="min-h-screen flex flex-col bg-white">
+      <div className="flex-1 flex flex-col px-6 py-12 safe-top safe-bottom">
         <div className="w-full max-w-sm mx-auto flex-1 flex flex-col justify-center">
           <div className="text-center mb-10">
             <img 
               src={spiralLogoUrl} 
               alt="Spiral" 
-              className="h-40 mx-auto mb-6 object-contain brightness-0 invert"
+              className="h-28 mx-auto mb-6 object-contain"
               data-testid="img-spiral-logo"
             />
             
-            <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-6">
-              <Mail className="w-8 h-8 text-white" />
+            <div className="w-16 h-16 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center mx-auto mb-6">
+              <Mail className="w-8 h-8 text-[#D62976]" />
             </div>
             
-            <h1 className="text-3xl font-bold text-white mb-2">
+            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight mb-2">
               Check your email
             </h1>
-            <p className="text-white/70">
+            <p className="text-gray-500">
               We sent a 6-digit code to<br />
-              <span className="text-white font-medium">{customer?.email}</span>
+              <span className="text-gray-900 font-semibold">{customer?.email}</span>
             </p>
           </div>
 
@@ -161,7 +135,7 @@ export default function VerifyEmail() {
                 value={digit}
                 onChange={e => handleChange(index, e.target.value)}
                 onKeyDown={e => handleKeyDown(index, e)}
-                className="w-12 h-14 text-center text-2xl font-bold rounded-xl bg-white/10 border border-white/20 text-white focus:bg-white/15 focus:border-white/40 focus:outline-none"
+                className="w-12 h-14 text-center text-2xl font-bold rounded-xl bg-gray-50 border border-gray-200 text-gray-900 focus:border-[#D62976] focus:ring-2 focus:ring-[#D62976]/20 focus:outline-none transition-colors"
                 data-testid={`input-code-${index}`}
               />
             ))}
@@ -169,7 +143,8 @@ export default function VerifyEmail() {
 
           <Button 
             onClick={() => verifyMutation.mutate(code.join(""))}
-            className="w-full h-14 text-base font-semibold rounded-2xl bg-white text-gray-900 hover:bg-white/90 shadow-lg shadow-black/20"
+            className="w-full h-14 text-base font-semibold rounded-2xl text-white border-0"
+            style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976, #962FBF)' }}
             disabled={verifyMutation.isPending || code.some(d => !d)}
             data-testid="button-verify"
           >
@@ -185,13 +160,13 @@ export default function VerifyEmail() {
               type="button"
               onClick={() => resendMutation.mutate()}
               disabled={resendMutation.isPending}
-              className="text-sm text-white/70"
+              className="text-sm text-gray-500"
               data-testid="button-resend"
             >
               {resendMutation.isPending ? (
                 "Sending..."
               ) : (
-                <>Didn't receive it? <span className="text-white font-medium">Resend code</span></>
+                <>Didn't receive it? <span className="text-[#D62976] font-semibold">Resend code</span></>
               )}
             </button>
           </div>

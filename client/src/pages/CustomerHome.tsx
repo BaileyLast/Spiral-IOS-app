@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { ChevronRight, Instagram, Sparkles, Users, CheckCircle, Tag } from "lucide-react";
+import { ChevronRight, Instagram, Sparkles, CheckCircle, Tag } from "lucide-react";
 import type { Order } from "@shared/schema";
 
 function getStatusLabel(order: Order) {
@@ -16,15 +16,15 @@ function getStatusLabel(order: Order) {
 function getStatusBadge(status: string) {
   switch (status) {
     case "Verified":
-      return "bg-green-500/20 text-green-300 border border-green-400/20";
+      return "bg-green-50 text-green-700 border border-green-200";
     case "Story Received":
-      return "bg-blue-500/20 text-blue-300 border border-blue-400/20";
+      return "bg-blue-50 text-blue-700 border border-blue-200";
     case "Post Your Story":
-      return "bg-amber-500/20 text-amber-300 border border-amber-400/20";
+      return "bg-amber-50 text-amber-700 border border-amber-200";
     case "On the way":
-      return "bg-blue-500/20 text-blue-300 border border-blue-400/20";
+      return "bg-blue-50 text-blue-700 border border-blue-200";
     default:
-      return "bg-white/10 text-white/70 border border-white/10";
+      return "bg-gray-100 text-gray-600 border border-gray-200";
   }
 }
 
@@ -63,27 +63,27 @@ export default function CustomerHome() {
   );
 
   return (
-    <div className="min-h-screen safe-top">
+    <div className="min-h-screen safe-top bg-white">
       <main className="px-6 pt-14 pb-8 space-y-6">
         {profile?.instagramHandle && (
           <div className="text-center" data-testid="card-instagram-profile">
-            <Avatar className="w-20 h-20 mx-auto border-2 border-white/20">
+            <Avatar className="w-20 h-20 mx-auto border-2 border-gray-100">
               <AvatarImage
                 src="/api/customer/instagram-avatar"
                 alt={profile.instagramHandle}
               />
-              <AvatarFallback className="bg-gradient-to-br from-purple-400 to-pink-400 text-white">
+              <AvatarFallback className="text-white" style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976)' }}>
                 <Instagram className="w-8 h-8" />
               </AvatarFallback>
             </Avatar>
             <div className="flex items-center justify-center gap-1.5 mt-3">
-              <span className="font-medium text-white" data-testid="text-instagram-handle">
+              <span className="font-semibold text-gray-900" data-testid="text-instagram-handle">
                 @{profile.instagramHandle}
               </span>
-              <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+              <CheckCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
             </div>
             {profile.followerCount ? (
-              <p className="text-sm text-white/50 mt-1 flex items-center justify-center gap-1" data-testid="text-follower-count">
+              <p className="text-sm text-gray-400 mt-1 flex items-center justify-center gap-1" data-testid="text-follower-count">
                 <Instagram className="w-3 h-3" />
                 {formatFollowerCount(profile.followerCount)} followers
               </p>
@@ -93,22 +93,22 @@ export default function CustomerHome() {
 
         {stats && (
           <div className="text-center py-2" data-testid="card-average-savings">
-            <p className="text-white/50 text-sm mb-1">On average, you save</p>
-            <p className="text-6xl font-bold text-white tracking-tight" data-testid="text-average-savings">
+            <p className="text-gray-400 text-sm mb-1">On average, you save</p>
+            <p className="text-6xl font-extrabold tracking-tight text-brand-gradient" data-testid="text-average-savings">
               {stats.averageSavingsPercent.toFixed(1)}%
             </p>
-            <p className="text-white/50 text-sm mt-1">with Spiral</p>
+            <p className="text-gray-400 text-sm mt-1">with Spiral</p>
           </div>
         )}
 
-        <div className="p-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10">
+        <div className="p-5 rounded-2xl bg-gray-50 border border-gray-100">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center flex-shrink-0">
-              <Tag className="w-5 h-5 text-green-300" />
+            <div className="w-10 h-10 rounded-xl bg-green-50 border border-green-100 flex items-center justify-center flex-shrink-0">
+              <Tag className="w-5 h-5 text-green-600" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-white/50">You've saved</p>
-              <p className="text-xl font-semibold text-green-300" data-testid="text-total-saved">
+              <p className="text-sm text-gray-500">You've saved</p>
+              <p className="text-xl font-bold text-green-700" data-testid="text-total-saved">
                 ${stats?.totalSaved?.toFixed(2) || "0.00"}
               </p>
             </div>
@@ -116,23 +116,24 @@ export default function CustomerHome() {
         </div>
 
         {pendingActions.length > 0 && (
-          <div className="p-5 rounded-2xl bg-amber-500/15 backdrop-blur-sm border border-amber-400/20">
+          <div className="p-5 rounded-2xl bg-amber-50 border border-amber-200">
             <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-                <Sparkles className="w-5 h-5 text-amber-300" />
+              <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <Sparkles className="w-5 h-5 text-amber-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-amber-200">
+                <p className="font-semibold text-amber-900">
                   {pendingActions.length} order{pendingActions.length > 1 ? "s" : ""} awaiting your story
                 </p>
-                <p className="text-sm text-amber-300/70 mt-1">
+                <p className="text-sm text-amber-700 mt-1">
                   Share to keep your discount
                 </p>
               </div>
               <Link href="/discounts">
                 <Button 
                   size="sm" 
-                  className="bg-white/20 text-amber-200 border border-amber-400/30 rounded-lg"
+                  className="text-white border-0"
+                  style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976)' }}
                   data-testid="button-view-pending"
                 >
                   View
@@ -145,9 +146,9 @@ export default function CustomerHome() {
         {recentOrders.length > 0 ? (
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white">Recent Orders</h2>
+              <h2 className="text-lg font-bold text-gray-900">Recent Orders</h2>
               <Link href="/discounts">
-                <Button variant="ghost" size="sm" className="text-white/50" data-testid="link-view-all-orders">
+                <Button variant="ghost" size="sm" className="text-gray-400" data-testid="link-view-all-orders">
                   View all
                   <ChevronRight className="w-4 h-4 ml-1" />
                 </Button>
@@ -159,18 +160,18 @@ export default function CustomerHome() {
                 const status = getStatusLabel(order);
                 return (
                   <Link key={order.id} href={`/orders/${order.id}`}>
-                    <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 cursor-pointer hover-elevate" data-testid={`card-order-${order.id}`}>
+                    <div className="p-4 rounded-2xl bg-white border border-gray-100 cursor-pointer hover-elevate" data-testid={`card-order-${order.id}`}>
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-white truncate">
+                          <p className="font-semibold text-gray-900 truncate">
                             Order #{order.shopifyOrderId.slice(-6)}
                           </p>
-                          <p className="text-sm text-white/50 mt-0.5">
+                          <p className="text-sm text-gray-400 mt-0.5">
                             {new Date(order.createdAt).toLocaleDateString()}
                           </p>
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className="text-sm font-medium text-green-300">
+                          <span className="text-sm font-bold text-green-700">
                             -${Number(order.discountAmount).toFixed(2)}
                           </span>
                           <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusBadge(status)}`}>
@@ -185,12 +186,12 @@ export default function CustomerHome() {
             </div>
           </div>
         ) : (
-          <div className="p-8 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-white/15 flex items-center justify-center mx-auto mb-4">
-              <ShoppingBag className="w-8 h-8 text-white/70" />
+          <div className="p-8 rounded-2xl bg-gray-50 border border-gray-100 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-white border border-gray-100 flex items-center justify-center mx-auto mb-4">
+              <ShoppingBag className="w-8 h-8 text-gray-300" />
             </div>
-            <h3 className="font-semibold text-white mb-2">No orders yet</h3>
-            <p className="text-sm text-white/50">
+            <h3 className="font-bold text-gray-900 mb-2">No orders yet</h3>
+            <p className="text-sm text-gray-400">
               When you make a purchase with Spiral, it will appear here
             </p>
           </div>

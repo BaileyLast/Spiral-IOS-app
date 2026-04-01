@@ -12,7 +12,7 @@ import {
   Loader2,
   Instagram,
 } from "lucide-react";
-import spiralLogoUrl from "@assets/Spiral logo (2)_1763051288266.png";
+import spiralLogoUrl from "@assets/Spiral_gradient_logo_1775056007518.png";
 
 interface CustomerProfile {
   id: string;
@@ -68,8 +68,8 @@ export default function Profile() {
 
   if (profileLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-white/50" />
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <Loader2 className="w-8 h-8 animate-spin text-[#D62976]" />
       </div>
     );
   }
@@ -77,62 +77,91 @@ export default function Profile() {
   const isInstagramConnected = !!profile?.instagramHandle;
 
   return (
-    <div className="min-h-screen safe-top">
+    <div className="min-h-screen safe-top bg-white">
       <header className="px-6 pt-8 pb-6">
-        <h1 className="text-2xl font-semibold text-white">Profile</h1>
+        <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Profile</h1>
       </header>
 
       <main className="px-6 pb-8 space-y-6">
-        <div className="p-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 cursor-pointer hover-elevate" onClick={() => setLocation("/manage-account")} data-testid="card-manage-account">
+        <div
+          className="p-5 rounded-2xl bg-gray-50 border border-gray-100 cursor-pointer hover-elevate"
+          onClick={() => setLocation("/manage-account")}
+          data-testid="card-manage-account"
+        >
           <div className="flex items-center gap-4">
-            <Avatar className="w-14 h-14 border-0">
+            <Avatar className="w-14 h-14 border-2 border-gray-100">
               {profile?.instagramProfilePicture ? (
                 <AvatarImage 
                   src="/api/customer/instagram-avatar"
                   alt={profile.instagramHandle || profile.email}
                 />
               ) : null}
-              <AvatarFallback className="bg-white/15 text-white text-xl font-semibold">
+              <AvatarFallback className="bg-gray-100 text-gray-600 text-xl font-bold">
                 {profile?.email?.[0]?.toUpperCase() || "?"}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-white truncate" data-testid="text-email">
+              <p className="font-bold text-gray-900 truncate" data-testid="text-email">
                 {profile?.name || profile?.email || "Guest"}
               </p>
-              <p className="text-sm text-white/50 mt-0.5">Manage account</p>
+              <p className="text-sm text-gray-400 mt-0.5">Manage account</p>
             </div>
-            <ChevronRight className="w-5 h-5 text-white/30 flex-shrink-0" />
+            <ChevronRight className="w-5 h-5 text-gray-300 flex-shrink-0" />
           </div>
         </div>
 
         {!isInstagramConnected && (
           <div 
-            className="p-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 cursor-pointer hover-elevate"
+            className="p-5 rounded-2xl bg-gray-50 border border-gray-100 cursor-pointer hover-elevate"
             onClick={handleConnectInstagram}
             data-testid="card-connect-instagram"
           >
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976)' }}>
                 <Instagram className="w-6 h-6 text-white" />
               </div>
               <div className="flex-1">
-                <p className="font-medium text-white">Connect Instagram</p>
-                <p className="text-sm text-white/50">
+                <p className="font-semibold text-gray-900">Connect Instagram</p>
+                <p className="text-sm text-gray-400">
                   Link your Instagram to unlock discounts
                 </p>
               </div>
-              <Plus className="w-5 h-5 text-white/40" />
+              <Plus className="w-5 h-5 text-gray-300" />
             </div>
           </div>
         )}
 
-        <div className="rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 overflow-hidden">
-          <div className="divide-y divide-white/10">
+        {isInstagramConnected && (
+          <div className="p-5 rounded-2xl bg-gray-50 border border-gray-100" data-testid="card-instagram-connected">
+            <div className="flex items-center gap-4">
+              <Avatar className="w-12 h-12 border-2 border-gray-100">
+                <AvatarImage 
+                  src="/api/customer/instagram-avatar"
+                  alt={profile?.instagramHandle}
+                />
+                <AvatarFallback className="text-white" style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976)' }}>
+                  <Instagram className="w-6 h-6" />
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-gray-900 truncate">@{profile?.instagramHandle}</p>
+                {profile?.followerCount != null && (
+                  <p className="text-sm text-gray-400 mt-0.5 flex items-center gap-1">
+                    <Instagram className="w-3 h-3" />
+                    {formatFollowerCount(profile.followerCount)} followers
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="rounded-2xl bg-gray-50 border border-gray-100 overflow-hidden">
+          <div className="divide-y divide-gray-100">
             <div className="flex items-center justify-between p-4">
               <div className="flex items-center gap-3">
-                <Bell className="w-5 h-5 text-white/50" />
-                <span className="font-medium text-white">Push notifications</span>
+                <Bell className="w-5 h-5 text-gray-400" />
+                <span className="font-medium text-gray-900">Push notifications</span>
               </div>
               <Switch defaultChecked data-testid="switch-notifications" />
             </div>
@@ -143,10 +172,10 @@ export default function Profile() {
               data-testid="button-logout"
             >
               <div className="flex items-center gap-3">
-                <LogOut className="w-5 h-5 text-white/50" />
-                <span className="font-medium text-white">Sign out</span>
+                <LogOut className="w-5 h-5 text-gray-400" />
+                <span className="font-medium text-gray-900">Sign out</span>
               </div>
-              <ChevronRight className="w-5 h-5 text-white/30" />
+              <ChevronRight className="w-5 h-5 text-gray-300" />
             </button>
 
             <button
@@ -155,9 +184,9 @@ export default function Profile() {
             >
               <div className="flex items-center gap-3">
                 <Trash2 className="w-5 h-5 text-red-400" />
-                <span className="font-medium text-red-400">Delete account</span>
+                <span className="font-medium text-red-500">Delete account</span>
               </div>
-              <ChevronRight className="w-5 h-5 text-white/30" />
+              <ChevronRight className="w-5 h-5 text-gray-300" />
             </button>
           </div>
         </div>
@@ -166,9 +195,9 @@ export default function Profile() {
           <img 
             src={spiralLogoUrl} 
             alt="Spiral" 
-            className="h-6 mx-auto opacity-30 mb-2 brightness-0 invert"
+            className="h-8 mx-auto opacity-40 mb-2"
           />
-          <p className="text-xs text-white/30">Version 1.0.0</p>
+          <p className="text-xs text-gray-300">Version 1.0.0</p>
         </div>
       </main>
     </div>

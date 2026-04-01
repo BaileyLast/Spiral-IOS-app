@@ -23,24 +23,24 @@ export default function OrderDetail() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-white/50" />
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <Loader2 className="w-8 h-8 animate-spin text-[#D62976]" />
       </div>
     );
   }
 
   if (!order) {
     return (
-      <div className="min-h-screen safe-top">
+      <div className="min-h-screen safe-top bg-white">
         <header className="flex items-center px-4 h-14">
           <Link href="/discounts">
-            <Button variant="ghost" size="icon" className="text-white/70" data-testid="button-back">
+            <Button variant="ghost" size="icon" className="text-gray-500" data-testid="button-back">
               <ArrowLeft className="w-5 h-5" />
             </Button>
           </Link>
         </header>
         <div className="px-6 py-12 text-center">
-          <p className="text-white/50">Order not found</p>
+          <p className="text-gray-400">Order not found</p>
         </div>
       </div>
     );
@@ -56,42 +56,42 @@ export default function OrderDetail() {
   ];
 
   return (
-    <div className="min-h-screen safe-top">
-      <header className="flex items-center px-4 h-14">
+    <div className="min-h-screen safe-top bg-white">
+      <header className="flex items-center px-4 h-14 border-b border-gray-100">
         <Link href="/discounts">
-          <Button variant="ghost" size="icon" className="text-white/70" data-testid="button-back">
+          <Button variant="ghost" size="icon" className="text-gray-500" data-testid="button-back">
             <ArrowLeft className="w-5 h-5" />
           </Button>
         </Link>
-        <h1 className="ml-2 text-lg font-medium text-white">Order Details</h1>
+        <h1 className="ml-2 text-lg font-bold text-gray-900">Order Details</h1>
       </header>
 
-      <main className="px-6 pb-8 space-y-6">
-        <div className="p-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10">
+      <main className="px-6 pb-8 pt-6 space-y-6">
+        <div className="p-5 rounded-2xl bg-gray-50 border border-gray-100">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <p className="text-sm text-white/50">Order</p>
-              <p className="text-lg font-semibold text-white" data-testid="text-order-id">
+              <p className="text-sm text-gray-400">Order</p>
+              <p className="text-lg font-bold text-gray-900" data-testid="text-order-id">
                 #{order.shopifyOrderId.slice(-6)}
               </p>
             </div>
             <div className="text-right">
-              <p className="text-sm text-white/50">Your discount</p>
-              <p className="text-lg font-semibold text-green-300" data-testid="text-discount">
+              <p className="text-sm text-gray-400">Your discount</p>
+              <p className="text-lg font-bold text-green-700" data-testid="text-discount">
                 -${Number(order.discountAmount).toFixed(2)}
               </p>
             </div>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-white/50">Order total</span>
-            <span className="font-medium text-white" data-testid="text-order-total">
+            <span className="text-gray-400">Order total</span>
+            <span className="font-semibold text-gray-900" data-testid="text-order-total">
               ${Number(order.orderTotal).toFixed(2)}
             </span>
           </div>
         </div>
 
-        <div className="p-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10">
-          <h2 className="font-semibold text-white mb-4">Order Progress</h2>
+        <div className="p-5 rounded-2xl bg-gray-50 border border-gray-100">
+          <h2 className="font-bold text-gray-900 mb-4">Order Progress</h2>
           <div className="space-y-4">
             {steps.map((step, index) => {
               const isLast = index === steps.length - 1;
@@ -102,17 +102,17 @@ export default function OrderDetail() {
                   <div className="flex flex-col items-center">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                       step.complete 
-                        ? "bg-white/20" 
-                        : "bg-white/5"
+                        ? "bg-[#D62976]/10" 
+                        : "bg-gray-100"
                     }`}>
-                      <Icon className={`w-4 h-4 ${step.complete ? "text-white" : "text-white/30"}`} />
+                      <Icon className={`w-4 h-4 ${step.complete ? "text-[#D62976]" : "text-gray-300"}`} />
                     </div>
                     {!isLast && (
-                      <div className={`w-0.5 h-6 mt-1 ${step.complete ? "bg-white/20" : "bg-white/5"}`} />
+                      <div className={`w-0.5 h-6 mt-1 ${step.complete ? "bg-[#D62976]/20" : "bg-gray-100"}`} />
                     )}
                   </div>
                   <div className="flex-1 pb-2">
-                    <p className={`font-medium ${step.complete ? "text-white" : "text-white/40"}`}>
+                    <p className={`font-medium ${step.complete ? "text-gray-900" : "text-gray-300"}`}>
                       {step.label}
                     </p>
                   </div>
@@ -123,32 +123,32 @@ export default function OrderDetail() {
         </div>
 
         {status === "awaiting" && (
-          <div className="p-5 rounded-2xl bg-amber-500/15 backdrop-blur-sm border border-amber-400/20">
+          <div className="p-5 rounded-2xl bg-amber-50 border border-amber-200">
             <div className="flex items-start gap-4 mb-5">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-                <Camera className="w-5 h-5 text-amber-300" />
+              <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <Camera className="w-5 h-5 text-amber-600" />
               </div>
               <div>
-                <h3 className="font-semibold text-amber-200">
+                <h3 className="font-bold text-amber-900">
                   Share to keep your discount
                 </h3>
-                <p className="text-sm text-amber-300/70 mt-1">
+                <p className="text-sm text-amber-700 mt-1">
                   Post an Instagram Story tagging the brand to confirm your discount
                 </p>
               </div>
             </div>
             
-            <div className="bg-white/10 rounded-xl p-4 space-y-3">
-              <div className="flex items-center gap-2 text-sm text-amber-200">
+            <div className="bg-amber-100/60 rounded-xl p-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm text-amber-800">
                 <Instagram className="w-4 h-4" />
-                <span className="font-medium">How to post:</span>
+                <span className="font-semibold">How to post:</span>
               </div>
-              <ol className="text-sm text-amber-200/80 space-y-2 ml-6 list-decimal">
+              <ol className="text-sm text-amber-800 space-y-2 ml-6 list-decimal">
                 <li>Take a photo or video of your purchase</li>
                 <li>Add it to your Instagram Story</li>
                 <li>Tag the brand using the @ mention sticker</li>
               </ol>
-              <p className="text-xs text-amber-300/50 mt-2">
+              <p className="text-xs text-amber-600 mt-2">
                 We'll verify your story automatically once you tag the brand
               </p>
             </div>
@@ -156,16 +156,16 @@ export default function OrderDetail() {
         )}
 
         {status === "story_received" && (
-          <div className="p-5 rounded-2xl bg-blue-500/15 backdrop-blur-sm border border-blue-400/20">
+          <div className="p-5 rounded-2xl bg-blue-50 border border-blue-200">
             <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                <CheckCircle className="w-5 h-5 text-blue-300" />
+              <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+                <CheckCircle className="w-5 h-5 text-blue-600" />
               </div>
               <div>
-                <h3 className="font-semibold text-blue-200">
+                <h3 className="font-bold text-blue-900">
                   Story received
                 </h3>
-                <p className="text-sm text-blue-300/70 mt-1">
+                <p className="text-sm text-blue-700 mt-1">
                   We detected your story mention and are processing your verification
                 </p>
               </div>
@@ -174,16 +174,16 @@ export default function OrderDetail() {
         )}
 
         {status === "verified" && (
-          <div className="p-5 rounded-2xl bg-green-500/15 backdrop-blur-sm border border-green-400/20">
+          <div className="p-5 rounded-2xl bg-green-50 border border-green-200">
             <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center flex-shrink-0">
-                <CheckCircle className="w-5 h-5 text-green-300" />
+              <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
+                <CheckCircle className="w-5 h-5 text-green-600" />
               </div>
               <div>
-                <h3 className="font-semibold text-green-200">
+                <h3 className="font-bold text-green-900">
                   You saved ${Number(order.discountAmount).toFixed(2)}!
                 </h3>
-                <p className="text-sm text-green-300/70 mt-1">
+                <p className="text-sm text-green-700 mt-1">
                   Your story was verified and your discount is confirmed
                 </p>
               </div>

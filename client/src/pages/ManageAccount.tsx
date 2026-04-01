@@ -106,8 +106,8 @@ export default function ManageAccount() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-white/50" />
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <Loader2 className="w-8 h-8 animate-spin text-[#D62976]" />
       </div>
     );
   }
@@ -146,42 +146,42 @@ export default function ManageAccount() {
   ];
 
   return (
-    <div className="min-h-screen safe-top">
+    <div className="min-h-screen safe-top bg-white">
       <header className="px-6 pt-8 pb-6 flex items-center gap-3">
         <button
           onClick={() => setLocation("/profile")}
-          className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover-elevate"
+          className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover-elevate"
           data-testid="button-back"
         >
-          <ArrowLeft className="w-5 h-5 text-white" />
+          <ArrowLeft className="w-5 h-5 text-gray-600" />
         </button>
-        <h1 className="text-2xl font-semibold text-white">Manage account</h1>
+        <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Manage account</h1>
       </header>
 
       <main className="px-6 pb-8 space-y-6">
         {isInstagramConnected ? (
           <div
-            className="p-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10"
+            className="p-5 rounded-2xl bg-gray-50 border border-gray-100"
             data-testid="card-instagram-connected"
           >
             <div className="flex items-center gap-4">
-              <Avatar className="w-14 h-14 border-2 border-white/20">
+              <Avatar className="w-14 h-14 border-2 border-gray-100">
                 {profile?.instagramProfilePicture ? (
                   <AvatarImage
                     src="/api/customer/instagram-avatar"
                     alt={profile.instagramHandle || "Instagram"}
                   />
                 ) : null}
-                <AvatarFallback className="bg-gradient-to-br from-purple-400 to-pink-400 text-white text-xl font-semibold">
+                <AvatarFallback className="text-white text-xl font-bold" style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976)' }}>
                   <Instagram className="w-6 h-6" />
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-white truncate" data-testid="text-instagram-handle">
+                <p className="font-bold text-gray-900 truncate" data-testid="text-instagram-handle">
                   @{profile?.instagramHandle}
                 </p>
                 {profile?.followerCount != null && (
-                  <p className="text-sm text-white/50 mt-0.5 flex items-center gap-1">
+                  <p className="text-sm text-gray-400 mt-0.5 flex items-center gap-1">
                     <Instagram className="w-3 h-3" />
                     {formatFollowerCount(profile.followerCount)} followers
                   </p>
@@ -191,7 +191,7 @@ export default function ManageAccount() {
             <button
               onClick={() => disconnectMutation.mutate()}
               disabled={disconnectMutation.isPending}
-              className="w-full mt-4 py-2.5 rounded-xl bg-white/10 text-white/70 text-sm font-medium hover-elevate transition-colors"
+              className="w-full mt-4 py-2.5 rounded-xl bg-gray-100 text-gray-500 text-sm font-medium hover-elevate transition-colors"
               data-testid="button-disconnect-instagram"
             >
               {disconnectMutation.isPending ? (
@@ -203,29 +203,29 @@ export default function ManageAccount() {
           </div>
         ) : (
           <div
-            className="p-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 cursor-pointer hover-elevate"
+            className="p-5 rounded-2xl bg-gray-50 border border-gray-100 cursor-pointer hover-elevate"
             onClick={() => setLocation("/connect-instagram")}
             data-testid="card-connect-instagram"
           >
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center">
+              <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976)' }}>
                 <Instagram className="w-7 h-7 text-white" />
               </div>
               <div className="flex-1">
-                <p className="font-medium text-white">Connect Instagram</p>
-                <p className="text-sm text-white/50">Link your account to unlock discounts</p>
+                <p className="font-semibold text-gray-900">Connect Instagram</p>
+                <p className="text-sm text-gray-400">Link your account to unlock discounts</p>
               </div>
-              <Plus className="w-5 h-5 text-white/40" />
+              <Plus className="w-5 h-5 text-gray-300" />
             </div>
           </div>
         )}
 
         <div>
-          <h2 className="text-sm font-medium text-white/40 uppercase tracking-wider mb-3 px-1" data-testid="text-section-label">
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-1" data-testid="text-section-label">
             Spiral account info
           </h2>
-          <div className="rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 overflow-hidden">
-            <div className="divide-y divide-white/10">
+          <div className="rounded-2xl bg-gray-50 border border-gray-100 overflow-hidden">
+            <div className="divide-y divide-gray-100">
               {accountFields.map((field) => {
                 const isEditing = editingField === field.key;
                 const Icon = field.icon;
@@ -235,14 +235,14 @@ export default function ManageAccount() {
                     {isEditing ? (
                       <div className="space-y-3">
                         <div className="flex items-center gap-2">
-                          <Icon className="w-4 h-4 text-white/50" />
-                          <span className="text-xs text-white/50 uppercase tracking-wider">{field.label}</span>
+                          <Icon className="w-4 h-4 text-gray-400" />
+                          <span className="text-xs text-gray-400 uppercase tracking-wider">{field.label}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Input
                             value={editValue}
                             onChange={(e) => setEditValue(e.target.value)}
-                            className="flex-1 bg-white/10 border-white/20 text-white placeholder:text-white/30 focus-visible:ring-white/30"
+                            className="flex-1 bg-white border-gray-200 text-gray-900 placeholder:text-gray-300 focus-visible:ring-[#D62976]/20 focus-visible:border-[#D62976]"
                             placeholder={`Enter ${field.label.toLowerCase()}`}
                             autoFocus
                             data-testid={`input-${field.key}`}
@@ -255,9 +255,9 @@ export default function ManageAccount() {
                             data-testid={`button-save-${field.key}`}
                           >
                             {updateMutation.isPending ? (
-                              <Loader2 className="w-4 h-4 animate-spin text-white/50" />
+                              <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
                             ) : (
-                              <Check className="w-4 h-4 text-green-400" />
+                              <Check className="w-4 h-4 text-green-600" />
                             )}
                           </Button>
                           <Button
@@ -266,7 +266,7 @@ export default function ManageAccount() {
                             onClick={cancelEditing}
                             data-testid={`button-cancel-${field.key}`}
                           >
-                            <X className="w-4 h-4 text-white/50" />
+                            <X className="w-4 h-4 text-gray-400" />
                           </Button>
                         </div>
                       </div>
@@ -281,15 +281,15 @@ export default function ManageAccount() {
                         disabled={!field.editable}
                         data-testid={`button-edit-${field.key}`}
                       >
-                        <Icon className="w-5 h-5 text-white/50 flex-shrink-0" />
+                        <Icon className="w-5 h-5 text-gray-400 flex-shrink-0" />
                         <div className="flex-1 min-w-0 text-left">
-                          <p className="text-xs text-white/40 mb-0.5">{field.label}</p>
-                          <p className={`text-sm truncate ${field.value ? "text-white" : "text-white/30"}`}>
+                          <p className="text-xs text-gray-400 mb-0.5">{field.label}</p>
+                          <p className={`text-sm truncate ${field.value ? "text-gray-900" : "text-gray-300"}`}>
                             {field.value || "Not set"}
                           </p>
                         </div>
                         {field.editable && (
-                          <ChevronRight className="w-4 h-4 text-white/30 flex-shrink-0" />
+                          <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
                         )}
                       </button>
                     )}

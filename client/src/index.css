@@ -9,7 +9,7 @@
   --opaque-button-border-intensity: -8;
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
-  --background: 0 0% 98%;
+  --background: 0 0% 100%;
   --foreground: 0 0% 9%;
   --border: 0 0% 92%;
   --card: 0 0% 100%;
@@ -18,24 +18,24 @@
   --popover: 0 0% 100%;
   --popover-foreground: 0 0% 9%;
   --popover-border: 0 0% 94%;
-  --primary: 262 83% 58%;
+  --primary: 333 68% 48%;
   --primary-foreground: 0 0% 100%;
   --secondary: 0 0% 96%;
   --secondary-foreground: 0 0% 9%;
   --muted: 0 0% 96%;
   --muted-foreground: 0 0% 45%;
-  --accent: 262 20% 96%;
-  --accent-foreground: 262 83% 45%;
+  --accent: 333 30% 96%;
+  --accent-foreground: 333 68% 40%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
   --input: 0 0% 85%;
-  --ring: 262 83% 58%;
-  --chart-1: 262 83% 58%;
+  --ring: 333 68% 48%;
+  --chart-1: 333 68% 48%;
   --chart-2: 280 65% 48%;
-  --chart-3: 210 60% 45%;
+  --chart-3: 30 90% 55%;
   --chart-4: 173 58% 39%;
-  --chart-5: 340 75% 55%;
-  --font-sans: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  --chart-5: 214 80% 55%;
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Menlo, monospace;
   --radius: .75rem;
@@ -98,23 +98,23 @@
   --popover: 0 0% 8%;
   --popover-foreground: 0 0% 98%;
   --popover-border: 0 0% 13%;
-  --primary: 262 83% 65%;
+  --primary: 333 68% 62%;
   --primary-foreground: 0 0% 100%;
   --secondary: 0 0% 12%;
   --secondary-foreground: 0 0% 98%;
   --muted: 0 0% 12%;
   --muted-foreground: 0 0% 55%;
-  --accent: 262 15% 15%;
-  --accent-foreground: 262 83% 75%;
+  --accent: 333 20% 15%;
+  --accent-foreground: 333 68% 75%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
   --input: 0 0% 20%;
-  --ring: 262 83% 65%;
-  --chart-1: 262 83% 70%;
+  --ring: 333 68% 62%;
+  --chart-1: 333 68% 70%;
   --chart-2: 280 65% 68%;
-  --chart-3: 210 60% 65%;
+  --chart-3: 30 90% 65%;
   --chart-4: 173 58% 60%;
-  --chart-5: 340 75% 68%;
+  --chart-5: 214 80% 65%;
 
   /* Status colors - dark mode */
   --status-pending: 220 14% 18%;
@@ -252,5 +252,17 @@
   
   .safe-top {
     padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* Brand gradient utilities */
+  .bg-cta-gradient {
+    background: linear-gradient(135deg, #FA7E1E, #D62976, #962FBF);
+  }
+
+  .text-brand-gradient {
+    background: linear-gradient(to right, #FA7E1E, #D62976, #962FBF);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 }
