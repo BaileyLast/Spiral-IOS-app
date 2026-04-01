@@ -821,7 +821,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Step 5: Subscribe Instagram account to messaging webhooks
       let webhookStatus = 'unknown';
       try {
-        const subscribeUrl = `https://graph.facebook.com/v19.0/${igUserId}/subscribed_apps`;
+        const subscribeUrl = `https://graph.instagram.com/v21.0/${igUserId}/subscribed_apps`;
         const subscribeRes = await fetch(subscribeUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2454,7 +2454,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Verify webhook signature using app secret
       const signature = req.headers['x-hub-signature-256'] as string;
-      const appSecret = process.env.FACEBOOK_APP_SECRET;
+      const appSecret = process.env.INSTAGRAM_APP_SECRET;
       
       if (appSecret) {
         if (!signature) {
@@ -2485,7 +2485,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         console.log('Instagram DM webhook signature verified');
       } else {
-        console.warn('FACEBOOK_APP_SECRET not configured - skipping signature verification (DEV MODE)');
+        console.warn('INSTAGRAM_APP_SECRET not configured - skipping signature verification (DEV MODE)');
       }
 
       console.log('Instagram DM webhook received:', JSON.stringify(req.body, null, 2));
