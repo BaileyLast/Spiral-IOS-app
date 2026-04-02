@@ -2631,32 +2631,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Helper: Fetch Instagram data by user ID via RapidAPI
   async function fetchInstagramDataByUserId(userId: string, rapidApiKey: string): Promise<{ username: string; followerCount: number; profilePicture: string }> {
     try {
-      // Step 1: Resolve Instagram user ID to username via Graph API
+      // Step 1: Resolve Instagram sender IGSID to profile info via Graph API
       const pageToken = process.env.SPIRAL_INSTAGRAM_ACCESS_TOKEN;
       if (!pageToken) {
-        throw new Error('SPIRAL_INSTAGRAM_ACCESS_TOKEN not set — cannot resolve Instagram username');
+        throw new Error('SPIRAL_INSTAGRAM_ACCESS_TOKEN not set');
       }
 
-      const graphUrl = `https://graph.instagram.com/v21.0/${userId}?fields=username&access_token=${encodeURIComponent(pageToken)}`;
+      const graphUrl = `https://graph.instagram.com/v21.0/${userId}?fields=name,username,profile_pic&access_token=${pageToken}`;
       const graphRes = await fetch(graphUrl);
+      const graphData = await graphRes.json() as { name?: string; username?: string; profile_pic?: string; error?: { message: string } };
 
-      if (!graphRes.ok) {
-        const errorText = await graphRes.text();
-        console.error(`Graph API error resolving IG username (${graphRes.status}):`, errorText);
-        throw new Error(`Graph API failed to resolve username: ${graphRes.status}`);
-      }
-
-      const graphData = await graphRes.json() as { username?: string; error?: { message: string } };
       if (graphData.error) {
-        console.error('Graph API error:', graphData.error.message);
-        throw new Error(`Graph API error: ${graphData.error.message}`);
+        console.error(`Graph API error resolving sender info:`, graphData.error.message);
       }
 
-      const username = graphData.username || '';
+      const username = graphData.username || graphData.name || '';
+      const profilePicFromGraph = graphData.profile_pic || '';
+
       if (!username) {
-        throw new Error(`Could not resolve username for Instagram user ID: ${userId}`);
+        console.log(`Could not resolve username for IGSID ${userId} — skipping follower lookup`);
+        return { username: '', followerCount: 0, profilePicture: profilePicFromGraph };
       }
-      console.log(`Resolved Instagram user ID ${userId} to @${username}`);
+
+      console.log(`Resolved IGSID ${userId} to @${username}`);
 
       // Step 2: Fetch profile data from new RapidAPI using username
       const rapidApiHost = 'instagram-scraper-stable-api.p.rapidapi.com';
