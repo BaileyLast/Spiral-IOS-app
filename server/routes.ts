@@ -714,7 +714,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/auth/instagram", (req, res) => {
     const redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
     const appId = process.env.INSTAGRAM_APP_ID;
-    const scopes = 'instagram_business_basic,instagram_business_manage_messages';
+    const scopes = 'instagram_basic,instagram_manage_messages,pages_show_list,pages_read_engagement,pages_manage_metadata';
 
     if (!redirectUri || !appId) {
       return res.status(500).json({ error: "Instagram credentials not configured" });
@@ -766,7 +766,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!tokenResponse.ok) {
         const errorText = await tokenResponse.text();
         console.error("Failed to get Instagram access token:", errorText);
-        return res.status(500).send("Failed to authenticate with Instagram. Please try again.");
+        return res.status(500).send(`Failed to authenticate with Instagram: ${errorText}`);
       }
 
       const tokenData = await tokenResponse.json() as { access_token: string; user_id: number };
@@ -780,28 +780,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!longTokenResponse.ok) {
         const errorText = await longTokenResponse.text();
         console.error("Failed to exchange for long-lived token:", errorText);
-        return res.status(500).send("Failed to get long-lived token. Please try again.");
+        return res.status(500).send(`Failed to get long-lived token: ${errorText}`);
       }
 
       const longTokenData = await longTokenResponse.json() as { access_token: string; expires_in: number };
       const longLivedToken = longTokenData.access_token;
 
-      // Step 3: Fetch Instagram username using explicit user ID (non-blocking)
+      // Step 3: Fetch Facebook Page accounts linked to this Instagram account
+      let pageId = igUserId;
+      let pageToken = longLivedToken;
+      let instagramBusinessAccountId = igUserId;
       let username = 'joinspiral';
+      const pagesInfo: string[] = [];
+
+      try {
+        const accountsUrl = `https://graph.facebook.com/v19.0/me/accounts?access_token=${longLivedToken}`;
+        const accountsRes = await fetch(accountsUrl);
+        const accountsData = await accountsRes.json() as { data?: Array<{ id: string; name: string; access_token: string; instagram_business_account?: { id: string } }>; error?: { message: string } };
+
+        if (accountsData.error) {
+          console.error("Pages accounts error (non-fatal):", accountsData.error.message);
+        } else if (accountsData.data && accountsData.data.length > 0) {
+          for (const page of accountsData.data) {
+            pagesInfo.push(`Page: ${page.name} (${page.id})`);
+            if (page.instagram_business_account) {
+              instagramBusinessAccountId = page.instagram_business_account.id;
+              pagesInfo.push(`  → Instagram Business Account: ${instagramBusinessAccountId}`);
+            }
+            pageId = page.id;
+            pageToken = page.access_token;
+          }
+          console.log('Found Facebook Pages:', pagesInfo.join(', '));
+        } else {
+          console.log('No Facebook Pages found, using IG user token directly');
+        }
+      } catch (pageErr) {
+        console.error("Error fetching page accounts (non-fatal):", pageErr);
+      }
+
+      // Step 4: Fetch Instagram username
       try {
         const userInfoResponse = await fetch(`https://graph.instagram.com/v19.0/${igUserId}?fields=username&access_token=${longLivedToken}`);
         if (userInfoResponse.ok) {
-          const userInfo = await userInfoResponse.json() as { id: string; username: string };
+          const userInfo = await userInfoResponse.json() as { id: string; username?: string };
           if (userInfo.username) username = userInfo.username;
-        } else {
-          const errorText = await userInfoResponse.text();
-          console.error("Failed to get Instagram user info (non-fatal):", errorText);
         }
       } catch (userInfoErr) {
         console.error("Error fetching Instagram user info (non-fatal):", userInfoErr);
       }
 
-      // Step 4: Store settings
+      // Step 5: Store settings
       const existingSettings = await storage.getStoreSettings();
       await storage.updateStoreSettings({
         storeName: existingSettings?.storeName || "My Store",
@@ -810,30 +838,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         shopDomain: existingSettings?.shopDomain,
         accessToken: existingSettings?.accessToken,
         minFollowers: existingSettings?.minFollowers ?? 0,
-        instagramBusinessAccountId: igUserId,
-        instagramPageId: igUserId,
+        instagramBusinessAccountId,
+        instagramPageId: pageId,
         instagramUsername: username,
         instagramAccessToken: longLivedToken,
       });
 
-      console.log('Instagram account connected:', username, 'ID:', igUserId);
+      console.log('Instagram account connected:', username, 'IG User ID:', igUserId, 'Page ID:', pageId);
 
-      // Step 5: Subscribe Instagram account to messaging webhooks
+      // Step 6: Subscribe Page to messaging webhooks
       let webhookStatus = 'unknown';
       try {
-        const subscribeUrl = `https://graph.instagram.com/v21.0/${igUserId}/subscribed_apps`;
+        const subscribeUrl = `https://graph.facebook.com/v19.0/${pageId}/subscribed_apps`;
         const subscribeRes = await fetch(subscribeUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            subscribed_fields: ['messages'],
-            access_token: longLivedToken,
+            subscribed_fields: ['messages', 'messaging_postbacks'],
+            access_token: pageToken,
           }),
         });
 
         if (subscribeRes.ok) {
           webhookStatus = 'active';
-          console.log('Subscribed to messaging webhooks for IG account:', igUserId);
+          console.log('Subscribed Page to messaging webhooks:', pageId);
           const updatedSettings = await storage.getStoreSettings();
           if (updatedSettings) {
             await storage.updateStoreWebhookStatus(updatedSettings.id, 'active');
@@ -841,7 +869,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else {
           const subscribeError = await subscribeRes.text();
           webhookStatus = 'failed: ' + subscribeError;
-          console.error('Failed to subscribe to messaging webhooks:', subscribeError);
+          console.error('Failed to subscribe Page to messaging webhooks:', subscribeError);
         }
       } catch (webhookSubError) {
         webhookStatus = 'error';
@@ -849,20 +877,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.send(`
-        <html><body style="font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 20px;">
-          <h2>Instagram Connected Successfully</h2>
-          <p><strong>Account:</strong> @${username}</p>
-          <p><strong>Instagram User ID:</strong> ${igUserId}</p>
+        <html><body style="font-family: sans-serif; max-width: 700px; margin: 40px auto; padding: 20px;">
+          <h2 style="color: #1a1a2e;">Instagram Connected Successfully</h2>
+          <p><strong>Account:</strong> @${username} (IG User ID: ${igUserId})</p>
+          <p><strong>Page ID:</strong> ${pageId}</p>
+          <p><strong>Instagram Business Account ID:</strong> ${instagramBusinessAccountId}</p>
           <p><strong>Webhook subscription:</strong> ${webhookStatus}</p>
+          ${pagesInfo.length > 0 ? `<p><strong>Pages found:</strong> ${pagesInfo.join('<br>')}</p>` : ''}
           <hr/>
-          <p><strong>Access Token (copy this to SPIRAL_INSTAGRAM_ACCESS_TOKEN):</strong></p>
-          <textarea rows="4" cols="60" onclick="this.select()" readonly>${longLivedToken}</textarea>
-          <p style="color: #666; margin-top: 20px;">This token lasts 60 days. Re-run /auth/instagram before it expires to refresh it.</p>
+          <p><strong>Long-lived Access Token (copy to SPIRAL_INSTAGRAM_ACCESS_TOKEN):</strong></p>
+          <textarea rows="4" cols="60" onclick="this.select()" readonly style="width:100%;font-size:12px;">${longLivedToken}</textarea>
+          <p><strong>Page Token (copy to SPIRAL_PAGE_ACCESS_TOKEN if needed):</strong></p>
+          <textarea rows="4" cols="60" onclick="this.select()" readonly style="width:100%;font-size:12px;">${pageToken !== longLivedToken ? pageToken : '(same as above — no separate page token found)'}</textarea>
+          <p style="color: #666; margin-top: 20px;">The long-lived token lasts 60 days. Re-run /auth/instagram before it expires to refresh it.</p>
         </body></html>
       `);
     } catch (error) {
       console.error("Error during Instagram OAuth:", error);
-      res.status(500).send("Failed to complete Instagram authentication");
+      res.status(500).send(`Failed to complete Instagram authentication: ${error}`);
     }
   });
 
