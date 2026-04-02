@@ -2556,6 +2556,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     console.error("Failed to fetch Instagram data:", igError);
                   }
 
+                  // Fall back to sender ID as handle so profile is always saved as connected
+                  if (!instagramHandle) {
+                    instagramHandle = senderInstagramId;
+                  }
+
                   // Verify the code and link Instagram
                   await storage.verifySpiralCode(pendingValidMatchedCode, senderInstagramId, instagramHandle);
 
