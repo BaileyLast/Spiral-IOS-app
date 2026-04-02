@@ -62,12 +62,12 @@ export default function InstagramConnect() {
     if (verificationStatus?.status === "verified") {
       queryClient.invalidateQueries({ queryKey: ["/api/customer/me"] });
       queryClient.invalidateQueries({ queryKey: ["/api/customer/stats"] });
-      toast({
-        title: "Instagram connected!",
-        description: `Verified as @${verificationStatus.instagramHandle}`,
-      });
+      const timer = setTimeout(() => {
+        setLocation("/home");
+      }, 2000);
+      return () => clearTimeout(timer);
     }
-  }, [verificationStatus?.status, verificationStatus?.instagramHandle, queryClient, toast]);
+  }, [verificationStatus?.status, verificationStatus?.instagramHandle, queryClient, setLocation]);
 
   const regenerateCodeMutation = useMutation({
     mutationFn: async () => {
@@ -321,17 +321,7 @@ export default function InstagramConnect() {
       </div>
 
       <div className="px-6 pb-8 safe-bottom">
-        {verificationStatus?.status === "verified" ? (
-          <Button 
-            className="w-full h-14 text-base font-semibold rounded-2xl text-white border-0"
-            style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976, #962FBF)' }}
-            onClick={handleContinue}
-            data-testid="button-continue"
-          >
-            Continue to Spiral
-            <ArrowRight className="w-5 h-5 ml-2" />
-          </Button>
-        ) : (
+        {verificationStatus?.status !== "verified" && (
           <Button 
             variant="ghost"
             className="w-full h-12 text-base text-gray-400"
