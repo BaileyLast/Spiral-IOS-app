@@ -139,6 +139,8 @@ export const spiralCodes = pgTable("spiral_codes", {
   code: text("code").notNull().unique(),
   customerId: varchar("customer_id").notNull(),
   status: text("status").notNull().default("pending"),
+  // Instagram handle entered by customer before DMing (used for follower lookup)
+  claimedHandle: text("claimed_handle"),
   // Instagram data (populated when DM received)
   instagramUserId: text("instagram_user_id"),
   instagramHandle: text("instagram_handle"),

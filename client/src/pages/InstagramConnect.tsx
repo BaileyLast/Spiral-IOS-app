@@ -37,6 +37,15 @@ export default function InstagramConnect() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
+  const [igHandle, setIgHandle] = useState("");
+  const [handleSaved, setHandleSaved] = useState(false);
+
+  const saveHandleMutation = useMutation({
+    mutationFn: async (handle: string) => {
+      await apiRequest("PATCH", "/api/customer/spiral-code/handle", { handle });
+    },
+    onSuccess: () => setHandleSaved(true),
+  });
 
   const { data: profile, isLoading } = useQuery<CustomerProfile>({
     queryKey: ["/api/customer/me"],
@@ -249,6 +258,31 @@ export default function InstagramConnect() {
           <p className="text-gray-500 mb-8">
             Verify your Instagram to unlock discounts based on your follower count
           </p>
+
+          {spiralCode?.status === "pending" && (
+            <div className="bg-gray-50 rounded-2xl border border-gray-100 p-4 mb-4">
+              <p className="text-sm text-gray-500 mb-2">Your Instagram username</p>
+              <div className="flex items-center gap-1 bg-white rounded-xl border border-gray-100 px-3 py-2">
+                <span className="text-gray-400 font-medium text-sm">@</span>
+                <input
+                  type="text"
+                  value={igHandle}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/^@/, "").replace(/\s/g, "");
+                    setIgHandle(val);
+                    setHandleSaved(false);
+                  }}
+                  onBlur={() => {
+                    if (igHandle.trim()) saveHandleMutation.mutate(igHandle.trim());
+                  }}
+                  placeholder="yourhandle"
+                  className="flex-1 bg-transparent outline-none text-gray-900 text-sm"
+                  data-testid="input-instagram-handle"
+                />
+                {handleSaved && <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />}
+              </div>
+            </div>
+          )}
 
           {spiralCode?.status === "pending" && (
             <div className="bg-gray-50 rounded-2xl border border-gray-100 p-6 mb-6">

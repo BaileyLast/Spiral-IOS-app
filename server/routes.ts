@@ -2391,6 +2391,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Save customer's claimed Instagram handle (used for follower count lookup)
+  app.patch("/api/customer/spiral-code/handle", async (req, res) => {
+    try {
+      const customerId = req.session.customerId;
+      if (!customerId) return res.status(401).json({ error: "Not authenticated" });
+      const { handle } = req.body;
+      if (!handle || typeof handle !== "string") return res.status(400).json({ error: "Invalid handle" });
+      const cleanHandle = handle.replace(/^@/, "").trim().toLowerCase();
+      if (!cleanHandle) return res.status(400).json({ error: "Invalid handle" });
+      await storage.updateSpiralCodeClaimedHandle(customerId, cleanHandle);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to save claimed handle:", error);
+      res.status(500).json({ error: "Failed to save handle" });
+    }
+  });
+
   // ============================================
   // Re-subscribe Facebook Page to Instagram messaging webhooks
   // ============================================
@@ -2543,17 +2560,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   let instagramHandle = "";
                   let profilePicture = "";
                   
-                  // Try to get Instagram data
+                  // Use claimed handle from code if customer entered it before DMing
+                  const claimedHandle = pendingValidCode.claimedHandle || "";
+
+                  // Try to get Instagram data (uses claimed handle as fallback for username)
                   try {
                     const rapidApiKey = process.env.RAPIDAPI_KEY;
                     if (rapidApiKey) {
-                      const igData = await fetchInstagramDataByUserId(senderInstagramId, rapidApiKey);
+                      const igData = await fetchInstagramDataByUserId(senderInstagramId, rapidApiKey, claimedHandle);
                       followerCount = igData.followerCount || 0;
-                      instagramHandle = igData.username || "";
+                      instagramHandle = igData.username || claimedHandle;
                       profilePicture = igData.profilePicture || "";
+                    } else if (claimedHandle) {
+                      instagramHandle = claimedHandle;
                     }
                   } catch (igError) {
                     console.error("Failed to fetch Instagram data:", igError);
+                    if (claimedHandle) instagramHandle = claimedHandle;
                   }
 
                   // Fall back to sender ID as handle so profile is always saved as connected
@@ -2629,31 +2652,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Helper: Fetch Instagram data by user ID via RapidAPI
-  async function fetchInstagramDataByUserId(userId: string, rapidApiKey: string): Promise<{ username: string; followerCount: number; profilePicture: string }> {
+  async function fetchInstagramDataByUserId(userId: string, rapidApiKey: string, preClaimedHandle?: string): Promise<{ username: string; followerCount: number; profilePicture: string }> {
     try {
-      // Step 1: Resolve Instagram sender IGSID to profile info via Graph API
+      // Step 1: Try to resolve username via Graph API, fall back to pre-claimed handle
+      let username = '';
+      let profilePicFromGraph = '';
+
       const pageToken = process.env.SPIRAL_INSTAGRAM_ACCESS_TOKEN;
-      if (!pageToken) {
-        throw new Error('SPIRAL_INSTAGRAM_ACCESS_TOKEN not set');
+      if (pageToken) {
+        try {
+          const graphUrl = `https://graph.instagram.com/v21.0/${userId}?fields=name,username,profile_pic&access_token=${pageToken}`;
+          const graphRes = await fetch(graphUrl);
+          const graphData = await graphRes.json() as { name?: string; username?: string; profile_pic?: string; error?: { message: string } };
+          if (!graphData.error) {
+            username = graphData.username || graphData.name || '';
+            profilePicFromGraph = graphData.profile_pic || '';
+          } else {
+            console.error(`Graph API error:`, graphData.error.message);
+          }
+        } catch (graphErr) {
+          console.error('Graph API fetch error:', graphErr);
+        }
       }
 
-      const graphUrl = `https://graph.instagram.com/v21.0/${userId}?fields=name,username,profile_pic&access_token=${pageToken}`;
-      const graphRes = await fetch(graphUrl);
-      const graphData = await graphRes.json() as { name?: string; username?: string; profile_pic?: string; error?: { message: string } };
-
-      if (graphData.error) {
-        console.error(`Graph API error resolving sender info:`, graphData.error.message);
+      // Use pre-claimed handle if Graph API didn't return a username
+      if (!username && preClaimedHandle) {
+        username = preClaimedHandle;
+        console.log(`Using pre-claimed handle @${username} for IGSID ${userId}`);
       }
-
-      const username = graphData.username || graphData.name || '';
-      const profilePicFromGraph = graphData.profile_pic || '';
 
       if (!username) {
-        console.log(`Could not resolve username for IGSID ${userId} — skipping follower lookup`);
+        console.log(`No username available for IGSID ${userId} — skipping follower lookup`);
         return { username: '', followerCount: 0, profilePicture: profilePicFromGraph };
       }
 
-      console.log(`Resolved IGSID ${userId} to @${username}`);
+      console.log(`Fetching RapidAPI data for @${username}`);
 
       // Step 2: Fetch profile data from new RapidAPI using username
       const rapidApiHost = 'instagram-scraper-stable-api.p.rapidapi.com';

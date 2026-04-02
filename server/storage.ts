@@ -93,6 +93,7 @@ export interface IStorage {
   getSpiralCodeByCustomerId(customerId: string): Promise<SpiralCode | undefined>;
   getPendingSpiralCodeByCustomerId(customerId: string): Promise<SpiralCode | undefined>;
   verifySpiralCode(code: string, instagramUserId: string, instagramHandle: string): Promise<SpiralCode>;
+  updateSpiralCodeClaimedHandle(customerId: string, claimedHandle: string): Promise<void>;
   invalidateSpiralCode(code: string): Promise<void>;
   // Merchant scoped user map
   createMerchantScopedUserMap(map: InsertMerchantScopedUserMap): Promise<MerchantScopedUserMap>;
@@ -665,6 +666,18 @@ export class DatabaseStorage implements IStorage {
       .where(eq(spiralCodes.code, code.toUpperCase()))
       .returning();
     return updated;
+  }
+
+  async updateSpiralCodeClaimedHandle(customerId: string, claimedHandle: string): Promise<void> {
+    await db
+      .update(spiralCodes)
+      .set({ claimedHandle })
+      .where(
+        and(
+          eq(spiralCodes.customerId, customerId),
+          eq(spiralCodes.status, "pending")
+        )
+      );
   }
 
   async invalidateSpiralCode(code: string): Promise<void> {
