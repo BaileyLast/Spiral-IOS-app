@@ -7,7 +7,7 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import spiralLogoUrl from "@assets/Spiral_gradient_logo_1775056007518.png";
+const spiralLogoUrl = "/spiral-gradient-logo.png";
 
 type AuthMode = "login" | "signup";
 

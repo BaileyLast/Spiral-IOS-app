@@ -5,7 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Mail } from "lucide-react";
-import spiralLogoUrl from "@assets/Spiral_gradient_logo_1775056007518.png";
+const spiralLogoUrl = "/spiral-gradient-logo.png";
 
 export default function VerifyEmail() {
   const [, setLocation] = useLocation();

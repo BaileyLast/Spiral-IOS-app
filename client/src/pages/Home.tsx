@@ -8,8 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useLocation } from "wouter";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDistanceToNow } from "date-fns";
-import shopifyIcon from "@assets/Shopify Purple_1763735957080.png";
-import instagramIcon from "@assets/Instagram Purple_1763735981805.png";
+const shopifyIcon = "/shopify-icon.png";
+const instagramIcon = "/instagram-icon.png";
 
 export default function Home() {
   const { toast } = useToast();

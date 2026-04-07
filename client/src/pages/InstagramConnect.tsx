@@ -6,7 +6,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle, Loader2, Users, ArrowRight, LogOut, Copy, ExternalLink, RefreshCw } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import spiralLogoUrl from "@assets/Spiral_gradient_logo_1775056007518.png";
+const spiralLogoUrl = "/spiral-gradient-logo.png";
 
 interface CustomerProfile {
   id: string;

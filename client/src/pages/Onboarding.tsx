@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { Gift, Instagram, Sparkles } from "lucide-react";
-import spiralLogoUrl from "@assets/Spiral logo (2)_1763051288266.png";
+const spiralLogoUrl = "/spiral-logo.png";
 
 export default function Onboarding() {
   return (

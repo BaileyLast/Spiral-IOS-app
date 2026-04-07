@@ -7,8 +7,8 @@ import { useQuery } from "@tanstack/react-query";
 import type { StoreSettings } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { StatusBadge } from "@/components/StatusBadge";
-import shopifyIcon from "@assets/Shopify Purple_1763735957080.png";
-import instagramIcon from "@assets/Instagram Purple_1763735981805.png";
+const shopifyIcon = "/shopify-icon.png";
+const instagramIcon = "/instagram-icon.png";
 
 export default function Connections() {
   const { toast } = useToast();

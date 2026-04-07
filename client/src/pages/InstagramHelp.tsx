@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { ArrowLeft, Instagram, CheckCircle2, ExternalLink, Link2 } from "lucide-react";
 import { SiFacebook } from "react-icons/si";
-import spiralLogoUrl from "@assets/Spiral logo (2)_1763051288266.png";
+const spiralLogoUrl = "/spiral-logo.png";
 
 export default function InstagramHelp() {
   const [, setLocation] = useLocation();

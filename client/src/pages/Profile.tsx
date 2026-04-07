@@ -12,7 +12,7 @@ import {
   Loader2,
   Instagram,
 } from "lucide-react";
-import spiralLogoUrl from "@assets/Spiral_gradient_logo_1775056007518.png";
+const spiralLogoUrl = "/spiral-gradient-logo.png";
 
 interface CustomerProfile {
   id: string;
