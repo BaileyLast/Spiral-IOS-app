@@ -53,7 +53,7 @@ export default function CustomerHome() {
     queryKey: ["/api/customer/orders"],
   });
 
-  const { data: stats } = useQuery<{ totalSaved: number; ordersCompleted: number; averageSavingsPercent: number }>({
+  const { data: stats } = useQuery<{ totalSaved: number; ordersCompleted: number; discountPercent: number }>({
     queryKey: ["/api/customer/stats"],
   });
 
@@ -91,13 +91,13 @@ export default function CustomerHome() {
           </div>
         )}
 
-        {stats && (
-          <div className="text-center py-2" data-testid="card-average-savings">
-            <p className="text-gray-400 text-sm mb-1">On average, you save</p>
-            <p className="text-6xl font-extrabold tracking-tight text-brand-gradient" data-testid="text-average-savings">
-              {stats.averageSavingsPercent.toFixed(1)}%
+        {stats && stats.discountPercent > 0 && (
+          <div className="text-center py-2" data-testid="card-discount">
+            <p className="text-gray-400 text-sm mb-1">Your Spiral discount</p>
+            <p className="text-6xl font-extrabold tracking-tight text-brand-gradient" data-testid="text-discount-percent">
+              {stats.discountPercent % 1 === 0 ? stats.discountPercent.toFixed(0) : stats.discountPercent.toFixed(1)}%
             </p>
-            <p className="text-gray-400 text-sm mt-1">with Spiral</p>
+            <p className="text-gray-400 text-sm mt-1">off every order</p>
           </div>
         )}
 

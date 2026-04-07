@@ -2262,28 +2262,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const totalSaved = verifiedOrders.reduce((sum, o) => sum + parseFloat(o.discountAmount || "0"), 0);
       
       const customer = await storage.getSpiralCustomerById(customerId);
-      let averageSavingsPercent: number = 0;
+      let discountPercent: number = 0;
       if (customer?.followerCount && customer.followerCount > 0) {
         const tiers = await storage.getDiscountTiers();
-        const anchors = tiers
-          .map(t => ({ followers: t.fromFollowers, percent: parseFloat(t.discountPercent) }))
-          .sort((a, b) => a.followers - b.followers);
-        
+        const sorted = [...tiers].sort((a, b) => a.fromFollowers - b.fromFollowers);
         const fc = customer.followerCount;
-        if (anchors.length > 0) {
-          if (fc < anchors[0].followers) {
-            averageSavingsPercent = 0;
-          } else if (fc >= anchors[anchors.length - 1].followers) {
-            averageSavingsPercent = anchors[anchors.length - 1].percent;
-          } else {
-            for (let i = 0; i < anchors.length - 1; i++) {
-              if (fc >= anchors[i].followers && fc < anchors[i + 1].followers) {
-                const range = anchors[i + 1].followers - anchors[i].followers;
-                const progress = (fc - anchors[i].followers) / range;
-                averageSavingsPercent = anchors[i].percent + progress * (anchors[i + 1].percent - anchors[i].percent);
-                break;
-              }
-            }
+        // Find the exact tier the customer falls into
+        for (const tier of sorted) {
+          const inTier = fc >= tier.fromFollowers && (tier.toFollowers === null || fc <= tier.toFollowers);
+          if (inTier) {
+            discountPercent = parseFloat(tier.discountPercent);
+            break;
           }
         }
       }
@@ -2291,7 +2280,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         totalSaved,
         ordersCompleted: verifiedOrders.length,
-        averageSavingsPercent,
+        discountPercent,
       });
     } catch (error) {
       console.error("Failed to fetch customer stats:", error);
@@ -2633,7 +2622,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   console.log(`Verified Spiral code ${pendingValidMatchedCode} for customer ${pendingValidCode.customerId} - Instagram: @${instagramHandle} (${senderInstagramId})`);
 
                   // Send confirmation DM back
-                  await sendInstagramDM(senderInstagramId, "Thanks for verifying your Instagram! Welcome to Spiral");
+                  console.log(`Sending welcome DM to ${senderInstagramId}...`);
+                  await sendInstagramDM(senderInstagramId, "🎉 Welcome to Spiral! You're now verified and ready to earn discounts on every order. ✨ Just shop, post a Story, and we'll take care of the rest!");
+                  console.log(`Welcome DM attempted for ${senderInstagramId}`);
                 } else if (expiredCode) {
                   console.log(`Spiral code ${expiredMatchedCode} is expired`);
                   await sendInstagramDM(senderInstagramId, "This code has expired. Please get a new code from the Spiral app.");
