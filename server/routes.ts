@@ -2623,8 +2623,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
                   // Send confirmation DM back
                   console.log(`Sending welcome DM to ${senderInstagramId}...`);
-                  await sendInstagramDM(senderInstagramId, "🎉 Welcome to Spiral! You're now verified and ready to earn discounts on every order. ✨ Just shop, post a Story, and we'll take care of the rest!");
-                  console.log(`Welcome DM attempted for ${senderInstagramId}`);
+                  const dmSent = await sendInstagramDM(senderInstagramId, "🎉 Welcome to Spiral! You're now verified and ready to earn discounts on every order. ✨ Just shop, post a Story, and we'll take care of the rest!");
+                  console.log(`Welcome DM ${dmSent ? 'sent successfully' : 'FAILED'} for ${senderInstagramId}`);
                 } else if (expiredCode) {
                   console.log(`Spiral code ${expiredMatchedCode} is expired`);
                   await sendInstagramDM(senderInstagramId, "This code has expired. Please get a new code from the Spiral app.");
@@ -2881,8 +2881,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
-  // Helper: Send DM back to user via Instagram API
-  async function sendInstagramDM(recipientId: string, message: string): Promise<void> {
+  // Helper: Send DM back to user via Instagram API. Returns true on success, false on failure.
+  async function sendInstagramDM(recipientId: string, message: string): Promise<boolean> {
     try {
       const accessToken = process.env.SPIRAL_INSTAGRAM_ACCESS_TOKEN;
       const settings = await storage.getStoreSettings();
@@ -2890,7 +2890,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!accessToken || !pageId) {
         console.log('Instagram access token or page ID not configured, skipping DM reply');
-        return;
+        return false;
       }
 
       const url = `https://graph.instagram.com/v21.0/${pageId}/messages`;
@@ -2910,11 +2910,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('Failed to send Instagram DM:', response.status, errorData);
-      } else {
-        console.log(`Sent Instagram DM to ${recipientId}: "${message}"`);
+        return false;
       }
+
+      console.log(`Sent Instagram DM to ${recipientId}: "${message}"`);
+      return true;
     } catch (error) {
       console.error('Error sending Instagram DM:', error);
+      return false;
     }
   }
 
