@@ -106,6 +106,9 @@ export const spiralCustomers = pgTable("spiral_customers", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   lastLoginAt: timestamp("last_login_at"),
   instagramReminderSentAt: timestamp("instagram_reminder_sent_at"),
+  marketingEmailOptOut: boolean("marketing_email_opt_out").notNull().default(false),
+  marketingEmailOptOutAt: timestamp("marketing_email_opt_out_at"),
+  unsubscribeToken: text("unsubscribe_token").unique(),
 });
 
 export const orders = pgTable("orders", {

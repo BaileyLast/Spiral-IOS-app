@@ -34,6 +34,7 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, inArray, and, lt, isNull, desc } from "drizzle-orm";
+import { randomBytes } from "crypto";
 
 export interface IStorage {
   getStoreSettings(): Promise<StoreSettings | undefined>;
@@ -110,6 +111,10 @@ export interface IStorage {
   // Instagram connect reminder
   getCustomersNeedingInstagramReminder(createdBefore: Date): Promise<SpiralCustomer[]>;
   markInstagramReminderSent(id: string): Promise<void>;
+  // Marketing email unsubscribe
+  ensureUnsubscribeToken(id: string): Promise<string>;
+  getSpiralCustomerByUnsubscribeToken(token: string): Promise<SpiralCustomer | undefined>;
+  setMarketingEmailOptOut(id: string, optOut: boolean): Promise<SpiralCustomer>;
   // Order webhook tracking
   updateOrderWebhookTimestamp(orderId: string): Promise<void>;
   updateOrderVerificationId(orderId: string, verificationId: string): Promise<void>;
@@ -773,6 +778,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(spiralCustomers.emailVerified, true),
+          eq(spiralCustomers.marketingEmailOptOut, false),
           isNull(spiralCustomers.instagramAccessToken),
           isNull(spiralCustomers.instagramReminderSentAt),
           lt(spiralCustomers.createdAt, createdBefore),
@@ -801,6 +807,37 @@ export class DatabaseStorage implements IStorage {
       .from(emailSendFailures)
       .orderBy(desc(emailSendFailures.createdAt))
       .limit(limit);
+  }
+
+  async ensureUnsubscribeToken(id: string): Promise<string> {
+    const existing = await this.getSpiralCustomerById(id);
+    if (existing?.unsubscribeToken) return existing.unsubscribeToken;
+    const token = randomBytes(24).toString("base64url");
+    await db
+      .update(spiralCustomers)
+      .set({ unsubscribeToken: token })
+      .where(eq(spiralCustomers.id, id));
+    return token;
+  }
+
+  async getSpiralCustomerByUnsubscribeToken(token: string): Promise<SpiralCustomer | undefined> {
+    const [customer] = await db
+      .select()
+      .from(spiralCustomers)
+      .where(eq(spiralCustomers.unsubscribeToken, token));
+    return customer || undefined;
+  }
+
+  async setMarketingEmailOptOut(id: string, optOut: boolean): Promise<SpiralCustomer> {
+    const [updated] = await db
+      .update(spiralCustomers)
+      .set({
+        marketingEmailOptOut: optOut,
+        marketingEmailOptOutAt: optOut ? new Date() : null,
+      })
+      .where(eq(spiralCustomers.id, id))
+      .returning();
+    return updated;
   }
 }
 

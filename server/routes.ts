@@ -41,6 +41,26 @@ function describeResendError(error: unknown): { reason: string; name: string | n
   return { reason: String(error), name: null };
 }
 
+function getAppBaseUrl(): string {
+  return process.env.APP_BASE_URL || "https://joinspiral.app";
+}
+
+function unsubscribeFooterHtml(unsubscribeUrl: string): string {
+  return `
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0 16px 0;" />
+    <p style="color: #9ca3af; font-size: 12px; line-height: 1.5; text-align: center;">
+      You're receiving this email because you signed up for Spiral.<br />
+      Don't want these emails?
+      <a href="${unsubscribeUrl}" style="color: #6b7280; text-decoration: underline;">Unsubscribe</a>.
+    </p>
+  `;
+}
+
+async function getUnsubscribeUrlForCustomer(customerId: string): Promise<string> {
+  const token = await storage.ensureUnsubscribeToken(customerId);
+  return `${getAppBaseUrl()}/api/unsubscribe?token=${encodeURIComponent(token)}`;
+}
+
 async function sendVerificationEmail(email: string, code: string, name?: string): Promise<boolean> {
   try {
     const result = await resend.emails.send({
@@ -72,12 +92,19 @@ async function sendVerificationEmail(email: string, code: string, name?: string)
   }
 }
 
-async function sendWelcomeEmail(email: string, firstName?: string | null): Promise<boolean> {
+async function sendWelcomeEmail(customerId: string, email: string, firstName?: string | null): Promise<boolean> {
   try {
+    const customer = await storage.getSpiralCustomerById(customerId);
+    if (customer?.marketingEmailOptOut) {
+      console.log(`[email] Skipping welcome email for opted-out customer ${customerId}`);
+      return false;
+    }
+    const unsubscribeUrl = await getUnsubscribeUrlForCustomer(customerId);
     const result = await resend.emails.send({
       from: "Spiral <noreply@joinspiral.app>",
       to: email,
       subject: "Welcome to Spiral",
+      headers: { "List-Unsubscribe": `<${unsubscribeUrl}>` },
       html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
           <h1 style="color: #5729a3; font-size: 28px; margin-bottom: 8px;">Spiral</h1>
@@ -94,6 +121,7 @@ async function sendWelcomeEmail(email: string, firstName?: string | null): Promi
             <li>Post your Story after delivery — that's it</li>
           </ol>
           <p style="color: #6b7280; font-size: 14px;">Questions? Just reply to this email.</p>
+          ${unsubscribeFooterHtml(unsubscribeUrl)}
         </div>
       `,
     });
@@ -110,12 +138,19 @@ async function sendWelcomeEmail(email: string, firstName?: string | null): Promi
   }
 }
 
-async function sendInstagramConnectedEmail(email: string, firstName?: string | null, instagramHandle?: string | null): Promise<boolean> {
+async function sendInstagramConnectedEmail(customerId: string, email: string, firstName?: string | null, instagramHandle?: string | null): Promise<boolean> {
   try {
+    const customer = await storage.getSpiralCustomerById(customerId);
+    if (customer?.marketingEmailOptOut) {
+      console.log(`[email] Skipping Instagram-connected email for opted-out customer ${customerId}`);
+      return false;
+    }
+    const unsubscribeUrl = await getUnsubscribeUrlForCustomer(customerId);
     const result = await resend.emails.send({
       from: "Spiral <noreply@joinspiral.app>",
       to: email,
       subject: "Instagram connected — you're ready to earn discounts",
+      headers: { "List-Unsubscribe": `<${unsubscribeUrl}>` },
       html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
           <h1 style="color: #5729a3; font-size: 28px; margin-bottom: 8px;">Spiral</h1>
@@ -127,6 +162,7 @@ async function sendInstagramConnectedEmail(email: string, firstName?: string | n
           </div>
           <p style="color: #374151; font-size: 15px; line-height: 1.6; margin-bottom: 24px;">After your order arrives, post a quick Story tagging the brand and your discount is locked in. We'll handle the verification automatically.</p>
           <p style="color: #6b7280; font-size: 14px;">Happy shopping.</p>
+          ${unsubscribeFooterHtml(unsubscribeUrl)}
         </div>
       `,
     });
@@ -143,14 +179,21 @@ async function sendInstagramConnectedEmail(email: string, firstName?: string | n
   }
 }
 
-async function sendInstagramReminderEmail(email: string, firstName?: string | null): Promise<boolean> {
-  const appBaseUrl = process.env.APP_BASE_URL || "https://joinspiral.app";
+async function sendInstagramReminderEmail(customerId: string, email: string, firstName?: string | null): Promise<boolean> {
+  const appBaseUrl = getAppBaseUrl();
   const connectUrl = `${appBaseUrl}/connect-instagram`;
   try {
+    const customer = await storage.getSpiralCustomerById(customerId);
+    if (customer?.marketingEmailOptOut) {
+      console.log(`[email] Skipping Instagram reminder for opted-out customer ${customerId}`);
+      return false;
+    }
+    const unsubscribeUrl = await getUnsubscribeUrlForCustomer(customerId);
     await resend.emails.send({
       from: "Spiral <noreply@joinspiral.app>",
       to: email,
       subject: "Connect Instagram to start earning discounts",
+      headers: { "List-Unsubscribe": `<${unsubscribeUrl}>` },
       html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
           <h1 style="color: #5729a3; font-size: 28px; margin-bottom: 8px;">Spiral</h1>
@@ -160,6 +203,7 @@ async function sendInstagramReminderEmail(email: string, firstName?: string | nu
             <a href="${connectUrl}" style="display: inline-block; background: linear-gradient(135deg, #5729a3 0%, #8b5cf6 100%); color: white; text-decoration: none; font-size: 16px; font-weight: 600; padding: 14px 28px; border-radius: 12px;">Connect Instagram</a>
           </div>
           <p style="color: #6b7280; font-size: 14px;">It only takes a moment, and your discount tier is based on your follower count.</p>
+          ${unsubscribeFooterHtml(unsubscribeUrl)}
         </div>
       `,
     });
@@ -180,7 +224,7 @@ async function processInstagramReminders(): Promise<void> {
     if (customers.length === 0) return;
     console.log(`[instagram-reminder] Sending reminders to ${customers.length} customer(s)`);
     for (const customer of customers) {
-      const sent = await sendInstagramReminderEmail(customer.email, customer.firstName);
+      const sent = await sendInstagramReminderEmail(customer.id, customer.email, customer.firstName);
       if (sent) {
         await storage.markInstagramReminderSent(customer.id);
       }
@@ -209,6 +253,70 @@ declare module 'express-session' {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Marketing email unsubscribe (one-click via email link)
+  const renderUnsubscribePage = (opts: { title: string; heading: string; message: string }) => `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${opts.title}</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f9fafb; margin: 0; padding: 40px 20px; color: #111827; }
+  .card { max-width: 480px; margin: 0 auto; background: #ffffff; border-radius: 16px; padding: 40px 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); text-align: center; }
+  h1 { color: #5729a3; font-size: 28px; margin: 0 0 8px; }
+  h2 { font-size: 20px; margin: 16px 0 12px; color: #111827; }
+  p { color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 12px; }
+</style>
+</head>
+<body>
+  <div class="card" data-testid="card-unsubscribe">
+    <h1>Spiral</h1>
+    <h2 data-testid="text-unsubscribe-heading">${opts.heading}</h2>
+    <p data-testid="text-unsubscribe-message">${opts.message}</p>
+  </div>
+</body>
+</html>`;
+
+  const handleUnsubscribe = async (req: any, res: any) => {
+    try {
+      const token = (req.method === "POST" ? (req.body?.token ?? req.query.token) : req.query.token) as string | undefined;
+      if (!token || typeof token !== "string") {
+        return res.status(400).send(renderUnsubscribePage({
+          title: "Unsubscribe — Spiral",
+          heading: "Invalid unsubscribe link",
+          message: "This unsubscribe link is missing or invalid. If you keep getting unwanted emails, reply to any Spiral email and we'll remove you manually.",
+        }));
+      }
+      const customer = await storage.getSpiralCustomerByUnsubscribeToken(token);
+      if (!customer) {
+        return res.status(404).send(renderUnsubscribePage({
+          title: "Unsubscribe — Spiral",
+          heading: "Link not recognized",
+          message: "We couldn't find an account for this unsubscribe link. It may have been replaced. Reply to any Spiral email and we'll remove you manually.",
+        }));
+      }
+      if (!customer.marketingEmailOptOut) {
+        await storage.setMarketingEmailOptOut(customer.id, true);
+      }
+      return res.status(200).send(renderUnsubscribePage({
+        title: "Unsubscribed — Spiral",
+        heading: "You've been unsubscribed",
+        message: "You won't receive any more reminder or marketing emails from Spiral. You'll still get important account messages like email verification.",
+      }));
+    } catch (error) {
+      console.error("Unsubscribe error:", error);
+      return res.status(500).send(renderUnsubscribePage({
+        title: "Unsubscribe — Spiral",
+        heading: "Something went wrong",
+        message: "We couldn't process your unsubscribe right now. Please try again in a moment, or reply to any Spiral email and we'll remove you manually.",
+      }));
+    }
+  };
+
+  app.get("/api/unsubscribe", handleUnsubscribe);
+  // Mailbox providers may issue POST for one-click List-Unsubscribe (RFC 8058)
+  app.post("/api/unsubscribe", handleUnsubscribe);
+
   // Store Settings Routes
   app.get("/api/settings", async (req, res) => {
     try {
@@ -1799,7 +1907,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       req.session.customerId = customer.id;
 
       // Send welcome email (don't block on failure)
-      sendWelcomeEmail(customer.email, customer.firstName).catch((err) => {
+      sendWelcomeEmail(customer.id, customer.email, customer.firstName).catch((err) => {
         console.error("Welcome email send failed:", err);
       });
 
@@ -2297,7 +2405,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       void storage.getSpiralCustomerById(customerId)
         .then((customer) => {
           if (customer?.email) {
-            return sendInstagramConnectedEmail(customer.email, customer.firstName, igHandleForEmail);
+            return sendInstagramConnectedEmail(customer.id, customer.email, customer.firstName, igHandleForEmail);
           }
         })
         .catch((err) => {
