@@ -1346,6 +1346,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         authenticated: true,
         customerId: customer.id,
         email: customer.email,
+        firstName: customer.firstName,
+        lastName: customer.lastName,
         instagramHandle: customer.instagramHandle ? `@${customer.instagramHandle}` : null,
         instagramUserId: customer.instagramUserId,
         followerCount: customer.followerCount || 0,
