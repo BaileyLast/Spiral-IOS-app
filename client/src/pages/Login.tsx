@@ -24,7 +24,8 @@ export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [mode, setMode] = useState<AuthMode>("login");
-  const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -67,10 +68,11 @@ export default function Login() {
       });
       return;
     }
+    const combinedName = `${firstName.trim()} ${lastName.trim()}`.trim();
     authMutation.mutate({ 
       email, 
       password,
-      ...(mode === "signup" && fullName.trim() && { name: fullName.trim() })
+      ...(mode === "signup" && combinedName && { name: combinedName })
     });
   };
 
@@ -97,19 +99,35 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === "signup" && (
-              <div className="space-y-2">
-                <Label htmlFor="fullName" className="text-gray-700 text-sm font-medium">
-                  Full name
-                </Label>
-                <Input
-                  id="fullName"
-                  type="text"
-                  placeholder="Your name"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="h-14 rounded-2xl bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-[#D62976] focus:ring-[#D62976]/20"
-                  data-testid="input-fullname"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName" className="text-gray-700 text-sm font-medium">
+                    First name
+                  </Label>
+                  <Input
+                    id="firstName"
+                    type="text"
+                    placeholder="First"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="h-14 rounded-2xl bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-[#D62976] focus:ring-[#D62976]/20"
+                    data-testid="input-firstname"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lastName" className="text-gray-700 text-sm font-medium">
+                    Last name
+                  </Label>
+                  <Input
+                    id="lastName"
+                    type="text"
+                    placeholder="Last"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="h-14 rounded-2xl bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-[#D62976] focus:ring-[#D62976]/20"
+                    data-testid="input-lastname"
+                  />
+                </div>
               </div>
             )}
 
