@@ -17,6 +17,7 @@ import CustomerHome from "@/pages/CustomerHome";
 import ManageAccount from "@/pages/ManageAccount";
 import Privacy from "@/pages/Privacy";
 import DataDeletion from "@/pages/DataDeletion";
+import EmailFailures from "@/pages/EmailFailures";
 
 function BottomNav() {
   const [location] = useLocation();
@@ -80,6 +81,7 @@ function Router() {
       <Route path="/manage-account" component={ManageAccount} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/data-deletion" component={DataDeletion} />
+      <Route path="/admin/email-failures" component={EmailFailures} />
     </Switch>
   );
 }
@@ -87,7 +89,7 @@ function Router() {
 function AppContent() {
   const [location] = useLocation();
   
-  const hideBottomNav = location === "/" || location === "/login" || location === "/verify-email" || location === "/connect-instagram" || location === "/instagram-help" || location === "/privacy" || location === "/data-deletion" || location === "/manage-account";
+  const hideBottomNav = location === "/" || location === "/login" || location === "/verify-email" || location === "/connect-instagram" || location === "/instagram-help" || location === "/privacy" || location === "/data-deletion" || location === "/manage-account" || location.startsWith("/admin/");
   
   return (
     <div className="min-h-screen bg-white">

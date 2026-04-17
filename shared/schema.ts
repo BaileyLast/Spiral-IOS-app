@@ -152,6 +152,16 @@ export const spiralCodes = pgTable("spiral_codes", {
   verifiedAt: timestamp("verified_at"),
 });
 
+// Tracks failed email send attempts (Resend errors or thrown exceptions) so admins can see delivery problems.
+export const emailSendFailures = pgTable("email_send_failures", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  emailType: text("email_type").notNull(),
+  recipient: text("recipient").notNull(),
+  reason: text("reason").notNull(),
+  errorName: text("error_name"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const merchantScopedUserMap = pgTable("merchant_scoped_user_map", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   merchantId: varchar("merchant_id").notNull(),
@@ -184,6 +194,7 @@ export const insertVerificationSchema = createInsertSchema(verifications).omit({
   webhookTimestamp: true,
 });
 export const insertMerchantScopedUserMapSchema = createInsertSchema(merchantScopedUserMap).omit({ id: true, firstSeenAt: true });
+export const insertEmailSendFailureSchema = createInsertSchema(emailSendFailures).omit({ id: true, createdAt: true });
 export const insertShopifyProductSchema = createInsertSchema(shopifyProducts).omit({ id: true, syncedAt: true });
 export const insertShopifyCollectionSchema = createInsertSchema(shopifyCollections).omit({ id: true, syncedAt: true });
 export const insertSelectedProductSchema = createInsertSchema(selectedProducts).omit({ id: true });
@@ -214,3 +225,5 @@ export type InsertSpiralCode = z.infer<typeof insertSpiralCodeSchema>;
 export type SpiralCode = typeof spiralCodes.$inferSelect;
 export type InsertMerchantScopedUserMap = z.infer<typeof insertMerchantScopedUserMapSchema>;
 export type MerchantScopedUserMap = typeof merchantScopedUserMap.$inferSelect;
+export type InsertEmailSendFailure = z.infer<typeof insertEmailSendFailureSchema>;
+export type EmailSendFailure = typeof emailSendFailures.$inferSelect;

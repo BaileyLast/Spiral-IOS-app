@@ -10,6 +10,7 @@ import {
   orders,
   spiralCodes,
   merchantScopedUserMap,
+  emailSendFailures,
   type StoreSettings, 
   type DiscountTier, 
   type Verification,
@@ -27,7 +28,9 @@ import {
   type InsertSpiralCustomer,
   type InsertOrder,
   type InsertSpiralCode,
-  type InsertMerchantScopedUserMap
+  type InsertMerchantScopedUserMap,
+  type EmailSendFailure,
+  type InsertEmailSendFailure
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, inArray, and, lt, isNull, desc } from "drizzle-orm";
@@ -110,6 +113,9 @@ export interface IStorage {
   // Order webhook tracking
   updateOrderWebhookTimestamp(orderId: string): Promise<void>;
   updateOrderVerificationId(orderId: string, verificationId: string): Promise<void>;
+  // Email send failures
+  recordEmailSendFailure(failure: InsertEmailSendFailure): Promise<EmailSendFailure>;
+  getRecentEmailSendFailures(limit?: number): Promise<EmailSendFailure[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -779,6 +785,22 @@ export class DatabaseStorage implements IStorage {
       .update(spiralCustomers)
       .set({ instagramReminderSentAt: new Date() })
       .where(eq(spiralCustomers.id, id));
+  }
+
+  async recordEmailSendFailure(failure: InsertEmailSendFailure): Promise<EmailSendFailure> {
+    const [created] = await db
+      .insert(emailSendFailures)
+      .values(failure)
+      .returning();
+    return created;
+  }
+
+  async getRecentEmailSendFailures(limit: number = 50): Promise<EmailSendFailure[]> {
+    return await db
+      .select()
+      .from(emailSendFailures)
+      .orderBy(desc(emailSendFailures.createdAt))
+      .limit(limit);
   }
 }
 

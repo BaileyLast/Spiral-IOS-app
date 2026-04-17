@@ -13,9 +13,37 @@ function generateVerificationCode(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+// Records an email send failure to the database. Logs (but never throws) if persistence itself fails,
+// so the caller's email-send fallback path still completes cleanly.
+async function recordEmailFailure(emailType: string, recipient: string, reason: string, errorName?: string | null): Promise<void> {
+  console.error(`[EMAIL FAILURE] type=${emailType} recipient=${recipient} reason=${reason}${errorName ? ` errorName=${errorName}` : ""}`);
+  try {
+    await storage.recordEmailSendFailure({
+      emailType,
+      recipient,
+      reason: reason.slice(0, 1000),
+      errorName: errorName ?? null,
+    });
+  } catch (persistErr) {
+    console.error("[EMAIL FAILURE] Could not persist failure record:", persistErr);
+  }
+}
+
+function describeResendError(error: unknown): { reason: string; name: string | null } {
+  if (!error) return { reason: "Unknown error", name: null };
+  if (typeof error === "string") return { reason: error, name: null };
+  if (error instanceof Error) return { reason: error.message || error.name || "Error", name: error.name || null };
+  if (typeof error === "object") {
+    const e = error as { message?: string; name?: string; statusCode?: number };
+    const reason = e.message || (e.statusCode ? `Resend status ${e.statusCode}` : JSON.stringify(error));
+    return { reason, name: e.name || null };
+  }
+  return { reason: String(error), name: null };
+}
+
 async function sendVerificationEmail(email: string, code: string, name?: string): Promise<boolean> {
   try {
-    await resend.emails.send({
+    const result = await resend.emails.send({
       from: "Spiral <noreply@joinspiral.app>",
       to: email,
       subject: "Verify your Spiral account",
@@ -31,16 +59,22 @@ async function sendVerificationEmail(email: string, code: string, name?: string)
         </div>
       `,
     });
+    if (result?.error) {
+      const { reason, name: errName } = describeResendError(result.error);
+      await recordEmailFailure("verification", email, reason, errName);
+      return false;
+    }
     return true;
   } catch (error) {
-    console.error("Failed to send verification email:", error);
+    const { reason, name: errName } = describeResendError(error);
+    await recordEmailFailure("verification", email, reason, errName);
     return false;
   }
 }
 
 async function sendWelcomeEmail(email: string, firstName?: string | null): Promise<boolean> {
   try {
-    await resend.emails.send({
+    const result = await resend.emails.send({
       from: "Spiral <noreply@joinspiral.app>",
       to: email,
       subject: "Welcome to Spiral",
@@ -63,16 +97,22 @@ async function sendWelcomeEmail(email: string, firstName?: string | null): Promi
         </div>
       `,
     });
+    if (result?.error) {
+      const { reason, name: errName } = describeResendError(result.error);
+      await recordEmailFailure("welcome", email, reason, errName);
+      return false;
+    }
     return true;
   } catch (error) {
-    console.error("Failed to send welcome email:", error);
+    const { reason, name: errName } = describeResendError(error);
+    await recordEmailFailure("welcome", email, reason, errName);
     return false;
   }
 }
 
 async function sendInstagramConnectedEmail(email: string, firstName?: string | null, instagramHandle?: string | null): Promise<boolean> {
   try {
-    await resend.emails.send({
+    const result = await resend.emails.send({
       from: "Spiral <noreply@joinspiral.app>",
       to: email,
       subject: "Instagram connected — you're ready to earn discounts",
@@ -90,9 +130,15 @@ async function sendInstagramConnectedEmail(email: string, firstName?: string | n
         </div>
       `,
     });
+    if (result?.error) {
+      const { reason, name: errName } = describeResendError(result.error);
+      await recordEmailFailure("instagram_connected", email, reason, errName);
+      return false;
+    }
     return true;
   } catch (error) {
-    console.error("Failed to send Instagram connected email:", error);
+    const { reason, name: errName } = describeResendError(error);
+    await recordEmailFailure("instagram_connected", email, reason, errName);
     return false;
   }
 }
@@ -2567,6 +2613,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============================================
   // Re-subscribe Facebook Page to Instagram messaging webhooks
   // ============================================
+
+  app.get("/api/admin/email-failures", async (req, res) => {
+    try {
+      const limitParam = req.query.limit;
+      const parsed = typeof limitParam === "string" ? parseInt(limitParam, 10) : NaN;
+      const limit = Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, 500) : 50;
+      const failures = await storage.getRecentEmailSendFailures(limit);
+      res.json(failures);
+    } catch (error) {
+      console.error("Failed to load email failures:", error);
+      res.status(500).json({ error: "Failed to load email failures" });
+    }
+  });
 
   app.post("/api/admin/resubscribe-webhooks", async (_req, res) => {
     try {
