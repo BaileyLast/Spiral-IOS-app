@@ -86,7 +86,8 @@ export const selectedCollections = pgTable("selected_collections", {
 export const spiralCustomers = pgTable("spiral_customers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: text("email").notNull().unique(),
-  name: text("name"),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
   passwordHash: text("password_hash").notNull(),
   emailVerified: boolean("email_verified").notNull().default(false),
   emailVerificationCode: text("email_verification_code"),

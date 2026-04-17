@@ -31,6 +31,8 @@ export default function VerifyEmail() {
       localStorage.setItem("spiral_customer", JSON.stringify({
         id: data.id,
         email: data.email,
+        firstName: data.firstName,
+        lastName: data.lastName,
         emailVerified: true,
       }));
       toast({

@@ -47,7 +47,8 @@ declare module 'express-session' {
     customerId?: string;
     pendingSignup?: {
       email: string;
-      name?: string;
+      firstName?: string;
+      lastName?: string;
       passwordHash: string;
       verificationCode: string;
       verificationExpiry: Date;
@@ -1543,7 +1544,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Customer Signup - stores pending signup in session, account created after verification
   app.post("/api/customer/signup", async (req, res) => {
     try {
-      const { email, password, name } = req.body;
+      const { email, password, firstName, lastName } = req.body;
 
       if (!email || !password) {
         return res.status(400).json({ error: "Email and password required" });
@@ -1555,7 +1556,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Normalize email and name
       const normalizedEmail = email.toLowerCase().trim();
-      const customerName = name?.trim() || undefined;
+      const customerFirstName = firstName?.trim() || undefined;
+      const customerLastName = lastName?.trim() || undefined;
 
       // Check if customer already exists
       const existing = await storage.getSpiralCustomerByEmail(normalizedEmail);
@@ -1574,14 +1576,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Store pending signup in session (account created after verification)
       req.session.pendingSignup = {
         email: normalizedEmail,
-        name: customerName,
+        firstName: customerFirstName,
+        lastName: customerLastName,
         passwordHash,
         verificationCode,
         verificationExpiry,
       };
 
       // Send verification email with personalized greeting
-      const emailSent = await sendVerificationEmail(normalizedEmail, verificationCode, customerName);
+      const emailSent = await sendVerificationEmail(normalizedEmail, verificationCode, customerFirstName);
       if (!emailSent) {
         console.warn("Failed to send verification email to:", normalizedEmail);
       }
@@ -1630,7 +1633,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create the account now that email is verified
       const customer = await storage.createSpiralCustomer({
         email: pendingSignup.email,
-        name: pendingSignup.name,
+        firstName: pendingSignup.firstName,
+        lastName: pendingSignup.lastName,
         passwordHash: pendingSignup.passwordHash,
         isActive: true,
         emailVerified: true,
@@ -1645,6 +1649,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Email verified successfully",
         id: customer.id,
         email: customer.email,
+        firstName: customer.firstName,
+        lastName: customer.lastName,
         emailVerified: true,
       });
     } catch (error) {
@@ -1673,7 +1679,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       // Send email
-      const emailSent = await sendVerificationEmail(pendingSignup.email, verificationCode, pendingSignup.name);
+      const emailSent = await sendVerificationEmail(pendingSignup.email, verificationCode, pendingSignup.firstName);
       if (!emailSent) {
         return res.status(500).json({ error: "Failed to send verification email" });
       }
@@ -1789,7 +1795,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         id: customer.id,
         email: customer.email,
-        name: customer.name,
+        firstName: customer.firstName,
+        lastName: customer.lastName,
         emailVerified: customer.emailVerified,
         instagramHandle,
         instagramUserId: customer.instagramUserId,
@@ -2172,7 +2179,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const profileUpdateSchema = z.object({
-        name: z.string().max(100).optional(),
+        firstName: z.string().max(50).nullable().optional(),
+        lastName: z.string().max(50).nullable().optional(),
         dateOfBirth: z.string().max(20).nullable().optional(),
         address: z.string().max(500).nullable().optional(),
       });
@@ -2182,9 +2190,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
       }
 
-      const { name, dateOfBirth, address } = parsed.data;
-      const updateData: { name?: string; dateOfBirth?: string | null; address?: string | null } = {};
-      if (name !== undefined) updateData.name = name;
+      const { firstName, lastName, dateOfBirth, address } = parsed.data;
+      const updateData: { firstName?: string | null; lastName?: string | null; dateOfBirth?: string | null; address?: string | null } = {};
+      if (firstName !== undefined) updateData.firstName = firstName;
+      if (lastName !== undefined) updateData.lastName = lastName;
       if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth;
       if (address !== undefined) updateData.address = address;
 
@@ -2194,7 +2203,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const updated = await storage.updateSpiralCustomerProfile(customerId, updateData);
       res.json({
-        name: updated.name,
+        firstName: updated.firstName,
+        lastName: updated.lastName,
         email: updated.email,
         dateOfBirth: updated.dateOfBirth,
         address: updated.address,

@@ -23,7 +23,8 @@ import {
 interface CustomerProfile {
   id: string;
   email: string;
-  name?: string;
+  firstName?: string;
+  lastName?: string;
   emailVerified: boolean;
   instagramHandle?: string;
   instagramUserId?: string;
@@ -45,7 +46,7 @@ function formatFollowerCount(count: number | null | undefined): string {
   return count.toString();
 }
 
-type EditingField = "name" | "dateOfBirth" | "address" | null;
+type EditingField = "firstName" | "lastName" | "dateOfBirth" | "address" | null;
 
 export default function ManageAccount() {
   const [, setLocation] = useLocation();
@@ -58,7 +59,7 @@ export default function ManageAccount() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async (data: { name?: string; dateOfBirth?: string | null; address?: string | null }) => {
+    mutationFn: async (data: { firstName?: string | null; lastName?: string | null; dateOfBirth?: string | null; address?: string | null }) => {
       const response = await apiRequest("PATCH", "/api/customer/profile", data);
       return response.json();
     },
@@ -123,9 +124,16 @@ export default function ManageAccount() {
       editable: false,
     },
     {
-      key: "name" as const,
-      label: "Name",
-      value: profile?.name || "",
+      key: "firstName" as const,
+      label: "First name",
+      value: profile?.firstName || "",
+      icon: User,
+      editable: true,
+    },
+    {
+      key: "lastName" as const,
+      label: "Last name",
+      value: profile?.lastName || "",
       icon: User,
       editable: true,
     },

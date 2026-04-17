@@ -17,7 +17,8 @@ const spiralLogoUrl = "/spiral-gradient-logo.png";
 interface CustomerProfile {
   id: string;
   email: string;
-  name?: string;
+  firstName?: string;
+  lastName?: string;
   emailVerified: boolean;
   instagramHandle?: string;
   instagramUserId?: string;
@@ -102,7 +103,7 @@ export default function Profile() {
             </Avatar>
             <div className="flex-1 min-w-0">
               <p className="font-bold text-gray-900 truncate" data-testid="text-email">
-                {profile?.name || profile?.email || "Guest"}
+                {[profile?.firstName, profile?.lastName].filter(Boolean).join(" ") || profile?.email || "Guest"}
               </p>
               <p className="text-sm text-gray-400 mt-0.5">Manage account</p>
             </div>

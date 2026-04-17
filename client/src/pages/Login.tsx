@@ -14,7 +14,8 @@ type AuthMode = "login" | "signup";
 interface AuthResponse {
   id: string;
   email: string;
-  name?: string;
+  firstName?: string;
+  lastName?: string;
   emailVerified?: boolean;
   instagramHandle?: string;
   followerCount?: number;
@@ -31,7 +32,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
 
   const authMutation = useMutation({
-    mutationFn: async (data: { email: string; password: string; name?: string }) => {
+    mutationFn: async (data: { email: string; password: string; firstName?: string; lastName?: string }) => {
       const endpoint = mode === "login" ? "/api/customer/login" : "/api/customer/signup";
       const response = await apiRequest("POST", endpoint, data);
       return response.json();
@@ -68,11 +69,11 @@ export default function Login() {
       });
       return;
     }
-    const combinedName = `${firstName.trim()} ${lastName.trim()}`.trim();
     authMutation.mutate({ 
       email, 
       password,
-      ...(mode === "signup" && combinedName && { name: combinedName })
+      ...(mode === "signup" && firstName.trim() && { firstName: firstName.trim() }),
+      ...(mode === "signup" && lastName.trim() && { lastName: lastName.trim() }),
     });
   };
 
