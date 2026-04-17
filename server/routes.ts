@@ -38,6 +38,65 @@ async function sendVerificationEmail(email: string, code: string, name?: string)
   }
 }
 
+async function sendWelcomeEmail(email: string, firstName?: string | null): Promise<boolean> {
+  try {
+    await resend.emails.send({
+      from: "Spiral <noreply@joinspiral.app>",
+      to: email,
+      subject: "Welcome to Spiral",
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
+          <h1 style="color: #5729a3; font-size: 28px; margin-bottom: 8px;">Spiral</h1>
+          <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">Hey${firstName ? ` ${firstName}` : ""},</p>
+          <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">Welcome to Spiral! Your account is verified and ready to go.</p>
+          <div style="background: linear-gradient(135deg, #5729a3 0%, #8b5cf6 100%); border-radius: 16px; padding: 32px; text-align: center; margin-bottom: 24px;">
+            <p style="color: white; font-size: 18px; font-weight: 600; margin: 0 0 8px 0;">One more step</p>
+            <p style="color: rgba(255,255,255,0.9); font-size: 14px; margin: 0;">Connect your Instagram to start earning instant discounts on every order.</p>
+          </div>
+          <p style="color: #374151; font-size: 16px; margin-bottom: 8px;">Here's how Spiral works:</p>
+          <ol style="color: #374151; font-size: 15px; line-height: 1.6; padding-left: 20px; margin-bottom: 24px;">
+            <li>Shop at any Spiral-enabled store</li>
+            <li>Get an instant discount at checkout for agreeing to post a Story</li>
+            <li>Post your Story after delivery — that's it</li>
+          </ol>
+          <p style="color: #6b7280; font-size: 14px;">Questions? Just reply to this email.</p>
+        </div>
+      `,
+    });
+    return true;
+  } catch (error) {
+    console.error("Failed to send welcome email:", error);
+    return false;
+  }
+}
+
+async function sendInstagramConnectedEmail(email: string, firstName?: string | null, instagramHandle?: string | null): Promise<boolean> {
+  try {
+    await resend.emails.send({
+      from: "Spiral <noreply@joinspiral.app>",
+      to: email,
+      subject: "Instagram connected — you're ready to earn discounts",
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
+          <h1 style="color: #5729a3; font-size: 28px; margin-bottom: 8px;">Spiral</h1>
+          <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">Hey${firstName ? ` ${firstName}` : ""},</p>
+          <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">Your Instagram${instagramHandle ? ` <strong>@${instagramHandle}</strong>` : ""} is now connected to Spiral.</p>
+          <div style="background: linear-gradient(135deg, #5729a3 0%, #8b5cf6 100%); border-radius: 16px; padding: 32px; text-align: center; margin-bottom: 24px;">
+            <p style="color: white; font-size: 18px; font-weight: 600; margin: 0 0 8px 0;">You're all set</p>
+            <p style="color: rgba(255,255,255,0.9); font-size: 14px; margin: 0;">Start receiving instant discounts at checkout on any Spiral-enabled store.</p>
+          </div>
+          <p style="color: #374151; font-size: 15px; line-height: 1.6; margin-bottom: 24px;">After your order arrives, post a quick Story tagging the brand and your discount is locked in. We'll handle the verification automatically.</p>
+          <p style="color: #6b7280; font-size: 14px;">Happy shopping.</p>
+        </div>
+      `,
+    });
+    return true;
+  } catch (error) {
+    console.error("Failed to send Instagram connected email:", error);
+    return false;
+  }
+}
+
 // Extend session types
 declare module 'express-session' {
   interface SessionData {
@@ -1646,6 +1705,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       req.session.pendingSignup = undefined;
       req.session.customerId = customer.id;
 
+      // Send welcome email (don't block on failure)
+      sendWelcomeEmail(customer.email, customer.firstName).catch((err) => {
+        console.error("Welcome email send failed:", err);
+      });
+
       res.json({ 
         success: true, 
         message: "Email verified successfully",
@@ -2134,6 +2198,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       console.log(`Connected Instagram @${igDetails.username} with ${igDetails.followers_count} followers via OAuth (page: ${pageName})`);
+
+      // Send Instagram-connected confirmation email (fully non-blocking — don't delay redirect)
+      const igHandleForEmail = igDetails.username;
+      void storage.getSpiralCustomerById(customerId)
+        .then((customer) => {
+          if (customer?.email) {
+            return sendInstagramConnectedEmail(customer.email, customer.firstName, igHandleForEmail);
+          }
+        })
+        .catch((err) => {
+          console.error("Instagram connected email failed:", err);
+        });
 
       // Redirect to success
       res.redirect("/connect-instagram?instagram_connected=true");
