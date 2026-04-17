@@ -104,6 +104,9 @@ export interface IStorage {
   updateStoreLastWebhookReceived(id: string): Promise<void>;
   // Customer lookup by Instagram handle
   getSpiralCustomerByInstagramHandle(handle: string): Promise<SpiralCustomer | undefined>;
+  // Instagram connect reminder
+  getCustomersNeedingInstagramReminder(createdBefore: Date): Promise<SpiralCustomer[]>;
+  markInstagramReminderSent(id: string): Promise<void>;
   // Order webhook tracking
   updateOrderWebhookTimestamp(orderId: string): Promise<void>;
   updateOrderVerificationId(orderId: string, verificationId: string): Promise<void>;
@@ -755,6 +758,27 @@ export class DatabaseStorage implements IStorage {
       .update(orders)
       .set({ verificationId })
       .where(eq(orders.id, orderId));
+  }
+
+  async getCustomersNeedingInstagramReminder(createdBefore: Date): Promise<SpiralCustomer[]> {
+    return await db
+      .select()
+      .from(spiralCustomers)
+      .where(
+        and(
+          eq(spiralCustomers.emailVerified, true),
+          isNull(spiralCustomers.instagramAccessToken),
+          isNull(spiralCustomers.instagramReminderSentAt),
+          lt(spiralCustomers.createdAt, createdBefore),
+        )
+      );
+  }
+
+  async markInstagramReminderSent(id: string): Promise<void> {
+    await db
+      .update(spiralCustomers)
+      .set({ instagramReminderSentAt: new Date() })
+      .where(eq(spiralCustomers.id, id));
   }
 }
 

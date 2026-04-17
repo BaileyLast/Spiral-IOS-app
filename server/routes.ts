@@ -97,6 +97,53 @@ async function sendInstagramConnectedEmail(email: string, firstName?: string | n
   }
 }
 
+async function sendInstagramReminderEmail(email: string, firstName?: string | null): Promise<boolean> {
+  const appBaseUrl = process.env.APP_BASE_URL || "https://joinspiral.app";
+  const connectUrl = `${appBaseUrl}/connect-instagram`;
+  try {
+    await resend.emails.send({
+      from: "Spiral <noreply@joinspiral.app>",
+      to: email,
+      subject: "Connect Instagram to start earning discounts",
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
+          <h1 style="color: #5729a3; font-size: 28px; margin-bottom: 8px;">Spiral</h1>
+          <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">Hey${firstName ? ` ${firstName}` : ""},</p>
+          <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">Your Spiral account is verified, but you haven't connected Instagram yet. Connect it now to unlock instant discounts at checkout on every Spiral-enabled store.</p>
+          <div style="text-align: center; margin-bottom: 24px;">
+            <a href="${connectUrl}" style="display: inline-block; background: linear-gradient(135deg, #5729a3 0%, #8b5cf6 100%); color: white; text-decoration: none; font-size: 16px; font-weight: 600; padding: 14px 28px; border-radius: 12px;">Connect Instagram</a>
+          </div>
+          <p style="color: #6b7280; font-size: 14px;">It only takes a moment, and your discount tier is based on your follower count.</p>
+        </div>
+      `,
+    });
+    return true;
+  } catch (error) {
+    console.error("Failed to send Instagram reminder email:", error);
+    return false;
+  }
+}
+
+const INSTAGRAM_REMINDER_DELAY_MS = 24 * 60 * 60 * 1000;
+const INSTAGRAM_REMINDER_INTERVAL_MS = 60 * 60 * 1000;
+
+async function processInstagramReminders(): Promise<void> {
+  try {
+    const cutoff = new Date(Date.now() - INSTAGRAM_REMINDER_DELAY_MS);
+    const customers = await storage.getCustomersNeedingInstagramReminder(cutoff);
+    if (customers.length === 0) return;
+    console.log(`[instagram-reminder] Sending reminders to ${customers.length} customer(s)`);
+    for (const customer of customers) {
+      const sent = await sendInstagramReminderEmail(customer.email, customer.firstName);
+      if (sent) {
+        await storage.markInstagramReminderSent(customer.id);
+      }
+    }
+  } catch (error) {
+    console.error("[instagram-reminder] Worker error:", error);
+  }
+}
+
 // Extend session types
 declare module 'express-session' {
   interface SessionData {
@@ -3010,5 +3057,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   const httpServer = createServer(app);
+
+  // Start the Instagram connect reminder worker
+  setTimeout(() => { void processInstagramReminders(); }, 60 * 1000);
+  setInterval(() => { void processInstagramReminders(); }, INSTAGRAM_REMINDER_INTERVAL_MS);
+
   return httpServer;
 }

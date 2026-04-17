@@ -105,6 +105,7 @@ export const spiralCustomers = pgTable("spiral_customers", {
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   lastLoginAt: timestamp("last_login_at"),
+  instagramReminderSentAt: timestamp("instagram_reminder_sent_at"),
 });
 
 export const orders = pgTable("orders", {
