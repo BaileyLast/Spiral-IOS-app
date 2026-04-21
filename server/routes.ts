@@ -2072,6 +2072,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         followerCount,
         dateOfBirth: customer.dateOfBirth,
         address: customer.address,
+        country: customer.country,
       });
     } catch (error) {
       console.error("Get customer profile error:", error);
@@ -2462,6 +2463,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         lastName: z.string().max(50).nullable().optional(),
         dateOfBirth: z.string().max(20).nullable().optional(),
         address: z.string().max(500).nullable().optional(),
+        country: z.string().regex(/^[A-Z]{2}$/, "Country must be a 2-letter ISO-3166 code").nullable().optional(),
       });
 
       const parsed = profileUpdateSchema.safeParse(req.body);
@@ -2469,12 +2471,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
       }
 
-      const { firstName, lastName, dateOfBirth, address } = parsed.data;
-      const updateData: { firstName?: string | null; lastName?: string | null; dateOfBirth?: string | null; address?: string | null } = {};
+      const { firstName, lastName, dateOfBirth, address, country } = parsed.data;
+      const updateData: { firstName?: string | null; lastName?: string | null; dateOfBirth?: string | null; address?: string | null; country?: string | null } = {};
       if (firstName !== undefined) updateData.firstName = firstName;
       if (lastName !== undefined) updateData.lastName = lastName;
       if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth;
       if (address !== undefined) updateData.address = address;
+      if (country !== undefined) updateData.country = country;
 
       if (Object.keys(updateData).length === 0) {
         return res.status(400).json({ error: "No fields to update" });
@@ -2487,6 +2490,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email: updated.email,
         dateOfBirth: updated.dateOfBirth,
         address: updated.address,
+        country: updated.country,
       });
     } catch (error) {
       console.error("Profile update error:", error);
@@ -3222,6 +3226,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return false;
     }
   }
+
+  // Brands marketplace — proxy + cache the merchant dashboard's public /api/brands
+  const BRANDS_CACHE_TTL_MS = 5 * 60 * 1000;
+  const MERCHANT_BRANDS_URL = "https://spiral-merchant-dashboard.replit.app/api/brands";
+  let brandsCache: { data: unknown; fetchedAt: number } | null = null;
+
+  app.get("/api/brands", async (_req, res) => {
+    try {
+      if (brandsCache && Date.now() - brandsCache.fetchedAt < BRANDS_CACHE_TTL_MS) {
+        return res.json(brandsCache.data);
+      }
+      const upstream = await fetch(MERCHANT_BRANDS_URL);
+      if (!upstream.ok) {
+        if (brandsCache) {
+          console.warn(`[brands] Upstream returned ${upstream.status}, serving stale cache`);
+          return res.json(brandsCache.data);
+        }
+        return res.status(502).json({ error: "Failed to load brands" });
+      }
+      const data = await upstream.json();
+      brandsCache = { data, fetchedAt: Date.now() };
+      res.json(data);
+    } catch (error) {
+      console.error("[brands] Failed to fetch brands:", error);
+      if (brandsCache) {
+        return res.json(brandsCache.data);
+      }
+      res.status(502).json({ error: "Failed to load brands" });
+    }
+  });
 
   const httpServer = createServer(app);
 

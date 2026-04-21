@@ -89,7 +89,7 @@ export interface IStorage {
   }): Promise<SpiralCustomer>;
   updateSpiralCustomerEmailVerified(id: string, verified: boolean): Promise<SpiralCustomer>;
   updateSpiralCustomerVerificationCode(id: string, code: string, expiresAt: Date): Promise<SpiralCustomer>;
-  updateSpiralCustomerProfile(id: string, data: { firstName?: string | null; lastName?: string | null; dateOfBirth?: string | null; address?: string | null }): Promise<SpiralCustomer>;
+  updateSpiralCustomerProfile(id: string, data: { firstName?: string | null; lastName?: string | null; dateOfBirth?: string | null; address?: string | null; country?: string | null }): Promise<SpiralCustomer>;
   getOrdersByCustomerId(customerId: string): Promise<Order[]>;
   // Spiral verification codes
   createSpiralCode(code: InsertSpiralCode): Promise<SpiralCode>;
@@ -609,7 +609,7 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async updateSpiralCustomerProfile(id: string, data: { firstName?: string | null; lastName?: string | null; dateOfBirth?: string | null; address?: string | null }): Promise<SpiralCustomer> {
+  async updateSpiralCustomerProfile(id: string, data: { firstName?: string | null; lastName?: string | null; dateOfBirth?: string | null; address?: string | null; country?: string | null }): Promise<SpiralCustomer> {
     const [updated] = await db
       .update(spiralCustomers)
       .set(data)
