@@ -3230,16 +3230,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Brands marketplace — proxy + cache the merchant dashboard's public /api/brands
   const BRANDS_CACHE_TTL_MS = 5 * 60 * 1000;
   const MERCHANT_BRANDS_URL = "https://spiral-merchant-dashboard.replit.app/api/brands";
+  const httpUrl = z
+    .string()
+    .url()
+    .refine((u) => /^https?:$/i.test(new URL(u).protocol), {
+      message: "Only http(s) URLs are allowed",
+    });
   const brandSchema = z.object({
     storeName: z.string(),
-    storefrontUrl: z.string(),
+    storefrontUrl: httpUrl,
     instagramUsername: z.string().nullable().optional(),
-    instagramProfilePictureUrl: z.string().nullable().optional(),
+    instagramProfilePictureUrl: httpUrl.nullable().optional(),
     category: z.string().nullable().optional(),
     country: z.string().nullable().optional(),
     shippingCountries: z.array(z.string()).nullable().optional(),
   });
-  const brandsResponseSchema = z.array(brandSchema);
+  // Drop individual brands that fail validation (rather than 502 the whole list)
+  // so one bad merchant record can't break the marketplace for everyone.
+  const brandsResponseSchema = z.array(z.unknown()).transform((arr) =>
+    arr
+      .map((item) => {
+        const parsed = brandSchema.safeParse(item);
+        return parsed.success ? parsed.data : null;
+      })
+      .filter((b): b is z.infer<typeof brandSchema> => b !== null),
+  );
   type CachedBrands = z.infer<typeof brandsResponseSchema>;
   let brandsCache: { data: CachedBrands; fetchedAt: number } | null = null;
 

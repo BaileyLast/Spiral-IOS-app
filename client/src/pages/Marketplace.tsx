@@ -53,6 +53,16 @@ interface CustomerProfile {
   country?: string;
 }
 
+function isSafeHttpUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function brandShipsToCountry(brand: Brand, country: string | null): boolean {
   // Unsynced brands (shippingCountries === null/undefined) → show to everyone
   // as a safe fallback. An empty array means the merchant ships nowhere, so
@@ -155,7 +165,7 @@ export default function Marketplace() {
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3" data-testid="grid-brands">
-            {filteredBrands.map((brand) => {
+            {filteredBrands.filter((b) => isSafeHttpUrl(b.storefrontUrl)).map((brand) => {
               const displayName = cleanBrandName(brand.storeName, brand.instagramUsername);
               const initial = brandInitial(brand.instagramUsername || displayName);
               const palette = paletteFor(brand.instagramUsername || displayName);
