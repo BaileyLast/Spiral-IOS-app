@@ -1,12 +1,15 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, ChevronDown, Check } from "lucide-react";
+import { COUNTRIES, getCountryByCode, detectCountryFromLocale } from "@/lib/countries";
 const spiralLogoUrl = "/spiral-gradient-logo.png";
 
 type AuthMode = "login" | "signup";
@@ -30,9 +33,13 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const detectedCountry = useMemo(() => detectCountryFromLocale(), []);
+  const [country, setCountry] = useState<string | null>(detectedCountry);
+  const [countryPickerOpen, setCountryPickerOpen] = useState(false);
+  const selectedCountry = getCountryByCode(country);
 
   const authMutation = useMutation({
-    mutationFn: async (data: { email: string; password: string; firstName?: string; lastName?: string }) => {
+    mutationFn: async (data: { email: string; password: string; firstName?: string; lastName?: string; country?: string }) => {
       const endpoint = mode === "login" ? "/api/customer/login" : "/api/customer/signup";
       const response = await apiRequest("POST", endpoint, data);
       return response.json();
@@ -74,6 +81,7 @@ export default function Login() {
       password,
       ...(mode === "signup" && firstName.trim() && { firstName: firstName.trim() }),
       ...(mode === "signup" && lastName.trim() && { lastName: lastName.trim() }),
+      ...(mode === "signup" && country && { country }),
     });
   };
 
@@ -129,6 +137,50 @@ export default function Login() {
                     data-testid="input-lastname"
                   />
                 </div>
+              </div>
+            )}
+
+            {mode === "signup" && (
+              <div className="space-y-2">
+                <Label className="text-gray-700 text-sm font-medium">Country</Label>
+                <Popover open={countryPickerOpen} onOpenChange={setCountryPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="w-full h-14 px-4 rounded-2xl bg-gray-50 border border-gray-200 text-left flex items-center justify-between hover-elevate"
+                      data-testid="button-signup-country"
+                    >
+                      <span className={selectedCountry ? "text-gray-900" : "text-gray-400"}>
+                        {selectedCountry?.name || "Select country"}
+                      </span>
+                      <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[320px] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search country..." data-testid="input-signup-country-search" />
+                      <CommandList>
+                        <CommandEmpty>No country found.</CommandEmpty>
+                        <CommandGroup>
+                          {COUNTRIES.map((c) => (
+                            <CommandItem
+                              key={c.code}
+                              value={c.name}
+                              onSelect={() => {
+                                setCountry(c.code);
+                                setCountryPickerOpen(false);
+                              }}
+                              data-testid={`option-signup-country-${c.code}`}
+                            >
+                              <span className="flex-1">{c.name}</span>
+                              {country === c.code && <Check className="w-4 h-4 text-[#D62976]" />}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
             )}
 

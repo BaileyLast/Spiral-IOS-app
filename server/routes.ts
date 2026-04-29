@@ -245,6 +245,7 @@ declare module 'express-session' {
       email: string;
       firstName?: string;
       lastName?: string;
+      country?: string;
       passwordHash: string;
       verificationCode: string;
       verificationExpiry: Date;
@@ -1806,7 +1807,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Customer Signup - stores pending signup in session, account created after verification
   app.post("/api/customer/signup", async (req, res) => {
     try {
-      const { email, password, firstName, lastName } = req.body;
+      const { email, password, firstName, lastName, country } = req.body;
 
       if (!email || !password) {
         return res.status(400).json({ error: "Email and password required" });
@@ -1820,6 +1821,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const normalizedEmail = email.toLowerCase().trim();
       const customerFirstName = firstName?.trim() || undefined;
       const customerLastName = lastName?.trim() || undefined;
+      // Country is optional but if present must be a 2-letter ISO code
+      const customerCountry =
+        typeof country === "string" && /^[A-Za-z]{2}$/.test(country)
+          ? country.toUpperCase()
+          : undefined;
 
       // Check if customer already exists
       const existing = await storage.getSpiralCustomerByEmail(normalizedEmail);
@@ -1840,6 +1846,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email: normalizedEmail,
         firstName: customerFirstName,
         lastName: customerLastName,
+        country: customerCountry,
         passwordHash,
         verificationCode,
         verificationExpiry,
@@ -1897,6 +1904,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email: pendingSignup.email,
         firstName: pendingSignup.firstName,
         lastName: pendingSignup.lastName,
+        country: pendingSignup.country,
         passwordHash: pendingSignup.passwordHash,
         isActive: true,
         emailVerified: true,
