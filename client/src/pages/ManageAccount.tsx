@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { COUNTRIES, getCountryByCode } from "@/lib/countries";
+import { COUNTRIES, getCountryByCode, detectCountryFromLocale } from "@/lib/countries";
 import {
   ArrowLeft,
   Instagram,
@@ -116,6 +116,8 @@ export default function ManageAccount() {
     updateMutation.mutate({ country: code });
   };
 
+  const suggestedCountryCode = useMemo(() => detectCountryFromLocale(), []);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
@@ -126,6 +128,7 @@ export default function ManageAccount() {
 
   const isInstagramConnected = !!profile?.instagramHandle;
   const currentCountry = getCountryByCode(profile?.country);
+  const suggestedCountry = !profile?.country ? getCountryByCode(suggestedCountryCode) : undefined;
 
   const accountFields = [
     { key: "email" as const, label: "Email address", value: profile?.email || "", icon: Mail, editable: false },
@@ -287,9 +290,15 @@ export default function ManageAccount() {
                       <Globe className="w-5 h-5 text-gray-400 flex-shrink-0" />
                       <div className="flex-1 min-w-0 text-left">
                         <p className="text-xs text-gray-400 mb-0.5">Country</p>
-                        <p className={`text-sm truncate ${currentCountry ? "text-gray-900" : "text-gray-300"}`}>
-                          {currentCountry?.name || "Not set"}
-                        </p>
+                        {currentCountry ? (
+                          <p className="text-sm truncate text-gray-900">{currentCountry.name}</p>
+                        ) : suggestedCountry ? (
+                          <p className="text-sm truncate text-gray-400" data-testid="text-country-suggested">
+                            Tap to confirm <span className="text-gray-700 font-medium">{suggestedCountry.name}</span>
+                          </p>
+                        ) : (
+                          <p className="text-sm truncate text-gray-300">Not set</p>
+                        )}
                       </div>
                       <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
                     </button>
