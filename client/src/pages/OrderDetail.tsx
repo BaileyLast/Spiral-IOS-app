@@ -130,10 +130,10 @@ export default function OrderDetail() {
               </div>
               <div>
                 <h3 className="font-bold text-amber-900">
-                  Share to keep your discount
+                  Post your Story to unlock your next discount
                 </h3>
                 <p className="text-sm text-amber-700 mt-1">
-                  Post an Instagram Story tagging the brand to confirm your discount
+                  Until this is verified, you can't use Spiral on your next purchase.
                 </p>
               </div>
             </div>

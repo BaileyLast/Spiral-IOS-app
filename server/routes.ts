@@ -1648,6 +1648,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      // Lockout: shopper must have zero unverified delivered orders
+      const unverifiedDelivered = await storage.getUnverifiedDeliveredOrdersByCustomerId(customerId);
+      if (unverifiedDelivered.length > 0) {
+        return res.json({
+          eligible: false,
+          code: "unverified_orders",
+          reason: unverifiedDelivered.length === 1
+            ? "Post a Story for your previous order to unlock your next discount"
+            : `Post a Story for your ${unverifiedDelivered.length} unverified orders to unlock your next discount`,
+          pendingVerificationCount: unverifiedDelivered.length,
+        });
+      }
+
       // Check minimum follower requirement
       const followerCount = customer.followerCount || 0;
       const minFollowers = settings?.minFollowers || 0;
@@ -2561,6 +2574,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const verifiedOrders = orders.filter(o => o.verificationStatus === "verified");
       const totalSaved = verifiedOrders.reduce((sum, o) => sum + parseFloat(o.discountAmount || "0"), 0);
+      const pendingOrders = await storage.getUnverifiedDeliveredOrdersByCustomerId(customerId);
       
       const customer = await storage.getSpiralCustomerById(customerId);
       let discountPercent: number = 0;
@@ -2582,6 +2596,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalSaved,
         ordersCompleted: verifiedOrders.length,
         discountPercent,
+        pendingVerificationCount: pendingOrders.length,
+        pendingOrders: pendingOrders.map(o => ({
+          id: o.id,
+          storeName: o.storeName,
+          shopifyOrderId: o.shopifyOrderId,
+        })),
       });
     } catch (error) {
       console.error("Failed to fetch customer stats:", error);

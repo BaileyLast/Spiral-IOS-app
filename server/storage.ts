@@ -91,6 +91,7 @@ export interface IStorage {
   updateSpiralCustomerVerificationCode(id: string, code: string, expiresAt: Date): Promise<SpiralCustomer>;
   updateSpiralCustomerProfile(id: string, data: { firstName?: string | null; lastName?: string | null; dateOfBirth?: string | null; address?: string | null; country?: string | null }): Promise<SpiralCustomer>;
   getOrdersByCustomerId(customerId: string): Promise<Order[]>;
+  getUnverifiedDeliveredOrdersByCustomerId(customerId: string): Promise<Order[]>;
   // Spiral verification codes
   createSpiralCode(code: InsertSpiralCode): Promise<SpiralCode>;
   getSpiralCodeByCode(code: string): Promise<SpiralCode | undefined>;
@@ -582,6 +583,16 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(orders)
       .where(eq(orders.spiralCustomerId, customerId));
+  }
+
+  async getUnverifiedDeliveredOrdersByCustomerId(customerId: string): Promise<Order[]> {
+    const all = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.spiralCustomerId, customerId));
+    return all.filter(
+      (o) => o.status === "delivered" && o.verificationStatus !== "verified"
+    );
   }
 
   async updateSpiralCustomerEmailVerified(id: string, verified: boolean): Promise<SpiralCustomer> {

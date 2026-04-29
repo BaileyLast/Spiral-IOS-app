@@ -2,13 +2,13 @@ import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { ChevronRight, Instagram, Sparkles, CheckCircle, Tag } from "lucide-react";
+import { ChevronRight, Instagram, Lock, CheckCircle, Tag } from "lucide-react";
 import type { Order } from "@shared/schema";
 
 function getStatusLabel(order: Order) {
   if (order.verificationStatus === "verified") return "Verified";
   if (order.verificationStatus === "story_detected") return "Story Received";
-  if (order.status === "delivered") return "Post Your Story";
+  if (order.status === "delivered") return "Story Needed";
   if (order.status === "fulfilled") return "On the way";
   return "Ordered";
 }
@@ -19,7 +19,7 @@ function getStatusBadge(status: string) {
       return "bg-green-50 text-green-700 border border-green-200";
     case "Story Received":
       return "bg-blue-50 text-blue-700 border border-blue-200";
-    case "Post Your Story":
+    case "Story Needed":
       return "bg-amber-50 text-amber-700 border border-amber-200";
     case "On the way":
       return "bg-blue-50 text-blue-700 border border-blue-200";
@@ -53,14 +53,19 @@ export default function CustomerHome() {
     queryKey: ["/api/customer/orders"],
   });
 
-  const { data: stats } = useQuery<{ totalSaved: number; ordersCompleted: number; discountPercent: number }>({
+  const { data: stats } = useQuery<{
+    totalSaved: number;
+    ordersCompleted: number;
+    discountPercent: number;
+    pendingVerificationCount: number;
+    pendingOrders: { id: string; storeName: string | null; shopifyOrderId: string }[];
+  }>({
     queryKey: ["/api/customer/stats"],
   });
 
   const recentOrders = orders.slice(0, 3);
-  const pendingActions = orders.filter(
-    (o) => o.status === "delivered" && o.verificationStatus !== "verified" && o.verificationStatus !== "story_detected"
-  );
+  const pendingCount = stats?.pendingVerificationCount ?? 0;
+  const pendingOrders = stats?.pendingOrders ?? [];
 
   return (
     <div className="min-h-screen safe-top bg-white">
@@ -115,30 +120,37 @@ export default function CustomerHome() {
           </div>
         </div>
 
-        {pendingActions.length > 0 && (
-          <div className="p-5 rounded-2xl bg-amber-50 border border-amber-200">
+        {pendingCount > 0 && (
+          <div className="p-5 rounded-2xl bg-amber-50 border border-amber-200" data-testid="card-lockout">
             <div className="flex items-start gap-4">
               <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
-                <Sparkles className="w-5 h-5 text-amber-600" />
+                <Lock className="w-5 h-5 text-amber-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-amber-900">
-                  {pendingActions.length} order{pendingActions.length > 1 ? "s" : ""} awaiting your story
+                <p className="font-semibold text-amber-900" data-testid="text-lockout-headline">
+                  Your next Spiral discount is locked
                 </p>
                 <p className="text-sm text-amber-700 mt-1">
-                  Share to keep your discount
+                  Post a Story for {pendingCount === 1 ? "your previous order" : `your ${pendingCount} unverified orders`} to unlock it.
                 </p>
+                {pendingOrders.length > 0 && (
+                  <div className="mt-3 space-y-1.5">
+                    {pendingOrders.map((o) => (
+                      <Link key={o.id} href={`/orders/${o.id}`}>
+                        <div
+                          className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white border border-amber-200 hover-elevate cursor-pointer"
+                          data-testid={`link-pending-order-${o.id}`}
+                        >
+                          <span className="text-sm font-medium text-amber-900 truncate">
+                            {o.storeName || `Order #${o.shopifyOrderId.slice(-6)}`}
+                          </span>
+                          <ChevronRight className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </div>
-              <Link href="/discounts">
-                <Button 
-                  size="sm" 
-                  className="text-white border-0"
-                  style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976)' }}
-                  data-testid="button-view-pending"
-                >
-                  View
-                </Button>
-              </Link>
             </div>
           </div>
         )}

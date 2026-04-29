@@ -21,7 +21,7 @@ function parseLineItems(raw: string | null | undefined): LineItem[] {
 function getStatusLabel(order: Order) {
   if (order.verificationStatus === "verified") return "Verified";
   if (order.verificationStatus === "story_detected") return "Story Received";
-  if (order.status === "delivered") return "Post Your Story";
+  if (order.status === "delivered") return "Story Needed";
   if (order.status === "fulfilled") return "On the way";
   return "Ordered";
 }
@@ -37,7 +37,7 @@ function getStatusBadge(status: string) {
       return "bg-green-50 text-green-700 border border-green-200";
     case "Story Received":
       return "bg-blue-50 text-blue-700 border border-blue-200";
-    case "Post Your Story":
+    case "Story Needed":
       return "bg-amber-50 text-amber-700 border border-amber-200";
     case "On the way":
       return "bg-blue-50 text-blue-700 border border-blue-200";
@@ -133,12 +133,12 @@ function OrderCard({ order, dimmed = false }: { order: Order; dimmed?: boolean }
                     </div>
                   </>
                 )}
-                {status === "Post Your Story" && (
+                {status === "Story Needed" && (
                   <>
                     <span className="text-gray-200">·</span>
                     <div className="flex items-center gap-1">
                       <Clock className="w-3 h-3 text-amber-500" />
-                      <p className="text-xs text-amber-600 font-medium">Post to keep discount</p>
+                      <p className="text-xs text-amber-600 font-medium">Unlocks your next discount</p>
                     </div>
                   </>
                 )}
@@ -371,12 +371,12 @@ export default function Orders() {
                             <p className="text-xs text-gray-400">
                               {new Date(mock.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                             </p>
-                            {getStatusLabel(mock) === "Post Your Story" && (
+                            {getStatusLabel(mock) === "Story Needed" && (
                               <>
                                 <span className="text-gray-200">·</span>
                                 <div className="flex items-center gap-1">
                                   <Clock className="w-3 h-3 text-amber-500" />
-                                  <p className="text-xs text-amber-600 font-medium">Post to keep discount</p>
+                                  <p className="text-xs text-amber-600 font-medium">Unlocks your next discount</p>
                                 </div>
                               </>
                             )}

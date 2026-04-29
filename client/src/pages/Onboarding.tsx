@@ -31,8 +31,8 @@ export default function Onboarding() {
                 <Instagram className="w-7 h-7 text-primary" />
               </div>
               <div>
-                <h3 className="font-semibold text-foreground">Share your purchase</h3>
-                <p className="text-sm text-muted-foreground mt-1">Post one Instagram Story after delivery</p>
+                <h3 className="font-semibold text-foreground">Share after delivery</h3>
+                <p className="text-sm text-muted-foreground mt-1">Post a Story tagging the brand to stay eligible for your next discount</p>
               </div>
             </div>
 
@@ -41,8 +41,8 @@ export default function Onboarding() {
                 <Sparkles className="w-7 h-7 text-primary" />
               </div>
               <div>
-                <h3 className="font-semibold text-foreground">Keep your savings</h3>
-                <p className="text-sm text-muted-foreground mt-1">Your discount is confirmed once verified</p>
+                <h3 className="font-semibold text-foreground">Keep saving</h3>
+                <p className="text-sm text-muted-foreground mt-1">Once your Story is verified, your next discount is unlocked</p>
               </div>
             </div>
           </div>
