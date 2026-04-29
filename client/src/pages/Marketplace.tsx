@@ -54,8 +54,11 @@ interface CustomerProfile {
 }
 
 function brandShipsToCountry(brand: Brand, country: string | null): boolean {
-  // Unsynced brands → show to everyone (safe fallback)
-  if (!brand.shippingCountries || brand.shippingCountries.length === 0) return true;
+  // Unsynced brands (shippingCountries === null/undefined) → show to everyone
+  // as a safe fallback. An empty array means the merchant ships nowhere, so
+  // we hide them.
+  if (brand.shippingCountries == null) return true;
+  if (brand.shippingCountries.length === 0) return false;
   // Worldwide shippers → show to everyone
   if (brand.shippingCountries.includes("*")) return true;
   // Without a country we can't filter — be permissive
