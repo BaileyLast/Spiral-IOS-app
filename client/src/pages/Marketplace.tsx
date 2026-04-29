@@ -2,7 +2,42 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Store, Sparkles, X } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getCountryByCode, detectCountryFromLocale } from "@/lib/countries";
+
+const FALLBACK_PALETTE = [
+  "bg-[#FEDA75] text-[#7a4a00]",
+  "bg-[#FA7E1E] text-white",
+  "bg-[#D62976] text-white",
+  "bg-[#962FBF] text-white",
+];
+
+function cleanBrandName(storeName: string, instagramUsername: string | null): string {
+  const looksLikeShopify = /\.myshopify\.com$/i.test(storeName);
+  if (looksLikeShopify) {
+    const slug = storeName
+      .replace(/\.myshopify\.com$/i, "")
+      .replace(/-/g, " ")
+      .trim();
+    if (instagramUsername && /^test/i.test(slug)) return instagramUsername;
+    return slug
+      .split(" ")
+      .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+      .join(" ");
+  }
+  return storeName;
+}
+
+function brandInitial(name: string): string {
+  const trimmed = name.trim();
+  return trimmed ? trimmed[0].toUpperCase() : "?";
+}
+
+function paletteFor(seed: string): string {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return FALLBACK_PALETTE[h % FALLBACK_PALETTE.length];
+}
 
 interface Brand {
   storeName: string;
@@ -25,7 +60,8 @@ function brandShipsToCountry(brand: Brand, country: string | null): boolean {
   if (brand.shippingCountries.includes("*")) return true;
   // Without a country we can't filter — be permissive
   if (!country) return true;
-  return brand.shippingCountries.includes(country);
+  const target = country.toUpperCase();
+  return brand.shippingCountries.some((c) => c?.toUpperCase() === target);
 }
 
 export default function Marketplace() {
@@ -41,8 +77,8 @@ export default function Marketplace() {
   });
 
   const localeCountry = useMemo(() => detectCountryFromLocale(), []);
-  const profileCountry = profile?.country || null;
-  const effectiveCountry = profileCountry || localeCountry;
+  const profileCountry = profile?.country?.toUpperCase() || null;
+  const effectiveCountry = profileCountry || (localeCountry ? localeCountry.toUpperCase() : null);
   const usingLocaleFallback = !profileCountry && !!localeCountry;
   const country = getCountryByCode(effectiveCountry);
 
@@ -66,7 +102,7 @@ export default function Marketplace() {
           <p className="text-xs text-gray-500 flex-1">
             Showing brands shipping to <span className="font-semibold text-gray-700">{country.name}</span>.{" "}
             <button
-              onClick={() => setLocation("/account")}
+              onClick={() => setLocation("/manage-account")}
               className="text-[#D62976] font-semibold hover-elevate rounded px-1"
               data-testid="link-set-country"
             >
@@ -116,47 +152,55 @@ export default function Marketplace() {
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3" data-testid="grid-brands">
-            {filteredBrands.map((brand) => (
-              <a
-                key={brand.storefrontUrl}
-                href={brand.storefrontUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block rounded-2xl bg-gray-50 border border-gray-100 p-4 hover-elevate active-elevate-2"
-                data-testid={`card-brand-${brand.instagramUsername || brand.storeName}`}
-              >
-                <div className="flex flex-col items-center text-center">
-                  <div className="w-16 h-16 rounded-full overflow-hidden bg-white border border-gray-100 mb-3 flex items-center justify-center">
-                    {brand.instagramProfilePictureUrl ? (
-                      <img
-                        src={brand.instagramProfilePictureUrl}
-                        alt={brand.storeName}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <Store className="w-7 h-7 text-gray-300" />
+            {filteredBrands.map((brand) => {
+              const displayName = cleanBrandName(brand.storeName, brand.instagramUsername);
+              const initial = brandInitial(brand.instagramUsername || displayName);
+              const palette = paletteFor(brand.instagramUsername || displayName);
+              return (
+                <a
+                  key={brand.storefrontUrl}
+                  href={brand.storefrontUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block rounded-2xl bg-gray-50 border border-gray-100 p-4 hover-elevate active-elevate-2"
+                  data-testid={`card-brand-${brand.instagramUsername || brand.storeName}`}
+                >
+                  <div className="flex flex-col items-center text-center">
+                    <Avatar className="w-16 h-16 mb-3">
+                      {brand.instagramProfilePictureUrl && (
+                        <AvatarImage
+                          src={brand.instagramProfilePictureUrl}
+                          alt={displayName}
+                          className="object-cover"
+                        />
+                      )}
+                      <AvatarFallback
+                        className={`text-2xl font-bold ${palette}`}
+                        data-testid={`fallback-brand-${brand.instagramUsername || brand.storeName}`}
+                      >
+                        {initial}
+                      </AvatarFallback>
+                    </Avatar>
+                    <p
+                      className="font-bold text-gray-900 text-sm truncate w-full"
+                      data-testid={`text-brand-name-${brand.instagramUsername || brand.storeName}`}
+                    >
+                      {displayName}
+                    </p>
+                    {brand.instagramUsername && (
+                      <p className="text-xs text-gray-400 truncate w-full mt-0.5">
+                        @{brand.instagramUsername}
+                      </p>
+                    )}
+                    {brand.category && (
+                      <p className="text-[10px] uppercase tracking-wider text-[#D62976] font-semibold mt-2">
+                        {brand.category}
+                      </p>
                     )}
                   </div>
-                  <p
-                    className="font-bold text-gray-900 text-sm truncate w-full"
-                    data-testid={`text-brand-name-${brand.instagramUsername || brand.storeName}`}
-                  >
-                    {brand.storeName}
-                  </p>
-                  {brand.instagramUsername && (
-                    <p className="text-xs text-gray-400 truncate w-full mt-0.5">
-                      @{brand.instagramUsername}
-                    </p>
-                  )}
-                  {brand.category && (
-                    <p className="text-[10px] uppercase tracking-wider text-[#D62976] font-semibold mt-2">
-                      {brand.category}
-                    </p>
-                  )}
-                </div>
-              </a>
-            ))}
+                </a>
+              );
+            })}
           </div>
         )}
       </main>

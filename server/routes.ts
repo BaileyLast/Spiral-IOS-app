@@ -3230,7 +3230,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Brands marketplace — proxy + cache the merchant dashboard's public /api/brands
   const BRANDS_CACHE_TTL_MS = 5 * 60 * 1000;
   const MERCHANT_BRANDS_URL = "https://spiral-merchant-dashboard.replit.app/api/brands";
-  let brandsCache: { data: unknown; fetchedAt: number } | null = null;
+  const brandSchema = z.object({
+    storeName: z.string(),
+    storefrontUrl: z.string(),
+    instagramUsername: z.string().nullable().optional(),
+    instagramProfilePictureUrl: z.string().nullable().optional(),
+    category: z.string().nullable().optional(),
+    country: z.string().nullable().optional(),
+    shippingCountries: z.array(z.string()).nullable().optional(),
+  });
+  const brandsResponseSchema = z.array(brandSchema);
+  type CachedBrands = z.infer<typeof brandsResponseSchema>;
+  let brandsCache: { data: CachedBrands; fetchedAt: number } | null = null;
 
   app.get("/api/brands", async (_req, res) => {
     try {
@@ -3245,9 +3256,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         return res.status(502).json({ error: "Failed to load brands" });
       }
-      const data = await upstream.json();
-      brandsCache = { data, fetchedAt: Date.now() };
-      res.json(data);
+      const raw = await upstream.json();
+      const parsed = brandsResponseSchema.safeParse(raw);
+      if (!parsed.success) {
+        console.error("[brands] Upstream returned invalid payload:", parsed.error.message);
+        if (brandsCache) {
+          return res.json(brandsCache.data);
+        }
+        return res.status(502).json({ error: "Invalid upstream response" });
+      }
+      brandsCache = { data: parsed.data, fetchedAt: Date.now() };
+      res.json(parsed.data);
     } catch (error) {
       console.error("[brands] Failed to fetch brands:", error);
       if (brandsCache) {
