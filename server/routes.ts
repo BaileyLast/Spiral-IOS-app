@@ -1770,9 +1770,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const confirmStoreLogo = confirmShopDomain
         ? `https://www.google.com/s2/favicons?domain=${confirmShopDomain}&sz=64`
         : null;
-      const confirmLineItems = rawLineItemsFromWidget
-        ? JSON.stringify(rawLineItemsFromWidget)
-        : null;
+      let confirmLineItems: string | null = null;
+      if (Array.isArray(rawLineItemsFromWidget) && rawLineItemsFromWidget.length > 0) {
+        const normalized = rawLineItemsFromWidget
+          .map((raw: any) => {
+            const name = (raw?.name ?? raw?.title ?? '').toString().trim();
+            const imageUrl = typeof raw?.imageUrl === 'string' && raw.imageUrl.length > 0
+              ? raw.imageUrl
+              : null;
+            const rawQty = Number(raw?.quantity);
+            const quantity = Number.isFinite(rawQty) && rawQty >= 1 ? Math.floor(rawQty) : 1;
+            return { name, imageUrl, quantity };
+          })
+          .filter((item) => item.name.length > 0);
+        if (normalized.length > 0) {
+          confirmLineItems = JSON.stringify(normalized);
+        }
+      }
 
       const order = await storage.createOrder({
         shopifyOrderId: shopifyOrderId.toString(),

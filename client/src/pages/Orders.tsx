@@ -3,19 +3,34 @@ import { Link } from "wouter";
 import { ShoppingBag, ChevronRight, CheckCircle2, Clock, Store } from "lucide-react";
 import type { Order } from "@shared/schema";
 
-interface LineItem {
-  title: string;
+export interface LineItem {
+  name?: string | null;
+  title?: string | null;
   variantTitle?: string | null;
+  imageUrl?: string | null;
   quantity: number;
 }
 
-function parseLineItems(raw: string | null | undefined): LineItem[] {
+export function parseLineItems(raw: string | null | undefined): LineItem[] {
   if (!raw) return [];
   try {
-    return JSON.parse(raw) as LineItem[];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as LineItem[]) : [];
   } catch {
     return [];
   }
+}
+
+export function lineItemDisplayName(item: LineItem): string {
+  return (item.name ?? item.title ?? "").toString().trim();
+}
+
+export function formatDiscountPercent(raw: string | number | null | undefined): string | null {
+  if (raw == null) return null;
+  const pct = typeof raw === "number" ? raw : parseFloat(raw);
+  if (!Number.isFinite(pct) || pct <= 0) return null;
+  const formatted = Math.round(pct) === pct ? pct.toFixed(0) : pct.toFixed(1);
+  return `${formatted}% off`;
 }
 
 function getStatusLabel(order: Order) {
@@ -49,13 +64,16 @@ function getStatusBadge(status: string) {
 function itemSummaryText(lineItems: LineItem[]) {
   return lineItems
     .map((item) => {
+      const name = lineItemDisplayName(item);
+      if (!name) return "";
       const variant =
         item.variantTitle && item.variantTitle !== "Default Title"
           ? ` · ${item.variantTitle}`
           : "";
       const qty = item.quantity > 1 ? ` ×${item.quantity}` : "";
-      return `${item.title}${variant}${qty}`;
+      return `${name}${variant}${qty}`;
     })
+    .filter((entry) => entry.length > 0)
     .join(", ");
 }
 
@@ -164,8 +182,8 @@ const MOCK_ACTIVE: Order[] = [
     storeLogo: "https://www.google.com/s2/favicons?domain=glossier.com&sz=64",
     shopifyOrderId: "479301",
     lineItems: JSON.stringify([
-      { title: "Cloud Paint", variantTitle: "Puff", quantity: 2 },
-      { title: "Boy Brow", variantTitle: "Brown", quantity: 1 },
+      { name: "Cloud Paint", imageUrl: "https://images.unsplash.com/photo-1631730486572-226d1f595b68?w=120&h=120&fit=crop", quantity: 2 },
+      { name: "Boy Brow", imageUrl: null, quantity: 1 },
     ]),
     discountAmount: "8.50",
     orderTotal: "42.00",
@@ -190,7 +208,7 @@ const MOCK_ACTIVE: Order[] = [
     storeLogo: "https://www.google.com/s2/favicons?domain=allbirds.com&sz=64",
     shopifyOrderId: "477842",
     lineItems: JSON.stringify([
-      { title: "Tree Dasher 2", variantTitle: "Blizzard / Size 9", quantity: 1 },
+      { name: "Tree Dasher 2 — Blizzard / Size 9", imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=120&h=120&fit=crop", quantity: 1 },
     ]),
     discountAmount: "14.00",
     orderTotal: "110.00",
@@ -215,7 +233,7 @@ const MOCK_ACTIVE: Order[] = [
     storeLogo: "https://www.google.com/s2/favicons?domain=skims.com&sz=64",
     shopifyOrderId: "475610",
     lineItems: JSON.stringify([
-      { title: "Soft Lounge Long Slip Dress", variantTitle: "Cocoa / XS", quantity: 1 },
+      { name: "Soft Lounge Long Slip Dress — Cocoa / XS", imageUrl: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=120&h=120&fit=crop", quantity: 1 },
     ]),
     discountAmount: "15.00",
     orderTotal: "98.00",
@@ -243,7 +261,7 @@ const MOCK_HISTORY: Order[] = [
     storeLogo: "https://www.google.com/s2/favicons?domain=allbirds.com&sz=64",
     shopifyOrderId: "481923",
     lineItems: JSON.stringify([
-      { title: "Tree Runner Go", variantTitle: "Natural White / Size 10", quantity: 1 },
+      { name: "Tree Runner Go — Natural White / Size 10", imageUrl: "https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?w=120&h=120&fit=crop", quantity: 1 },
     ]),
     discountAmount: "12.00",
     orderTotal: "95.00",

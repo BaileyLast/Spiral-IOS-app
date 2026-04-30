@@ -1,8 +1,56 @@
 import { Button } from "@/components/ui/button";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
-import { ArrowLeft, CheckCircle, Clock, Package, Instagram, Camera, Loader2 } from "lucide-react";
+import { ArrowLeft, CheckCircle, Clock, Package, Instagram, Camera, Loader2, ShoppingBag } from "lucide-react";
 import type { Order } from "@shared/schema";
+import {
+  parseLineItems,
+  lineItemDisplayName,
+  formatDiscountPercent,
+  type LineItem,
+} from "@/pages/Orders";
+
+function LineItemThumb({ src, alt }: { src: string | null | undefined; alt: string }) {
+  const [errored, setErrored] = useState(false);
+  if (!src || errored) {
+    return (
+      <div
+        className="w-12 h-12 rounded-md bg-gray-100 flex items-center justify-center flex-shrink-0"
+        aria-label={`${alt} placeholder`}
+      >
+        <ShoppingBag className="w-5 h-5 text-gray-300" />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="w-12 h-12 rounded-md object-cover bg-gray-100 flex-shrink-0"
+      onError={() => setErrored(true)}
+    />
+  );
+}
+
+function LineItemRow({ item }: { item: LineItem }) {
+  const name = lineItemDisplayName(item);
+  return (
+    <div className="flex items-center gap-3" data-testid={`row-line-item-${name}`}>
+      <LineItemThumb src={item.imageUrl} alt={name} />
+      <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+        <p className="text-sm text-gray-900 truncate" data-testid={`text-line-item-name-${name}`}>
+          {name}
+        </p>
+        {item.quantity > 1 && (
+          <span className="text-sm text-gray-400 flex-shrink-0" data-testid={`text-line-item-qty-${name}`}>
+            ×{item.quantity}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function getStatusLabel(order: Order) {
   if (order.verificationStatus === "verified") return "verified";
@@ -47,6 +95,8 @@ export default function OrderDetail() {
   }
 
   const status = getStatusLabel(order);
+  const lineItems = parseLineItems(order.lineItems).filter((item) => lineItemDisplayName(item).length > 0);
+  const percentLabel = formatDiscountPercent(order.discountPercent);
 
   const steps = [
     { id: "ordered", label: "Order placed", icon: Package, complete: true },
@@ -80,6 +130,11 @@ export default function OrderDetail() {
               <p className="text-lg font-bold text-green-700" data-testid="text-discount">
                 -${Number(order.discountAmount).toFixed(2)}
               </p>
+              {percentLabel && (
+                <p className="text-xs text-green-700/80 mt-0.5" data-testid="text-discount-percent">
+                  {percentLabel}
+                </p>
+              )}
             </div>
           </div>
           <div className="flex items-center justify-between text-sm">
@@ -89,6 +144,20 @@ export default function OrderDetail() {
             </span>
           </div>
         </div>
+
+        {lineItems.length > 0 && (
+          <div className="p-5 rounded-2xl bg-gray-50 border border-gray-100" data-testid="card-items">
+            <h2 className="font-bold text-gray-900 mb-4">Items</h2>
+            <div className="space-y-3">
+              {lineItems.map((item, index) => (
+                <LineItemRow key={`${lineItemDisplayName(item)}-${index}`} item={item} />
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-4">
+              Quantity shown reflects items discounted under your tier.
+            </p>
+          </div>
+        )}
 
         <div className="p-5 rounded-2xl bg-gray-50 border border-gray-100">
           <h2 className="font-bold text-gray-900 mb-4">Order Progress</h2>
