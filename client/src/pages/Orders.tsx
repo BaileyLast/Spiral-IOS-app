@@ -339,7 +339,7 @@ export default function Orders() {
               </section>
             )}
           </>
-        ) : (
+        ) : import.meta.env.DEV ? (
           <>
             <section>
               <p className="text-xs text-gray-300 font-semibold uppercase tracking-wider px-1 mb-3">
@@ -435,6 +435,16 @@ export default function Orders() {
               </div>
             </section>
           </>
+        ) : (
+          <div className="p-8 rounded-2xl bg-gray-50 border border-gray-100 text-center" data-testid="empty-orders">
+            <div className="w-16 h-16 rounded-2xl bg-white border border-gray-100 flex items-center justify-center mx-auto mb-4">
+              <ShoppingBag className="w-8 h-8 text-gray-300" />
+            </div>
+            <h3 className="font-bold text-gray-900 mb-2">No discounts yet</h3>
+            <p className="text-sm text-gray-400">
+              When you make a purchase with Spiral, it will appear here
+            </p>
+          </div>
         )}
       </main>
     </div>
