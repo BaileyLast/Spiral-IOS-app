@@ -440,7 +440,7 @@ export default function Orders() {
             <div className="w-16 h-16 rounded-2xl bg-white border border-gray-100 flex items-center justify-center mx-auto mb-4">
               <ShoppingBag className="w-8 h-8 text-gray-300" />
             </div>
-            <h3 className="font-bold text-gray-900 mb-2">No discounts yet</h3>
+            <h3 className="font-bold text-gray-900 mb-2">No orders yet</h3>
             <p className="text-sm text-gray-400">
               When you make a purchase with Spiral, it will appear here
             </p>
