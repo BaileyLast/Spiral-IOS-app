@@ -8,6 +8,7 @@ export interface LineItem {
   title?: string | null;
   variantTitle?: string | null;
   imageUrl?: string | null;
+  productUrl?: string | null;
   quantity: number;
 }
 

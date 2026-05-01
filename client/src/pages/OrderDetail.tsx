@@ -35,8 +35,13 @@ function LineItemThumb({ src, alt }: { src: string | null | undefined; alt: stri
 
 function LineItemRow({ item }: { item: LineItem }) {
   const name = lineItemDisplayName(item);
-  return (
-    <div className="flex items-center gap-3" data-testid={`row-line-item-${name}`}>
+  const productUrl =
+    typeof item.productUrl === "string" && /^https?:\/\//i.test(item.productUrl)
+      ? item.productUrl
+      : null;
+
+  const inner = (
+    <>
       <LineItemThumb src={item.imageUrl} alt={name} />
       <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
         <p className="text-sm text-gray-900 truncate" data-testid={`text-line-item-name-${name}`}>
@@ -48,6 +53,26 @@ function LineItemRow({ item }: { item: LineItem }) {
           </span>
         )}
       </div>
+    </>
+  );
+
+  if (productUrl) {
+    return (
+      <a
+        href={productUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-3 -mx-2 px-2 py-1 rounded-md hover-elevate active-elevate-2"
+        data-testid={`link-line-item-${name}`}
+      >
+        {inner}
+      </a>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3" data-testid={`row-line-item-${name}`}>
+      {inner}
     </div>
   );
 }

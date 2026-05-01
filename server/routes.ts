@@ -1772,15 +1772,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : null;
       let confirmLineItems: string | null = null;
       if (Array.isArray(rawLineItemsFromWidget) && rawLineItemsFromWidget.length > 0) {
+        const normalizeHttpUrl = (value: unknown): string | null => {
+          if (typeof value !== 'string') return null;
+          const trimmed = value.trim();
+          if (trimmed.length === 0) return null;
+          try {
+            const parsed = new URL(trimmed);
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+            return parsed.toString();
+          } catch {
+            return null;
+          }
+        };
         const normalized = rawLineItemsFromWidget
           .map((raw: any) => {
             const name = (raw?.name ?? raw?.title ?? '').toString().trim();
             const imageUrl = typeof raw?.imageUrl === 'string' && raw.imageUrl.length > 0
               ? raw.imageUrl
               : null;
+            const productUrl = normalizeHttpUrl(raw?.productUrl ?? raw?.url);
             const rawQty = Number(raw?.quantity);
             const quantity = Number.isFinite(rawQty) && rawQty >= 1 ? Math.floor(rawQty) : 1;
-            return { name, imageUrl, quantity };
+            return { name, imageUrl, productUrl, quantity };
           })
           .filter((item) => item.name.length > 0);
         if (normalized.length > 0) {
