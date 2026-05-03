@@ -74,7 +74,7 @@ export default function CustomerHome() {
           <Link href="/connect-instagram">
             <div
               className="p-5 rounded-2xl cursor-pointer hover-elevate active-elevate-2 text-white"
-              style={{ background: 'linear-gradient(135deg, #A8F5E0, #4ECCA3, #2BAE88)' }}
+              style={{ background: 'linear-gradient(135deg, #2BAE88, #1F8A6B)' }}
               data-testid="card-connect-instagram-cta"
             >
               <div className="flex items-center gap-4">
