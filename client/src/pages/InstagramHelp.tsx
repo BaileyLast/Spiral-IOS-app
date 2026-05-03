@@ -50,12 +50,7 @@ export default function InstagramHelp() {
       <div 
         className="absolute inset-0 z-0"
         style={{
-          background: `
-            linear-gradient(135deg, 
-              hsl(280 70% 50%) 0%, 
-              hsl(320 70% 45%) 50%,
-              hsl(340 65% 40%) 100%)
-          `,
+          background: `linear-gradient(135deg, #A8F5E0 0%, #4ECCA3 50%, #2BAE88 100%)`,
         }}
       />
       

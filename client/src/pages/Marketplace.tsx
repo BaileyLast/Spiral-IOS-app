@@ -6,10 +6,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getCountryByCode, detectCountryFromLocale } from "@/lib/countries";
 
 const FALLBACK_PALETTE = [
-  "bg-[#FEDA75] text-[#7a4a00]",
-  "bg-[#FA7E1E] text-white",
-  "bg-[#D62976] text-white",
-  "bg-[#962FBF] text-white",
+  "bg-[#A8F5E0] text-[#155843]",
+  "bg-[#4ECCA3] text-white",
+  "bg-[#2BAE88] text-white",
+  "bg-[#EBF9F5] text-[#2BAE88]",
 ];
 
 function cleanBrandName(storeName: string, instagramUsername: string | null): string {
@@ -116,7 +116,7 @@ export default function Marketplace() {
             Showing brands shipping to <span className="font-semibold text-gray-700">{country.name}</span>.{" "}
             <button
               onClick={() => setLocation("/manage-account")}
-              className="text-[#D62976] font-semibold hover-elevate rounded px-1"
+              className="text-[#4ECCA3] font-semibold hover-elevate rounded px-1"
               data-testid="link-set-country"
             >
               Change
@@ -158,7 +158,7 @@ export default function Marketplace() {
             <p className="text-sm text-gray-400 mb-4">
               We're adding new partner brands every week — check back soon.
             </p>
-            <div className="flex items-center justify-center gap-2 text-xs text-[#D62976] font-semibold">
+            <div className="flex items-center justify-center gap-2 text-xs text-[#4ECCA3] font-semibold">
               <Sparkles className="w-4 h-4" />
               <span>New brands added weekly</span>
             </div>
@@ -206,7 +206,7 @@ export default function Marketplace() {
                       </p>
                     )}
                     {brand.category && (
-                      <p className="text-[10px] uppercase tracking-wider text-[#D62976] font-semibold mt-2">
+                      <p className="text-[10px] uppercase tracking-wider text-[#4ECCA3] font-semibold mt-2">
                         {brand.category}
                       </p>
                     )}

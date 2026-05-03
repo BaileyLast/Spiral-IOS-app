@@ -33,7 +33,7 @@ export default function Connections() {
       <div className="p-8">
         <div className="max-w-7xl mx-auto space-y-8">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-[#5729a3] to-[#935eb2] bg-clip-text text-transparent">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-[#4ECCA3] to-[#2BAE88] bg-clip-text text-transparent">
               Connections
             </h1>
             <p className="text-muted-foreground mt-2">Manage your Shopify and Instagram integrations</p>
@@ -52,7 +52,7 @@ export default function Connections() {
     <div className="p-8">
       <div className="max-w-7xl mx-auto space-y-8">
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-[#5729a3] to-[#935eb2] bg-clip-text text-transparent">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-[#4ECCA3] to-[#2BAE88] bg-clip-text text-transparent">
             Connections
           </h1>
           <p className="text-muted-foreground mt-2">Manage your Shopify and Instagram integrations</p>
@@ -108,7 +108,7 @@ export default function Connections() {
                   <Button 
                     onClick={handleConnectShopify}
                     data-testid="button-connect-shopify"
-                    className="bg-[#5729a3] text-white"
+                    className="bg-[#4ECCA3] text-white"
                   >
                     Connect to Shopify
                   </Button>
@@ -198,7 +198,7 @@ export default function Connections() {
                   <Button 
                     onClick={handleConnectInstagram}
                     data-testid="button-connect-instagram"
-                    className="bg-[#5729a3] text-white"
+                    className="bg-[#4ECCA3] text-white"
                   >
                     Connect Instagram
                   </Button>

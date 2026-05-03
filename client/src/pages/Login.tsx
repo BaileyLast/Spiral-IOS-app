@@ -119,7 +119,7 @@ export default function Login() {
                     placeholder="First"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
-                    className="h-14 rounded-2xl bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-[#D62976] focus:ring-[#D62976]/20"
+                    className="h-14 rounded-2xl bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-[#4ECCA3] focus:ring-[#4ECCA3]/20"
                     data-testid="input-firstname"
                   />
                 </div>
@@ -133,7 +133,7 @@ export default function Login() {
                     placeholder="Last"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
-                    className="h-14 rounded-2xl bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-[#D62976] focus:ring-[#D62976]/20"
+                    className="h-14 rounded-2xl bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-[#4ECCA3] focus:ring-[#4ECCA3]/20"
                     data-testid="input-lastname"
                   />
                 </div>
@@ -173,7 +173,7 @@ export default function Login() {
                               data-testid={`option-signup-country-${c.code}`}
                             >
                               <span className="flex-1">{c.name}</span>
-                              {country === c.code && <Check className="w-4 h-4 text-[#D62976]" />}
+                              {country === c.code && <Check className="w-4 h-4 text-[#4ECCA3]" />}
                             </CommandItem>
                           ))}
                         </CommandGroup>
@@ -194,7 +194,7 @@ export default function Login() {
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-14 rounded-2xl bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-[#D62976] focus:ring-[#D62976]/20"
+                className="h-14 rounded-2xl bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-[#4ECCA3] focus:ring-[#4ECCA3]/20"
                 data-testid="input-email"
               />
             </div>
@@ -210,7 +210,7 @@ export default function Login() {
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="h-14 rounded-2xl bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-[#D62976] focus:ring-[#D62976]/20 pr-14"
+                  className="h-14 rounded-2xl bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-[#4ECCA3] focus:ring-[#4ECCA3]/20 pr-14"
                   data-testid="input-password"
                 />
                 <button
@@ -227,7 +227,7 @@ export default function Login() {
             <Button 
               type="submit"
               className="w-full h-14 text-base font-semibold rounded-2xl mt-6 text-white border-0"
-              style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976, #962FBF)' }}
+              style={{ background: 'linear-gradient(135deg, #A8F5E0, #4ECCA3, #2BAE88)' }}
               disabled={authMutation.isPending}
               data-testid="button-submit"
             >
@@ -249,9 +249,9 @@ export default function Login() {
               data-testid="button-toggle-mode"
             >
               {mode === "login" ? (
-                <>Don't have an account? <span className="text-[#D62976] font-semibold">Sign up</span></>
+                <>Don't have an account? <span className="text-[#4ECCA3] font-semibold">Sign up</span></>
               ) : (
-                <>Already have an account? <span className="text-[#D62976] font-semibold">Sign in</span></>
+                <>Already have an account? <span className="text-[#4ECCA3] font-semibold">Sign in</span></>
               )}
             </button>
           </div>

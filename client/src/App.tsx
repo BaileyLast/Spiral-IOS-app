@@ -46,13 +46,13 @@ function BottomNav() {
               <button
                 className={`relative flex flex-col items-center justify-center w-20 h-full gap-1 transition-colors ${
                   active 
-                    ? "text-[#D62976]" 
+                    ? "text-[#4ECCA3]" 
                     : "text-gray-400"
                 }`}
                 data-testid={`nav-${item.label.toLowerCase()}`}
               >
                 {active && (
-                  <div className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-full bg-[#D62976]" />
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-full bg-[#4ECCA3]" />
                 )}
                 <item.icon className={`w-5 h-5 ${active ? "stroke-[2.5]" : "stroke-[1.5]"}`} />
                 <span className="text-xs font-medium">{item.label}</span>

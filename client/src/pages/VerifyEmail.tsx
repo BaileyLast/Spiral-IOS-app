@@ -114,7 +114,7 @@ export default function VerifyEmail() {
             />
             
             <div className="w-16 h-16 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center mx-auto mb-6">
-              <Mail className="w-8 h-8 text-[#D62976]" />
+              <Mail className="w-8 h-8 text-[#4ECCA3]" />
             </div>
             
             <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight mb-2">
@@ -137,7 +137,7 @@ export default function VerifyEmail() {
                 value={digit}
                 onChange={e => handleChange(index, e.target.value)}
                 onKeyDown={e => handleKeyDown(index, e)}
-                className="w-12 h-14 text-center text-2xl font-bold rounded-xl bg-gray-50 border border-gray-200 text-gray-900 focus:border-[#D62976] focus:ring-2 focus:ring-[#D62976]/20 focus:outline-none transition-colors"
+                className="w-12 h-14 text-center text-2xl font-bold rounded-xl bg-gray-50 border border-gray-200 text-gray-900 focus:border-[#4ECCA3] focus:ring-2 focus:ring-[#4ECCA3]/20 focus:outline-none transition-colors"
                 data-testid={`input-code-${index}`}
               />
             ))}
@@ -146,7 +146,7 @@ export default function VerifyEmail() {
           <Button 
             onClick={() => verifyMutation.mutate(code.join(""))}
             className="w-full h-14 text-base font-semibold rounded-2xl text-white border-0"
-            style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976, #962FBF)' }}
+            style={{ background: 'linear-gradient(135deg, #A8F5E0, #4ECCA3, #2BAE88)' }}
             disabled={verifyMutation.isPending || code.some(d => !d)}
             data-testid="button-verify"
           >
@@ -168,7 +168,7 @@ export default function VerifyEmail() {
               {resendMutation.isPending ? (
                 "Sending..."
               ) : (
-                <>Didn't receive it? <span className="text-[#D62976] font-semibold">Resend code</span></>
+                <>Didn't receive it? <span className="text-[#4ECCA3] font-semibold">Resend code</span></>
               )}
             </button>
           </div>

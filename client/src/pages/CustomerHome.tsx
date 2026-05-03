@@ -77,7 +77,7 @@ export default function CustomerHome() {
                 src="/api/customer/instagram-avatar"
                 alt={profile.instagramHandle}
               />
-              <AvatarFallback className="text-white" style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976)' }}>
+              <AvatarFallback className="text-white" style={{ background: 'linear-gradient(135deg, #A8F5E0, #4ECCA3, #2BAE88)' }}>
                 <Instagram className="w-8 h-8" />
               </AvatarFallback>
             </Avatar>

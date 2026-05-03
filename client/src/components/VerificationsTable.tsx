@@ -83,7 +83,7 @@ export function VerificationsTable({ verifications }: VerificationsTableProps) {
                 {verification.shopperEmail}
               </TableCell>
               <TableCell data-testid={`text-instagram-${verification.id}`}>
-                <span className="text-[#5729a3] font-medium">@{verification.instagramHandle}</span>
+                <span className="text-[#4ECCA3] font-medium">@{verification.instagramHandle}</span>
               </TableCell>
               <TableCell data-testid={`text-followers-${verification.id}`}>
                 <span className="font-semibold">{formatFollowerCount(verification.followerCount)}</span>

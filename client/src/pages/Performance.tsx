@@ -79,7 +79,7 @@ function StatCard({
   value, 
   subtitle, 
   icon: Icon,
-  gradient = "from-[#5729a3] to-[#935eb2]"
+  gradient = "from-[#4ECCA3] to-[#2BAE88]"
 }: { 
   title: string; 
   value: string | number; 
@@ -122,7 +122,7 @@ export default function Performance() {
       <div className="p-8">
         <div className="max-w-7xl mx-auto space-y-8">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-[#5729a3] to-[#935eb2] bg-clip-text text-transparent">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-[#4ECCA3] to-[#2BAE88] bg-clip-text text-transparent">
               Performance
             </h1>
             <p className="text-muted-foreground mt-2">Track your Spiral marketing impact</p>
@@ -143,7 +143,7 @@ export default function Performance() {
       <div className="p-8">
         <div className="max-w-7xl mx-auto space-y-8">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-[#5729a3] to-[#935eb2] bg-clip-text text-transparent">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-[#4ECCA3] to-[#2BAE88] bg-clip-text text-transparent">
               Performance
             </h1>
             <p className="text-muted-foreground mt-2">Track your Spiral marketing impact</p>
@@ -166,7 +166,7 @@ export default function Performance() {
     <div className="p-8">
       <div className="max-w-7xl mx-auto space-y-8">
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-[#5729a3] to-[#935eb2] bg-clip-text text-transparent">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-[#4ECCA3] to-[#2BAE88] bg-clip-text text-transparent">
             Performance
           </h1>
           <p className="text-muted-foreground mt-2">Track your Spiral marketing impact</p>
@@ -227,7 +227,7 @@ export default function Performance() {
                 value={data.customerInsights.uniqueCustomers}
                 subtitle={`${data.customerInsights.repeatCustomers} returning customers`}
                 icon={ShoppingCart}
-                gradient="from-pink-500 to-rose-500"
+                gradient="from-[#4ECCA3] to-[#2BAE88]"
               />
               <StatCard
                 title="Total Order Value"
@@ -249,8 +249,8 @@ export default function Performance() {
                       <AreaChart data={data.verificationsOverTime}>
                         <defs>
                           <linearGradient id="colorImpressions" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#5729a3" stopOpacity={0.3} />
-                            <stop offset="95%" stopColor="#5729a3" stopOpacity={0} />
+                            <stop offset="5%" stopColor="#4ECCA3" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="#4ECCA3" stopOpacity={0} />
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -288,7 +288,7 @@ export default function Performance() {
                         <Area 
                           type="monotone" 
                           dataKey="impressions" 
-                          stroke="#5729a3" 
+                          stroke="#4ECCA3" 
                           strokeWidth={2}
                           fillOpacity={1} 
                           fill="url(#colorImpressions)" 
@@ -336,7 +336,7 @@ export default function Performance() {
                         />
                         <Bar 
                           dataKey="count" 
-                          fill="#935eb2"
+                          fill="#2BAE88"
                           radius={[4, 4, 0, 0]}
                         />
                       </BarChart>

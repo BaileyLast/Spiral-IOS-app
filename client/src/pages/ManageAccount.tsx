@@ -121,7 +121,7 @@ export default function ManageAccount() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <Loader2 className="w-8 h-8 animate-spin text-[#D62976]" />
+        <Loader2 className="w-8 h-8 animate-spin text-[#4ECCA3]" />
       </div>
     );
   }
@@ -165,7 +165,7 @@ export default function ManageAccount() {
                     alt={profile.instagramHandle || "Instagram"}
                   />
                 ) : null}
-                <AvatarFallback className="text-white text-xl font-bold" style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976)' }}>
+                <AvatarFallback className="text-white text-xl font-bold" style={{ background: 'linear-gradient(135deg, #A8F5E0, #4ECCA3, #2BAE88)' }}>
                   <Instagram className="w-6 h-6" />
                 </AvatarFallback>
               </Avatar>
@@ -201,7 +201,7 @@ export default function ManageAccount() {
             data-testid="card-connect-instagram"
           >
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976)' }}>
+              <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #A8F5E0, #4ECCA3, #2BAE88)' }}>
                 <Instagram className="w-7 h-7 text-white" />
               </div>
               <div className="flex-1">
@@ -235,7 +235,7 @@ export default function ManageAccount() {
                           <Input
                             value={editValue}
                             onChange={(e) => setEditValue(e.target.value)}
-                            className="flex-1 bg-white border-gray-200 text-gray-900 placeholder:text-gray-300 focus-visible:ring-[#D62976]/20 focus-visible:border-[#D62976]"
+                            className="flex-1 bg-white border-gray-200 text-gray-900 placeholder:text-gray-300 focus-visible:ring-[#4ECCA3]/20 focus-visible:border-[#4ECCA3]"
                             placeholder={`Enter ${field.label.toLowerCase()}`}
                             autoFocus
                             data-testid={`input-${field.key}`}
@@ -318,7 +318,7 @@ export default function ManageAccount() {
                             >
                               <span className="flex-1">{c.name}</span>
                               {profile?.country === c.code && (
-                                <Check className="w-4 h-4 text-[#D62976]" />
+                                <Check className="w-4 h-4 text-[#4ECCA3]" />
                               )}
                             </CommandItem>
                           ))}

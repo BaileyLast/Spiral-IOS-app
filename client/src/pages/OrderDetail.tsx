@@ -97,7 +97,7 @@ export default function OrderDetail() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <Loader2 className="w-8 h-8 animate-spin text-[#D62976]" />
+        <Loader2 className="w-8 h-8 animate-spin text-[#4ECCA3]" />
       </div>
     );
   }
@@ -196,13 +196,13 @@ export default function OrderDetail() {
                   <div className="flex flex-col items-center">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                       step.complete 
-                        ? "bg-[#D62976]/10" 
+                        ? "bg-[#4ECCA3]/10" 
                         : "bg-gray-100"
                     }`}>
-                      <Icon className={`w-4 h-4 ${step.complete ? "text-[#D62976]" : "text-gray-300"}`} />
+                      <Icon className={`w-4 h-4 ${step.complete ? "text-[#4ECCA3]" : "text-gray-300"}`} />
                     </div>
                     {!isLast && (
-                      <div className={`w-0.5 h-6 mt-1 ${step.complete ? "bg-[#D62976]/20" : "bg-gray-100"}`} />
+                      <div className={`w-0.5 h-6 mt-1 ${step.complete ? "bg-[#4ECCA3]/20" : "bg-gray-100"}`} />
                     )}
                   </div>
                   <div className="flex-1 pb-2">

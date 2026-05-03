@@ -18,21 +18,21 @@
   --popover: 0 0% 100%;
   --popover-foreground: 0 0% 9%;
   --popover-border: 0 0% 94%;
-  --primary: 333 68% 48%;
+  --primary: 161 56% 55%;
   --primary-foreground: 0 0% 100%;
   --secondary: 0 0% 96%;
   --secondary-foreground: 0 0% 9%;
   --muted: 0 0% 96%;
   --muted-foreground: 0 0% 45%;
-  --accent: 333 30% 96%;
-  --accent-foreground: 333 68% 40%;
+  --accent: 161 55% 95%;
+  --accent-foreground: 161 60% 35%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
   --input: 0 0% 85%;
-  --ring: 333 68% 48%;
-  --chart-1: 333 68% 48%;
-  --chart-2: 280 65% 48%;
-  --chart-3: 30 90% 55%;
+  --ring: 161 56% 55%;
+  --chart-1: 161 56% 55%;
+  --chart-2: 161 60% 42%;
+  --chart-3: 161 70% 81%;
   --chart-4: 173 58% 39%;
   --chart-5: 214 80% 55%;
   --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -98,21 +98,21 @@
   --popover: 0 0% 8%;
   --popover-foreground: 0 0% 98%;
   --popover-border: 0 0% 13%;
-  --primary: 333 68% 62%;
+  --primary: 161 56% 55%;
   --primary-foreground: 0 0% 100%;
   --secondary: 0 0% 12%;
   --secondary-foreground: 0 0% 98%;
   --muted: 0 0% 12%;
   --muted-foreground: 0 0% 55%;
-  --accent: 333 20% 15%;
-  --accent-foreground: 333 68% 75%;
+  --accent: 161 25% 18%;
+  --accent-foreground: 161 70% 75%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
   --input: 0 0% 20%;
-  --ring: 333 68% 62%;
-  --chart-1: 333 68% 70%;
-  --chart-2: 280 65% 68%;
-  --chart-3: 30 90% 65%;
+  --ring: 161 56% 55%;
+  --chart-1: 161 60% 65%;
+  --chart-2: 161 56% 55%;
+  --chart-3: 161 70% 81%;
   --chart-4: 173 58% 60%;
   --chart-5: 214 80% 65%;
 
@@ -256,11 +256,11 @@
 
   /* Brand gradient utilities */
   .bg-cta-gradient {
-    background: linear-gradient(135deg, #FA7E1E, #D62976, #962FBF);
+    background: linear-gradient(135deg, #A8F5E0, #4ECCA3, #2BAE88);
   }
 
   .text-brand-gradient {
-    background: linear-gradient(to right, #FA7E1E, #D62976, #962FBF);
+    background: linear-gradient(to right, #A8F5E0, #4ECCA3, #2BAE88);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;

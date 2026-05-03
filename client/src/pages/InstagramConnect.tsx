@@ -151,7 +151,7 @@ export default function InstagramConnect() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <Loader2 className="w-8 h-8 animate-spin text-[#D62976]" />
+        <Loader2 className="w-8 h-8 animate-spin text-[#4ECCA3]" />
       </div>
     );
   }
@@ -177,7 +177,7 @@ export default function InstagramConnect() {
                     src={profile.instagramProfilePicture} 
                     alt={profile.instagramHandle}
                   />
-                  <AvatarFallback className="text-white text-xl" style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976)' }}>
+                  <AvatarFallback className="text-white text-xl" style={{ background: 'linear-gradient(135deg, #A8F5E0, #4ECCA3, #2BAE88)' }}>
                     {profile.instagramHandle?.charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
@@ -220,7 +220,7 @@ export default function InstagramConnect() {
         <div className="px-6 pb-8 safe-bottom">
           <Button 
             className="w-full h-14 text-base font-semibold rounded-2xl text-white border-0"
-            style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976, #962FBF)' }}
+            style={{ background: 'linear-gradient(135deg, #A8F5E0, #4ECCA3, #2BAE88)' }}
             onClick={handleContinue}
             data-testid="button-continue"
           >
@@ -257,7 +257,7 @@ export default function InstagramConnect() {
               </p>
               
               <div className="bg-white rounded-xl border border-gray-100 p-4 mb-4">
-                <span className="text-3xl font-bold tracking-[0.3em] text-[#D62976] font-mono">
+                <span className="text-3xl font-bold tracking-[0.3em] text-[#4ECCA3] font-mono">
                   {spiralCode.code}
                 </span>
               </div>
@@ -265,7 +265,7 @@ export default function InstagramConnect() {
               <Button 
                 onClick={handleCopyAndMessage}
                 className="w-full h-14 text-base font-semibold rounded-xl text-white border-0 mb-3"
-                style={{ background: 'linear-gradient(135deg, #FA7E1E, #D62976, #962FBF)' }}
+                style={{ background: 'linear-gradient(135deg, #A8F5E0, #4ECCA3, #2BAE88)' }}
                 data-testid="button-copy-message"
               >
                 {copied ? (

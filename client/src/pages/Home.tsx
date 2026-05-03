@@ -111,7 +111,7 @@ export default function Home() {
     <div className="p-8">
       <div className="max-w-7xl mx-auto space-y-8">
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-[#5729a3] to-[#935eb2] bg-clip-text text-transparent">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-[#4ECCA3] to-[#2BAE88] bg-clip-text text-transparent">
             Dashboard
           </h1>
           <p className="text-muted-foreground mt-2">Monitor your Instagram verification campaigns</p>
@@ -124,12 +124,12 @@ export default function Home() {
             {/* Shopify Connection Card */}
             <Card className={`relative overflow-hidden transition-all duration-300 ${
               shopifyStatus.variant === "active" 
-                ? 'border-[#5729a3]/30 shadow-lg shadow-[#5729a3]/5' 
+                ? 'border-[#4ECCA3]/30 shadow-lg shadow-[#4ECCA3]/5' 
                 : ''
             }`}>
               <div className={`absolute top-0 left-0 right-0 h-1 ${
                 shopifyStatus.variant === "active" 
-                  ? 'bg-gradient-to-r from-[#5729a3] to-[#935eb2]' 
+                  ? 'bg-gradient-to-r from-[#4ECCA3] to-[#2BAE88]' 
                   : shopifyStatus.label === "Expired"
                   ? 'bg-yellow-500'
                   : 'bg-muted'
@@ -168,7 +168,7 @@ export default function Home() {
                       size="sm" 
                       onClick={() => setLocation("/settings")}
                       data-testid="button-connect-shopify-status"
-                      className="bg-[#5729a3] text-white"
+                      className="bg-[#4ECCA3] text-white"
                     >
                       {shopifyStatus.label === "Expired" ? "Reconnect" : "Connect"}
                     </Button>
@@ -178,8 +178,8 @@ export default function Home() {
             </Card>
 
             {/* Instagram Connection Card */}
-            <Card className={`relative overflow-hidden transition-all duration-300 ${isInstagramConnected ? 'border-[#935eb2]/30 shadow-lg shadow-[#935eb2]/5' : ''}`}>
-              <div className={`absolute top-0 left-0 right-0 h-1 ${isInstagramConnected ? 'bg-gradient-to-r from-[#935eb2] to-[#5729a3]' : 'bg-muted'}`} />
+            <Card className={`relative overflow-hidden transition-all duration-300 ${isInstagramConnected ? 'border-[#2BAE88]/30 shadow-lg shadow-[#2BAE88]/5' : ''}`}>
+              <div className={`absolute top-0 left-0 right-0 h-1 ${isInstagramConnected ? 'bg-gradient-to-r from-[#2BAE88] to-[#4ECCA3]' : 'bg-muted'}`} />
               <CardContent className="pt-7 pb-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -199,7 +199,7 @@ export default function Home() {
                       size="sm" 
                       onClick={() => setLocation("/settings")}
                       data-testid="button-connect-instagram-status"
-                      className="bg-[#5729a3] text-white"
+                      className="bg-[#4ECCA3] text-white"
                     >
                       Connect
                     </Button>
@@ -214,35 +214,35 @@ export default function Home() {
         <div>
           <h2 className="text-lg font-semibold mb-4">Performance</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="relative overflow-hidden bg-gradient-to-br from-[#5729a3]/5 to-[#935eb2]/5 border-[#5729a3]/20">
+            <Card className="relative overflow-hidden bg-gradient-to-br from-[#4ECCA3]/5 to-[#2BAE88]/5 border-[#4ECCA3]/20">
               <CardContent className="pt-6 pb-6">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <p className="text-sm font-medium text-muted-foreground mb-2">Total Audience Reach</p>
-                    <p className="text-3xl font-bold text-[#5729a3]" data-testid="text-total-reach">
+                    <p className="text-3xl font-bold text-[#4ECCA3]" data-testid="text-total-reach">
                       {totalAudienceReach.toLocaleString()}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">followers reached</p>
                   </div>
-                  <div className="p-4 rounded-full bg-[#5729a3]/10">
-                    <Users className="w-8 h-8 text-[#5729a3]" />
+                  <div className="p-4 rounded-full bg-[#4ECCA3]/10">
+                    <Users className="w-8 h-8 text-[#4ECCA3]" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="relative overflow-hidden bg-gradient-to-br from-[#935eb2]/5 to-[#5729a3]/5 border-[#935eb2]/20">
+            <Card className="relative overflow-hidden bg-gradient-to-br from-[#2BAE88]/5 to-[#4ECCA3]/5 border-[#2BAE88]/20">
               <CardContent className="pt-6 pb-6">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <p className="text-sm font-medium text-muted-foreground mb-2">Total Verifications</p>
-                    <p className="text-3xl font-bold text-[#935eb2]" data-testid="text-total-posts">
+                    <p className="text-3xl font-bold text-[#2BAE88]" data-testid="text-total-posts">
                       {totalPosts}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">posts verified</p>
                   </div>
-                  <div className="p-4 rounded-full bg-[#935eb2]/10">
-                    <TrendingUp className="w-8 h-8 text-[#935eb2]" />
+                  <div className="p-4 rounded-full bg-[#2BAE88]/10">
+                    <TrendingUp className="w-8 h-8 text-[#2BAE88]" />
                   </div>
                 </div>
               </CardContent>
@@ -297,7 +297,7 @@ export default function Home() {
                           {verification.shopperEmail}
                         </TableCell>
                         <TableCell data-testid={`text-handle-${verification.id}`}>
-                          <span className="text-[#5729a3] font-medium">@{verification.instagramHandle}</span>
+                          <span className="text-[#4ECCA3] font-medium">@{verification.instagramHandle}</span>
                         </TableCell>
                         <TableCell data-testid={`text-followers-${verification.id}`}>
                           <span className="font-semibold">{verification.followerCount.toLocaleString()}</span>

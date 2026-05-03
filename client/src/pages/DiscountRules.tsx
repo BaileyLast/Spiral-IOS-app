@@ -144,7 +144,7 @@ export default function DiscountRules() {
       <div className="p-8">
         <div className="max-w-4xl mx-auto space-y-8">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-[#5729a3] to-[#935eb2] bg-clip-text text-transparent">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-[#4ECCA3] to-[#2BAE88] bg-clip-text text-transparent">
               Discount Rules
             </h1>
             <p className="text-muted-foreground mt-2">Set follower thresholds and discounts for Spiral shoppers</p>
@@ -159,7 +159,7 @@ export default function DiscountRules() {
     <div className="p-8">
       <div className="max-w-4xl mx-auto space-y-8">
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-[#5729a3] to-[#935eb2] bg-clip-text text-transparent">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-[#4ECCA3] to-[#2BAE88] bg-clip-text text-transparent">
             Discount Rules
           </h1>
           <p className="text-muted-foreground mt-2">Set follower thresholds and discounts for Spiral shoppers</p>
