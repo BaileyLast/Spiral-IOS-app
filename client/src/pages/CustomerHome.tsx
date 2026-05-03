@@ -131,19 +131,21 @@ export default function CustomerHome() {
           </div>
         )}
 
-        <div className="p-5 rounded-2xl bg-gray-50 border border-gray-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-green-50 border border-green-100 flex items-center justify-center flex-shrink-0">
-              <Tag className="w-5 h-5 text-green-600" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-gray-500">You've saved</p>
-              <p className="text-xl font-bold text-green-700" data-testid="text-total-saved">
-                ${stats?.totalSaved?.toFixed(2) || "0.00"}
-              </p>
+        {stats?.totalSaved && stats.totalSaved > 0 ? (
+          <div className="p-5 rounded-2xl bg-gray-50 border border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-green-50 border border-green-100 flex items-center justify-center flex-shrink-0">
+                <Tag className="w-5 h-5 text-green-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-gray-500">You've saved</p>
+                <p className="text-xl font-bold text-green-700" data-testid="text-total-saved">
+                  ${stats.totalSaved.toFixed(2)}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        ) : null}
 
         {pendingCount > 0 && (
           <div className="p-5 rounded-2xl bg-amber-50 border border-amber-200" data-testid="card-lockout">
