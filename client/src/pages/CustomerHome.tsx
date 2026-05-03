@@ -182,7 +182,7 @@ export default function CustomerHome() {
           </div>
         )}
 
-        {recentOrders.length > 0 ? (
+        {recentOrders.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900">Recent Orders</h2>
@@ -223,16 +223,6 @@ export default function CustomerHome() {
                 );
               })}
             </div>
-          </div>
-        ) : (
-          <div className="p-8 rounded-2xl bg-gray-50 border border-gray-100 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-white border border-gray-100 flex items-center justify-center mx-auto mb-4">
-              <ShoppingBag className="w-8 h-8 text-gray-300" />
-            </div>
-            <h3 className="font-bold text-gray-900 mb-2">No orders yet</h3>
-            <p className="text-sm text-gray-400">
-              Your orders will show up in the Discounts tab once you make a purchase
-            </p>
           </div>
         )}
       </main>
