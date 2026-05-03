@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { ChevronRight, Instagram, Lock, CheckCircle, Tag } from "lucide-react";
+import { ChevronRight, Instagram, Lock, CheckCircle, Tag, Sparkles } from "lucide-react";
 import type { Order } from "@shared/schema";
 
 function getStatusLabel(order: Order) {
@@ -70,6 +70,31 @@ export default function CustomerHome() {
   return (
     <div className="min-h-screen safe-top bg-white">
       <main className="px-6 pt-14 pb-8 space-y-6">
+        {profile && !profile.instagramHandle && (
+          <Link href="/connect-instagram">
+            <div
+              className="p-5 rounded-2xl cursor-pointer hover-elevate active-elevate-2 text-white"
+              style={{ background: 'linear-gradient(135deg, #A8F5E0, #4ECCA3, #2BAE88)' }}
+              data-testid="card-connect-instagram-cta"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center flex-shrink-0">
+                  <Instagram className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-white/90" />
+                    <p className="text-xs font-semibold uppercase tracking-wider text-white/90">Get started</p>
+                  </div>
+                  <p className="font-bold text-white mt-1">Connect Instagram</p>
+                  <p className="text-sm text-white/90 mt-0.5">Link your account to unlock your Spiral discount</p>
+                </div>
+                <ChevronRight className="w-5 h-5 text-white flex-shrink-0" />
+              </div>
+            </div>
+          </Link>
+        )}
+
         {profile?.instagramHandle && (
           <div className="text-center" data-testid="card-instagram-profile">
             <Avatar className="w-20 h-20 mx-auto border-2 border-gray-100">
