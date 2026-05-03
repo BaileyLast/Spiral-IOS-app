@@ -231,7 +231,7 @@ export default function CustomerHome() {
             </div>
             <h3 className="font-bold text-gray-900 mb-2">No orders yet</h3>
             <p className="text-sm text-gray-400">
-              When you make a purchase with Spiral, it will appear here
+              Your orders will show up in the Discounts tab once you make a purchase
             </p>
           </div>
         )}
