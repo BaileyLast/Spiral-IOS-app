@@ -3,14 +3,12 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { 
-  Bell, 
-  LogOut, 
-  ChevronRight, 
+import {
+  Bell,
+  LogOut,
+  ChevronRight,
   Trash2,
-  Plus,
   Loader2,
-  Instagram,
 } from "lucide-react";
 const spiralLogoUrl = "/spiral-gradient-logo.png";
 
@@ -25,17 +23,6 @@ interface CustomerProfile {
   instagramProfilePicture?: string;
   instagramAccountType?: string;
   followerCount?: number;
-}
-
-function formatFollowerCount(count: number | null | undefined): string {
-  if (count === null || count === undefined) return "";
-  if (count >= 1000000) {
-    return (count / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
-  }
-  if (count >= 1000) {
-    return (count / 1000).toFixed(1).replace(/\.0$/, "") + "K";
-  }
-  return count.toString();
 }
 
 export default function Profile() {
@@ -63,10 +50,6 @@ export default function Profile() {
     logoutMutation.mutate();
   };
 
-  const handleConnectInstagram = () => {
-    setLocation("/connect-instagram");
-  };
-
   if (profileLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
@@ -74,8 +57,6 @@ export default function Profile() {
       </div>
     );
   }
-
-  const isInstagramConnected = !!profile?.instagramHandle;
 
   return (
     <div className="min-h-screen safe-top bg-white">
@@ -110,52 +91,6 @@ export default function Profile() {
             <ChevronRight className="w-5 h-5 text-gray-300 flex-shrink-0" />
           </div>
         </div>
-
-        {!isInstagramConnected && (
-          <div 
-            className="p-5 rounded-2xl bg-gray-50 border border-gray-100 cursor-pointer hover-elevate"
-            onClick={handleConnectInstagram}
-            data-testid="card-connect-instagram"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #A8F5E0, #4ECCA3, #2BAE88)' }}>
-                <Instagram className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold text-gray-900">Connect Instagram</p>
-                <p className="text-sm text-gray-400">
-                  Link your Instagram to unlock discounts
-                </p>
-              </div>
-              <Plus className="w-5 h-5 text-gray-300" />
-            </div>
-          </div>
-        )}
-
-        {isInstagramConnected && (
-          <div className="p-5 rounded-2xl bg-gray-50 border border-gray-100" data-testid="card-instagram-connected">
-            <div className="flex items-center gap-4">
-              <Avatar className="w-12 h-12 border-2 border-gray-100">
-                <AvatarImage 
-                  src="/api/customer/instagram-avatar"
-                  alt={profile?.instagramHandle}
-                />
-                <AvatarFallback className="text-white" style={{ background: 'linear-gradient(135deg, #A8F5E0, #4ECCA3, #2BAE88)' }}>
-                  <Instagram className="w-6 h-6" />
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-900 truncate">@{profile?.instagramHandle}</p>
-                {profile?.followerCount != null && (
-                  <p className="text-sm text-gray-400 mt-0.5 flex items-center gap-1">
-                    <Instagram className="w-3 h-3" />
-                    {formatFollowerCount(profile.followerCount)} followers
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
 
         <div className="rounded-2xl bg-gray-50 border border-gray-100 overflow-hidden">
           <div className="divide-y divide-gray-100">
