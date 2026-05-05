@@ -9,7 +9,7 @@ import {
 const FETCH_TIMEOUT_MS = 8000;
 const PRODUCT_LIMIT = 10;
 const COLLECTION_LIMIT = 25;
-const STALE_AFTER_MS = 90 * 24 * 60 * 60 * 1000;
+const STALE_AFTER_MS = 365 * 24 * 60 * 60 * 1000;
 const RETRY_AFTER_FAIL_MS = 24 * 60 * 60 * 1000;
 
 const MERCHANT_PATCH_BASE = "https://spiral-merchant-dashboard.replit.app/api/brands";
