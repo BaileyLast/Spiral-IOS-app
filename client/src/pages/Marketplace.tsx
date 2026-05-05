@@ -4,6 +4,7 @@ import { useLocation } from "wouter";
 import { Store, Sparkles, X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getCountryByCode, detectCountryFromLocale } from "@/lib/countries";
+import { normalizeCategoryForDisplay } from "@shared/categories";
 
 const FALLBACK_PALETTE = [
   "bg-[#A8F5E0] text-[#155843]",
@@ -205,11 +206,15 @@ export default function Marketplace() {
                         @{brand.instagramUsername}
                       </p>
                     )}
-                    {brand.category && (
-                      <p className="text-[10px] uppercase tracking-wider text-[#4ECCA3] font-semibold mt-2">
-                        {brand.category}
-                      </p>
-                    )}
+                    {(() => {
+                      const cat = normalizeCategoryForDisplay(brand.category);
+                      if (!cat) return null;
+                      return (
+                        <p className="text-[10px] uppercase tracking-wider text-[#4ECCA3] font-semibold mt-2">
+                          {cat}
+                        </p>
+                      );
+                    })()}
                   </div>
                 </a>
               );
