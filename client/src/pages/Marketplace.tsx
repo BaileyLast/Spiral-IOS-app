@@ -46,6 +46,7 @@ interface Brand {
   instagramUsername: string | null;
   instagramProfilePictureUrl: string | null;
   category: string | null;
+  secondaryCategories: string[] | null;
   country: string | null;
   shippingCountries: string[] | null;
 }
@@ -207,12 +208,31 @@ export default function Marketplace() {
                       </p>
                     )}
                     {(() => {
-                      const cat = normalizeCategoryForDisplay(brand.category);
-                      if (!cat) return null;
+                      const primary = normalizeCategoryForDisplay(brand.category);
+                      const secondary = (brand.secondaryCategories ?? [])
+                        .map((c) => normalizeCategoryForDisplay(c))
+                        .filter((c): c is NonNullable<typeof c> => c !== null && c !== primary)
+                        .slice(0, 2);
+                      if (!primary && secondary.length === 0) return null;
                       return (
-                        <p className="text-[10px] uppercase tracking-wider text-[#4ECCA3] font-semibold mt-2">
-                          {cat}
-                        </p>
+                        <div className="mt-2 flex flex-col items-center gap-0.5 w-full">
+                          {primary && (
+                            <p
+                              className="text-[10px] uppercase tracking-wider text-[#4ECCA3] font-semibold truncate max-w-full"
+                              data-testid={`text-brand-category-${brand.instagramUsername || brand.storeName}`}
+                            >
+                              {primary}
+                            </p>
+                          )}
+                          {secondary.length > 0 && (
+                            <p
+                              className="text-[9px] uppercase tracking-wider text-gray-400 font-medium truncate max-w-full"
+                              data-testid={`text-brand-secondary-${brand.instagramUsername || brand.storeName}`}
+                            >
+                              {secondary.join(" · ")}
+                            </p>
+                          )}
+                        </div>
                       );
                     })()}
                   </div>

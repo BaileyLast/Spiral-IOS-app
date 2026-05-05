@@ -3285,7 +3285,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Brands marketplace — proxy + cache the merchant dashboard's public /api/brands
   const BRANDS_CACHE_TTL_MS = 5 * 60 * 1000;
   const MERCHANT_BRANDS_URL = "https://spiral-merchant-dashboard.replit.app/api/brands";
-  const { getCachedCategories, runClassificationCycle } = await import("./categoryClassifier");
+  const { runClassificationCycle } = await import("./categoryClassifier");
   const CLASSIFIER_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6h
   const CLASSIFIER_FIRST_RUN_DELAY_MS = 90 * 1000;
   const httpUrl = z
@@ -3294,12 +3294,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     .refine((u) => /^https?:$/i.test(new URL(u).protocol), {
       message: "Only http(s) URLs are allowed",
     });
+  // Upstream brand record from the merchant dashboard. `id` and
+  // `categoryClassifiedAt` are required for the classifier worker; the rest
+  // are surfaced to the marketplace UI.
   const brandSchema = z.object({
+    id: z.string(),
     storeName: z.string(),
     storefrontUrl: httpUrl,
     instagramUsername: z.string().nullable().optional(),
     instagramProfilePictureUrl: httpUrl.nullable().optional(),
-    category: z.string().nullable().optional(),
+    primaryCategory: z.string().nullable().optional(),
+    secondaryCategories: z.array(z.string()).nullable().optional(),
+    categoryClassifiedAt: z.string().nullable().optional(),
     country: z.string().nullable().optional(),
     shippingCountries: z.array(z.string()).nullable().optional(),
   });
@@ -3313,48 +3319,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       })
       .filter((b): b is z.infer<typeof brandSchema> => b !== null),
   );
-  type CachedBrands = z.infer<typeof brandsResponseSchema>;
+  type UpstreamBrand = z.infer<typeof brandSchema>;
+  type CachedBrands = UpstreamBrand[];
   let brandsCache: { data: CachedBrands; fetchedAt: number } | null = null;
 
-  // Normalize storefrontUrl the same way the classifier does so the join works.
-  function normalizeOrigin(raw: string): string | null {
-    try {
-      const u = new URL(raw);
-      if (!/^https?:$/.test(u.protocol)) return null;
-      u.host = u.host.toLowerCase();
-      return u.origin;
-    } catch {
-      return null;
-    }
+  // Shape returned to the shopper UI. `category` is kept for backwards
+  // compatibility with existing clients (it mirrors `primaryCategory`).
+  function shapeForClient(brand: UpstreamBrand) {
+    return {
+      storeName: brand.storeName,
+      storefrontUrl: brand.storefrontUrl,
+      instagramUsername: brand.instagramUsername ?? null,
+      instagramProfilePictureUrl: brand.instagramProfilePictureUrl ?? null,
+      category: brand.primaryCategory ?? null,
+      secondaryCategories: brand.secondaryCategories ?? [],
+      country: brand.country ?? null,
+      shippingCountries: brand.shippingCountries ?? null,
+    };
   }
-
-  async function mergeCachedCategories(data: CachedBrands): Promise<CachedBrands> {
-    try {
-      const map = await getCachedCategories();
-      return data.map((b) => {
-        const origin = normalizeOrigin(b.storefrontUrl);
-        const cached = origin ? map.get(origin) : undefined;
-        // Cached primary wins over whatever the merchant proxied.
-        // If no cached entry yet, leave the merchant value alone.
-        if (!cached) return b;
-        return { ...b, category: cached.primary ?? b.category ?? null };
-      });
-    } catch (err) {
-      console.error("[brands] Failed to merge cached categories:", err);
-      return data;
-    }
+  function shapeListForClient(brands: CachedBrands) {
+    return brands.map(shapeForClient);
   }
 
   app.get("/api/brands", async (_req, res) => {
     try {
       if (brandsCache && Date.now() - brandsCache.fetchedAt < BRANDS_CACHE_TTL_MS) {
-        return res.json(await mergeCachedCategories(brandsCache.data));
+        return res.json(shapeListForClient(brandsCache.data));
       }
       const upstream = await fetch(MERCHANT_BRANDS_URL);
       if (!upstream.ok) {
         if (brandsCache) {
           console.warn(`[brands] Upstream returned ${upstream.status}, serving stale cache`);
-          return res.json(await mergeCachedCategories(brandsCache.data));
+          return res.json(shapeListForClient(brandsCache.data));
         }
         return res.status(502).json({ error: "Failed to load brands" });
       }
@@ -3363,25 +3359,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!parsed.success) {
         console.error("[brands] Upstream returned invalid payload:", parsed.error.message);
         if (brandsCache) {
-          return res.json(brandsCache.data);
+          return res.json(shapeListForClient(brandsCache.data));
         }
         return res.status(502).json({ error: "Invalid upstream response" });
       }
       brandsCache = { data: parsed.data, fetchedAt: Date.now() };
-      res.json(await mergeCachedCategories(parsed.data));
+      res.json(shapeListForClient(parsed.data));
     } catch (error) {
       console.error("[brands] Failed to fetch brands:", error);
       if (brandsCache) {
-        return res.json(await mergeCachedCategories(brandsCache.data));
+        return res.json(shapeListForClient(brandsCache.data));
       }
       res.status(502).json({ error: "Failed to load brands" });
     }
   });
 
   // Periodic classifier worker: pulls the brand list from the merchant proxy,
-  // finds any brands without a fresh classification, and runs the LLM on them.
-  // No-op if OPENAI_API_KEY isn't configured, so the app stays bootable.
+  // finds any brands without a fresh classification, runs the LLM on them, and
+  // PATCHes the result back to the merchant. No-op if OPENAI_API_KEY or
+  // SPIRAL_INTERNAL_KEY is missing, so the app stays bootable.
+  let classifierBusy = false;
   async function classifierTick(): Promise<void> {
+    if (classifierBusy) {
+      console.log("[classifier] Tick skipped — previous cycle still running");
+      return;
+    }
+    classifierBusy = true;
     try {
       const upstream = await fetch(MERCHANT_BRANDS_URL);
       if (!upstream.ok) {
@@ -3394,10 +3397,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.warn("[classifier] Skipping tick — invalid upstream payload");
         return;
       }
-      const urls = parsed.data.map((b) => b.storefrontUrl);
-      await runClassificationCycle(urls);
+      const brands = parsed.data.map((b) => ({
+        id: b.id,
+        storefrontUrl: b.storefrontUrl,
+        categoryClassifiedAt: b.categoryClassifiedAt ?? null,
+      }));
+      await runClassificationCycle(brands);
     } catch (err) {
       console.error("[classifier] Tick failed:", err);
+    } finally {
+      classifierBusy = false;
     }
   }
   setTimeout(() => { void classifierTick(); }, CLASSIFIER_FIRST_RUN_DELAY_MS);
