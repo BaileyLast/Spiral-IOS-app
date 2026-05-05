@@ -166,6 +166,18 @@ export const emailSendFailures = pgTable("email_send_failures", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Cached LLM-generated category classifications for brands shown in the marketplace.
+// Keyed by storefrontUrl (the only stable cross-platform brand identifier we have).
+// Populated by the periodic classifier in server/categoryClassifier.ts.
+export const brandCategories = pgTable("brand_categories", {
+  storefrontUrl: text("storefront_url").primaryKey(),
+  primaryCategory: text("primary_category"),
+  secondaryCategories: text("secondary_categories").array().notNull().default(sql`'{}'::text[]`),
+  classifiedAt: timestamp("classified_at"),
+  lastError: text("last_error"),
+  lastAttemptAt: timestamp("last_attempt_at"),
+});
+
 export const merchantScopedUserMap = pgTable("merchant_scoped_user_map", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   merchantId: varchar("merchant_id").notNull(),
@@ -231,3 +243,4 @@ export type InsertMerchantScopedUserMap = z.infer<typeof insertMerchantScopedUse
 export type MerchantScopedUserMap = typeof merchantScopedUserMap.$inferSelect;
 export type InsertEmailSendFailure = z.infer<typeof insertEmailSendFailureSchema>;
 export type EmailSendFailure = typeof emailSendFailures.$inferSelect;
+export type BrandCategoryRow = typeof brandCategories.$inferSelect;
