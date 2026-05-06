@@ -61,6 +61,15 @@ async function getUnsubscribeUrlForCustomer(customerId: string): Promise<string>
   return `${getAppBaseUrl()}/api/unsubscribe?token=${encodeURIComponent(token)}`;
 }
 
+function emailHeader(): string {
+  const logoUrl = `${getAppBaseUrl()}/spiral-mint-logo.png`;
+  return `
+        <div style="text-align: center; margin-bottom: 24px;">
+          <img src="${logoUrl}" alt="Spiral" width="56" height="56" style="display: inline-block; border-radius: 14px;" />
+          <div style="color: #2BAE88; font-size: 24px; font-weight: 700; letter-spacing: -0.5px; margin-top: 8px;">Spiral</div>
+        </div>`;
+}
+
 async function sendVerificationEmail(email: string, code: string, name?: string): Promise<boolean> {
   try {
     const result = await resend.emails.send({
@@ -69,11 +78,11 @@ async function sendVerificationEmail(email: string, code: string, name?: string)
       subject: "Verify your Spiral account",
       html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
-          <h1 style="color: #5729a3; font-size: 28px; margin-bottom: 8px;">Spiral</h1>
+          ${emailHeader()}
           <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">Hey${name ? ` ${name}` : ""},</p>
           <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">Enter this code to verify your email address:</p>
-          <div style="background: linear-gradient(135deg, #5729a3 0%, #8b5cf6 100%); border-radius: 16px; padding: 32px; text-align: center; margin-bottom: 24px;">
-            <span style="font-size: 36px; font-weight: bold; color: white; letter-spacing: 8px;">${code}</span>
+          <div style="background: linear-gradient(135deg, #A8F5E0 0%, #4ECCA3 100%); border-radius: 16px; padding: 32px; text-align: center; margin-bottom: 24px;">
+            <span style="font-size: 36px; font-weight: bold; color: #0f3d2e; letter-spacing: 8px;">${code}</span>
           </div>
           <p style="color: #6b7280; font-size: 14px;">This code expires in 10 minutes. If you didn't request this, you can safely ignore this email.</p>
         </div>
@@ -107,12 +116,12 @@ async function sendWelcomeEmail(customerId: string, email: string, firstName?: s
       headers: { "List-Unsubscribe": `<${unsubscribeUrl}>` },
       html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
-          <h1 style="color: #5729a3; font-size: 28px; margin-bottom: 8px;">Spiral</h1>
+          ${emailHeader()}
           <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">Hey${firstName ? ` ${firstName}` : ""},</p>
           <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">Welcome to Spiral! Your account is verified and ready to go.</p>
-          <div style="background: linear-gradient(135deg, #5729a3 0%, #8b5cf6 100%); border-radius: 16px; padding: 32px; text-align: center; margin-bottom: 24px;">
-            <p style="color: white; font-size: 18px; font-weight: 600; margin: 0 0 8px 0;">One more step</p>
-            <p style="color: rgba(255,255,255,0.9); font-size: 14px; margin: 0;">Connect your Instagram to start earning instant discounts on every order.</p>
+          <div style="background: linear-gradient(135deg, #A8F5E0 0%, #4ECCA3 100%); border-radius: 16px; padding: 32px; text-align: center; margin-bottom: 24px;">
+            <p style="color: #0f3d2e; font-size: 18px; font-weight: 600; margin: 0 0 8px 0;">One more step</p>
+            <p style="color: #0f3d2e; opacity: 0.85; font-size: 14px; margin: 0;">Connect your Instagram to start earning instant discounts on every order.</p>
           </div>
           <p style="color: #374151; font-size: 16px; margin-bottom: 8px;">Here's how Spiral works:</p>
           <ol style="color: #374151; font-size: 15px; line-height: 1.6; padding-left: 20px; margin-bottom: 24px;">
@@ -153,12 +162,12 @@ async function sendInstagramConnectedEmail(customerId: string, email: string, fi
       headers: { "List-Unsubscribe": `<${unsubscribeUrl}>` },
       html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
-          <h1 style="color: #5729a3; font-size: 28px; margin-bottom: 8px;">Spiral</h1>
+          ${emailHeader()}
           <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">Hey${firstName ? ` ${firstName}` : ""},</p>
           <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">Your Instagram${instagramHandle ? ` <strong>@${instagramHandle}</strong>` : ""} is now connected to Spiral.</p>
-          <div style="background: linear-gradient(135deg, #5729a3 0%, #8b5cf6 100%); border-radius: 16px; padding: 32px; text-align: center; margin-bottom: 24px;">
-            <p style="color: white; font-size: 18px; font-weight: 600; margin: 0 0 8px 0;">You're all set</p>
-            <p style="color: rgba(255,255,255,0.9); font-size: 14px; margin: 0;">Start receiving instant discounts at checkout on any Spiral-enabled store.</p>
+          <div style="background: linear-gradient(135deg, #A8F5E0 0%, #4ECCA3 100%); border-radius: 16px; padding: 32px; text-align: center; margin-bottom: 24px;">
+            <p style="color: #0f3d2e; font-size: 18px; font-weight: 600; margin: 0 0 8px 0;">You're all set</p>
+            <p style="color: #0f3d2e; opacity: 0.85; font-size: 14px; margin: 0;">Start receiving instant discounts at checkout on any Spiral-enabled store.</p>
           </div>
           <p style="color: #374151; font-size: 15px; line-height: 1.6; margin-bottom: 24px;">After your order arrives, post a quick Story tagging the brand and your discount is locked in. We'll handle the verification automatically.</p>
           <p style="color: #6b7280; font-size: 14px;">Happy shopping.</p>
@@ -196,11 +205,11 @@ async function sendInstagramReminderEmail(customerId: string, email: string, fir
       headers: { "List-Unsubscribe": `<${unsubscribeUrl}>` },
       html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
-          <h1 style="color: #5729a3; font-size: 28px; margin-bottom: 8px;">Spiral</h1>
+          ${emailHeader()}
           <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">Hey${firstName ? ` ${firstName}` : ""},</p>
           <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">Your Spiral account is verified, but you haven't connected Instagram yet. Connect it now to unlock instant discounts at checkout on every Spiral-enabled store.</p>
           <div style="text-align: center; margin-bottom: 24px;">
-            <a href="${connectUrl}" style="display: inline-block; background: linear-gradient(135deg, #5729a3 0%, #8b5cf6 100%); color: white; text-decoration: none; font-size: 16px; font-weight: 600; padding: 14px 28px; border-radius: 12px;">Connect Instagram</a>
+            <a href="${connectUrl}" style="display: inline-block; background: linear-gradient(135deg, #4ECCA3 0%, #2BAE88 100%); color: white; text-decoration: none; font-size: 16px; font-weight: 600; padding: 14px 28px; border-radius: 12px;">Connect Instagram</a>
           </div>
           <p style="color: #6b7280; font-size: 14px;">It only takes a moment, and your discount tier is based on your follower count.</p>
           ${unsubscribeFooterHtml(unsubscribeUrl)}
@@ -264,7 +273,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f9fafb; margin: 0; padding: 40px 20px; color: #111827; }
   .card { max-width: 480px; margin: 0 auto; background: #ffffff; border-radius: 16px; padding: 40px 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); text-align: center; }
-  h1 { color: #5729a3; font-size: 28px; margin: 0 0 8px; }
+  h1 { color: #2BAE88; font-size: 28px; margin: 0 0 8px; }
   h2 { font-size: 20px; margin: 16px 0 12px; color: #111827; }
   p { color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 12px; }
 </style>
