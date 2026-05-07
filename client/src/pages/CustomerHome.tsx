@@ -74,9 +74,21 @@ export default function CustomerHome() {
   });
 
   const recentOrders = orders.slice(0, 3);
-  const pendingCount = stats?.pendingVerificationCount ?? 0;
-  const pendingOrders = stats?.pendingOrders ?? [];
   const isSoftBanned = profile?.accountStatus === "soft_banned";
+  // Owed = (delivered + pending/awaiting_review) OR (any not_public/taken_down_early).
+  // Mirrors server-side getOwedOrdersForCustomer so banner count never disagrees with checkout.
+  const owedOrders = orders.filter((o) => {
+    const v = o.verificationStatus;
+    if (v === "not_public" || v === "taken_down_early") return true;
+    if (o.status === "delivered" && (v === "pending" || v === "awaiting_review")) return true;
+    return false;
+  });
+  const pendingCount = owedOrders.length;
+  const pendingOrders = owedOrders.map((o) => ({
+    id: o.id,
+    storeName: (o as unknown as { storeName?: string | null }).storeName ?? null,
+    shopifyOrderId: o.shopifyOrderId,
+  }));
 
   return (
     <div className="min-h-screen safe-top bg-white">

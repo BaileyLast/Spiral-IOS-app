@@ -3618,7 +3618,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               await sendIosPushToCustomer(
                 check.customerId,
                 'Story not public',
-                `We couldn't see your Story. Repost it publicly — Close Friends doesn't count — to unlock your next Spiral discount.`,
+                `We couldn't see your Story. New Spiral discounts are paused — repost it publicly (Close Friends doesn't count) to unlock your next one.`,
               );
               console.log(`[publicity-check] Order ${check.orderId} NOT_PUBLIC at quick stage${isDelivered ? ' — customer soft-banned' : ' (not yet delivered, no soft-ban)'}`);
             } else {
@@ -3633,7 +3633,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               await sendIosPushToCustomer(
                 check.customerId,
                 'Story came down too early',
-                `Spiral Stories need to stay up for 24 hours. Repost yours to unlock your next discount.`,
+                `Spiral Stories need to stay up for 24 hours. New Spiral discounts are paused — repost yours to unlock your next one.`,
               );
               console.log(`[publicity-check] Order ${check.orderId} TAKEN_DOWN_EARLY at final stage — customer soft-banned`);
             }
@@ -3701,9 +3701,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.warn(`[delivery] Order ${orderId} not found`);
       return;
     }
-    if (existing.status !== "delivered") {
-      await storage.markOrderDelivered(orderId);
+    // Idempotent: if order was already delivered before this call, skip the soft-ban write
+    // and reminder push entirely so duplicate Shopify events / retries don't re-spam shoppers.
+    const wasAlreadyDelivered = existing.status === "delivered";
+    if (wasAlreadyDelivered) {
+      console.log(`[delivery] Order ${orderId} already delivered — skipping (idempotent no-op)`);
+      return;
     }
+    await storage.markOrderDelivered(orderId);
     const owedStates = new Set(["pending", "awaiting_review", "not_public", "taken_down_early"]);
     const orderIsOwed = owedStates.has(existing.verificationStatus);
     if (existing.spiralCustomerId && orderIsOwed) {
