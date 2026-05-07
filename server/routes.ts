@@ -3077,20 +3077,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   // Verify the code and link Instagram
                   await storage.verifySpiralCode(pendingValidMatchedCode, senderInstagramId, instagramHandle);
 
+                  // Resolve the account-wide Instagram user ID (the `pk`).
+                  // This is the only identifier that reliably matches negative
+                  // cache rows across merchants, since every page-scoped ID
+                  // (DM sender, story_mention sender, Graph API ID) differs
+                  // for the same person across pages.
+                  let globalInstagramUserId: string | null = null;
+                  if (process.env.RAPIDAPI_KEY && instagramHandle) {
+                    globalInstagramUserId = await fetchInstagramGlobalUserIdByUsername(instagramHandle, process.env.RAPIDAPI_KEY);
+                    if (globalInstagramUserId) {
+                      try {
+                        await storage.updateSpiralCustomerGlobalUserId(pendingValidCode.customerId, globalInstagramUserId);
+                      } catch (err) {
+                        console.error('Failed to persist global IG user ID on customer:', err);
+                      }
+                    }
+                  }
+
                   // This Instagram account is now a Spiral customer. Wipe any
                   // negative-cache rows previously written for this identity
                   // under any merchant so their next Story mention resolves
                   // correctly instead of short-circuiting on a stale "not a
                   // Spiral customer" row. Match by every identity key we have
-                  // available so a row hits if any one of them was recorded.
+                  // available — global ID is the primary cross-merchant key;
+                  // handle is a fallback for legacy rows lacking a global ID.
                   try {
                     const cleared = await storage.clearNegativeCacheForInstagramIdentity({
                       senderScopedId: senderInstagramId,
                       instagramUserId: senderInstagramId,
+                      instagramGlobalUserId: globalInstagramUserId,
                       instagramHandle,
                     });
                     if (cleared > 0) {
-                      console.log(`Cleared ${cleared} stale negative-cache row(s) for newly-verified @${instagramHandle}`);
+                      console.log(`Cleared ${cleared} stale negative-cache row(s) for newly-verified @${instagramHandle} (global IG id ${globalInstagramUserId ?? 'unknown'})`);
                     }
                   } catch (clearErr) {
                     console.error('Failed to clear negative cache after Spiral verification:', clearErr);
@@ -3237,6 +3256,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  // Resolve a handle to its account-wide Instagram numeric user ID (the `pk`
+  // from public Instagram data). This is the canonical, immutable identity for
+  // a person on Instagram — stable across handle changes and across all pages.
+  // Meta deliberately hides this from page-scoped contexts (Graph API, DM
+  // sender IDs, story_mention sender IDs are all page-scoped), so the only way
+  // to obtain it is the public-data scraper. Returns null on any failure;
+  // callers must treat null as "unknown" and fall back to handle matching.
+  async function fetchInstagramGlobalUserIdByUsername(username: string, rapidApiKey: string): Promise<string | null> {
+    if (!username) return null;
+    const cleanUsername = username.replace(/^@/, '').trim();
+    if (!cleanUsername) return null;
+    try {
+      const host = 'instagram-api-fast-reliable-data-scraper.p.rapidapi.com';
+      const url = `https://${host}/profile?username=${encodeURIComponent(cleanUsername)}`;
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'x-rapidapi-key': rapidApiKey,
+          'x-rapidapi-host': host,
+        },
+      });
+      if (!res.ok) {
+        console.error(`Global IG ID lookup failed for @${cleanUsername}: HTTP ${res.status}`);
+        return null;
+      }
+      const data = await res.json() as { pk?: number | string; pk_id?: string };
+      const pk = data.pk_id ?? (data.pk != null ? String(data.pk) : null);
+      if (!pk) {
+        console.error(`Global IG ID lookup returned no pk for @${cleanUsername}`);
+        return null;
+      }
+      return pk;
+    } catch (err) {
+      console.error(`Global IG ID lookup error for @${cleanUsername}:`, err);
+      return null;
+    }
+  }
+
   // Alias for the /webhooks/instagram endpoint (uses same logic)
   async function handleStoryMentionWebhook(merchantInstagramId: string, senderScopedId: string, storyUrl: string): Promise<void> {
     return handleStoryMention(merchantInstagramId, senderScopedId, storyUrl);
@@ -3303,6 +3360,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         if (resolvedUsername) {
+          // Resolve the account-wide Instagram numeric ID for this handle.
+          // We persist it on both positive and negative cache rows so future
+          // signups can invalidate negative rows reliably across merchants.
+          let resolvedGlobalUserId: string | null = null;
+          if (process.env.RAPIDAPI_KEY) {
+            resolvedGlobalUserId = await fetchInstagramGlobalUserIdByUsername(resolvedUsername, process.env.RAPIDAPI_KEY);
+          }
+
           const customer = await storage.getSpiralCustomerByInstagramHandle(resolvedUsername);
           if (customer) {
             customerId = customer.id;
@@ -3315,22 +3380,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
               senderScopedId,
               spiralCustomerId: customer.id,
               instagramUserId: customer.instagramUserId,
+              instagramGlobalUserId: resolvedGlobalUserId,
               instagramHandle: resolvedUsername,
               isSpiral: true,
             });
+            // Backfill the customer's global ID if we have one and they don't.
+            if (resolvedGlobalUserId && !customer.instagramGlobalUserId) {
+              try {
+                await storage.updateSpiralCustomerGlobalUserId(customer.id, resolvedGlobalUserId);
+              } catch (err) {
+                console.error('Failed to backfill customer global IG user ID:', err);
+              }
+            }
             // Refresh the customer's display handle if Instagram now reports a
             // different username for the same account (handles are mutable).
             if (customer.instagramHandle !== resolvedUsername) {
               await storage.updateSpiralCustomerHandle(customer.id, resolvedUsername);
               console.log(`Story mention: Refreshed @${customer.instagramHandle} → @${resolvedUsername} for customer ${customer.id}`);
             }
-            console.log(`Story mention: Created scoped ID mapping: ${senderScopedId} -> customer ${customer.id} (@${resolvedUsername}, IG user id ${customer.instagramUserId ?? 'unknown'})`);
+            console.log(`Story mention: Created scoped ID mapping: ${senderScopedId} -> customer ${customer.id} (@${resolvedUsername}, IG user id ${customer.instagramUserId ?? 'unknown'}, global IG id ${resolvedGlobalUserId ?? 'unknown'})`);
           } else {
             // Confirmed non-Spiral shopper — write a negative-cache row so all
             // future story_mentions from this scoped ID exit in one indexed
             // lookup with no Profile API call.
-            await storage.recordNonSpiralScopedId(settings.id, senderScopedId, resolvedUsername);
-            console.log(`Story mention: No Spiral customer for @${resolvedUsername} — negative-cached scoped ID ${senderScopedId}`);
+            await storage.recordNonSpiralScopedId(settings.id, senderScopedId, resolvedUsername, resolvedGlobalUserId);
+            console.log(`Story mention: No Spiral customer for @${resolvedUsername} (global IG id ${resolvedGlobalUserId ?? 'unknown'}) — negative-cached scoped ID ${senderScopedId}`);
           }
         }
         // If we couldn't resolve a username at all (Profile API down/missing

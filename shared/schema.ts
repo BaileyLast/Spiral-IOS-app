@@ -95,6 +95,12 @@ export const spiralCustomers = pgTable("spiral_customers", {
   emailVerificationExpiresAt: timestamp("email_verification_expires_at"),
   instagramHandle: text("instagram_handle"),
   instagramUserId: text("instagram_user_id"),
+  // Global, account-wide Instagram numeric user ID (the `pk` from public Instagram
+  // data). Stable across all pages and survives username changes — used as the
+  // canonical Instagram identity for cross-page matching (e.g. negative-cache
+  // invalidation at signup). Resolved via the RapidAPI Instagram scraper since
+  // Meta deliberately hides this from page-scoped contexts.
+  instagramGlobalUserId: text("instagram_global_user_id"),
   instagramAccessToken: text("instagram_access_token"),
   instagramTokenExpiry: timestamp("instagram_token_expiry"),
   instagramProfilePicture: text("instagram_profile_picture"),
@@ -218,6 +224,11 @@ export const merchantScopedUserMap = pgTable("merchant_scoped_user_map", {
   // Cached at first resolution; backend identity for the customer is the
   // immutable Instagram user ID, not the (mutable) handle.
   instagramUserId: text("instagram_user_id"),
+  // Global, account-wide Instagram numeric user ID — stable across all pages
+  // and across username changes. Used to match negative-cache rows at signup
+  // time (where the page-scoped IDs differ between @joinspiral and the
+  // merchant page, so only the global ID can connect them).
+  instagramGlobalUserId: text("instagram_global_user_id"),
   // Display-only snapshot of the handle at first-seen time. Refreshed whenever
   // we successfully resolve this scoped ID via the Profile API.
   instagramHandle: text("instagram_handle"),

@@ -109,8 +109,12 @@ export interface IStorage {
   getMerchantScopedUserMapByCustomer(merchantId: string, customerId: string): Promise<MerchantScopedUserMap | undefined>;
   // Negative cache: record that a scoped ID is confirmed NOT a Spiral customer
   // so future story_mentions from this sender exit in a single indexed lookup.
-  recordNonSpiralScopedId(merchantId: string, senderScopedId: string, instagramHandle?: string | null): Promise<void>;
-  clearNegativeCacheForInstagramIdentity(identity: { senderScopedId?: string | null; instagramUserId?: string | null; instagramHandle?: string | null }): Promise<number>;
+  recordNonSpiralScopedId(merchantId: string, senderScopedId: string, instagramHandle?: string | null, instagramGlobalUserId?: string | null): Promise<void>;
+  clearNegativeCacheForInstagramIdentity(identity: { senderScopedId?: string | null; instagramUserId?: string | null; instagramHandle?: string | null; instagramGlobalUserId?: string | null }): Promise<number>;
+  // Persist the canonical, account-wide Instagram numeric ID on a customer.
+  // Resolved via the public-data scraper since Meta hides this from page-scoped
+  // contexts. Used to match negative-cache rows across merchants at signup.
+  updateSpiralCustomerGlobalUserId(id: string, instagramGlobalUserId: string): Promise<void>;
   // Touch lastSeenAt and refresh the cached display handle on repeat sightings.
   touchMerchantScopedUserMap(id: string, instagramHandle?: string | null): Promise<void>;
   // Refresh the customer's stored handle (display only) when Instagram returns
@@ -576,6 +580,13 @@ export class DatabaseStorage implements IStorage {
       .where(eq(spiralCustomers.id, id));
   }
 
+  async updateSpiralCustomerGlobalUserId(id: string, instagramGlobalUserId: string): Promise<void> {
+    await db
+      .update(spiralCustomers)
+      .set({ instagramGlobalUserId })
+      .where(eq(spiralCustomers.id, id));
+  }
+
   async updateSpiralCustomerInstagram(
     id: string, 
     data: {
@@ -821,9 +832,9 @@ export class DatabaseStorage implements IStorage {
   // (race with createMerchantScopedUserMap, or a customer connected IG between
   // our Profile API call and this insert), we leave the positive row intact —
   // never downgrade positive → negative.
-  async recordNonSpiralScopedId(merchantId: string, senderScopedId: string, instagramHandle?: string | null): Promise<void> {
-    // Normalize identically to clearNegativeCacheForHandle so the lookup
-    // there always matches what we stored here, regardless of upstream
+  async recordNonSpiralScopedId(merchantId: string, senderScopedId: string, instagramHandle?: string | null, instagramGlobalUserId?: string | null): Promise<void> {
+    // Normalize identically to clearNegativeCacheForInstagramIdentity so the
+    // lookup there always matches what we stored here, regardless of upstream
     // formatting (leading '@', whitespace, etc.).
     const normalizedHandle = instagramHandle
       ? instagramHandle.replace(/^@/, '').trim() || null
@@ -835,9 +846,12 @@ export class DatabaseStorage implements IStorage {
         senderScopedId,
         spiralCustomerId: null,
         instagramUserId: null,
-        // Store the resolved handle on the negative row so we can invalidate it
-        // later if/when this Instagram account becomes a Spiral customer (see
-        // clearNegativeCacheForHandle).
+        // Account-wide Instagram numeric ID — the canonical identifier used to
+        // invalidate this row if/when this person becomes a Spiral customer.
+        // Stable across handle changes and across merchant pages.
+        instagramGlobalUserId: instagramGlobalUserId || null,
+        // Display-only fallback; kept for legacy invalidation if global ID is
+        // unavailable at write time (e.g. scraper failure).
         instagramHandle: normalizedHandle,
         isSpiral: false,
       })
@@ -865,6 +879,7 @@ export class DatabaseStorage implements IStorage {
     senderScopedId?: string | null;
     instagramUserId?: string | null;
     instagramHandle?: string | null;
+    instagramGlobalUserId?: string | null;
   }): Promise<number> {
     const conditions: SQL[] = [];
 
@@ -873,6 +888,12 @@ export class DatabaseStorage implements IStorage {
     }
     if (identity.instagramUserId) {
       conditions.push(eq(merchantScopedUserMap.instagramUserId, identity.instagramUserId));
+    }
+    // Primary cross-merchant matcher: account-wide Instagram numeric ID.
+    // This is the only key that reliably joins a DM-time identity to a
+    // merchant-page-scoped negative row, since Meta page-scopes everything else.
+    if (identity.instagramGlobalUserId) {
+      conditions.push(eq(merchantScopedUserMap.instagramGlobalUserId, identity.instagramGlobalUserId));
     }
     if (identity.instagramHandle) {
       const handle = identity.instagramHandle.replace(/^@/, '').trim();
