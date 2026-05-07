@@ -36,7 +36,7 @@ import {
   type InsertPublicityCheck,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, inArray, and, lt, isNull, desc, sql } from "drizzle-orm";
+import { eq, inArray, and, or, lt, isNull, desc, sql } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 export interface IStorage {
@@ -110,7 +110,7 @@ export interface IStorage {
   // Negative cache: record that a scoped ID is confirmed NOT a Spiral customer
   // so future story_mentions from this sender exit in a single indexed lookup.
   recordNonSpiralScopedId(merchantId: string, senderScopedId: string, instagramHandle?: string | null): Promise<void>;
-  clearNegativeCacheForHandle(instagramHandle: string): Promise<number>;
+  clearNegativeCacheForInstagramIdentity(identity: { senderScopedId?: string | null; instagramUserId?: string | null; instagramHandle?: string | null }): Promise<number>;
   // Touch lastSeenAt and refresh the cached display handle on repeat sightings.
   touchMerchantScopedUserMap(id: string, instagramHandle?: string | null): Promise<void>;
   // Refresh the customer's stored handle (display only) when Instagram returns
@@ -846,23 +846,49 @@ export class DatabaseStorage implements IStorage {
       });
   }
 
-  // Wipe every negative-cache row pinned to this Instagram handle (case-
-  // insensitive). Called the moment a customer completes Spiral-code Instagram
-  // verification so any "not a Spiral customer" rows previously recorded for
-  // them under any merchant are removed. Future story_mentions from those
-  // scoped IDs will then re-resolve and be upgraded to positive mappings via
-  // createMerchantScopedUserMap. Positive rows (isSpiral=true) are never
-  // touched. Returns the number of rows deleted (for logging only).
-  async clearNegativeCacheForHandle(instagramHandle: string): Promise<number> {
-    if (!instagramHandle) return 0;
-    const handle = instagramHandle.replace(/^@/, '').trim();
-    if (!handle) return 0;
+  // Wipe every negative-cache row that matches ANY of the supplied identity
+  // keys (scoped ID, IG user ID, or handle). Called the moment a customer
+  // completes Spiral-code Instagram verification so previously-cached
+  // "not a Spiral customer" rows for the same person — under any merchant —
+  // are removed. Future story_mentions from those scoped IDs then re-resolve
+  // and get upgraded to positive mappings via createMerchantScopedUserMap.
+  //
+  // Positive rows (isSpiral=true) are NEVER touched, so even if a key happens
+  // to match a positive mapping it stays intact.
+  //
+  // Note on legacy data: negative rows written before instagramHandle was
+  // persisted (and where neither scopedId nor userId match — e.g. merchant-
+  // page-scoped IDs vs the @joinspiral-page scoped ID we have at DM time)
+  // cannot be auto-invalidated and will linger until they self-heal on next
+  // re-resolution attempt or are cleaned up out-of-band.
+  async clearNegativeCacheForInstagramIdentity(identity: {
+    senderScopedId?: string | null;
+    instagramUserId?: string | null;
+    instagramHandle?: string | null;
+  }): Promise<number> {
+    const conditions = [] as any[];
+
+    if (identity.senderScopedId) {
+      conditions.push(eq(merchantScopedUserMap.senderScopedId, identity.senderScopedId));
+    }
+    if (identity.instagramUserId) {
+      conditions.push(eq(merchantScopedUserMap.instagramUserId, identity.instagramUserId));
+    }
+    if (identity.instagramHandle) {
+      const handle = identity.instagramHandle.replace(/^@/, '').trim();
+      if (handle) {
+        conditions.push(sql`lower(${merchantScopedUserMap.instagramHandle}) = lower(${handle})`);
+      }
+    }
+
+    if (conditions.length === 0) return 0;
+
     const deleted = await db
       .delete(merchantScopedUserMap)
       .where(
         and(
           eq(merchantScopedUserMap.isSpiral, false),
-          sql`lower(${merchantScopedUserMap.instagramHandle}) = lower(${handle})`,
+          conditions.length === 1 ? conditions[0] : or(...conditions),
         )
       )
       .returning({ id: merchantScopedUserMap.id });

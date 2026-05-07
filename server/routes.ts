@@ -3078,12 +3078,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   await storage.verifySpiralCode(pendingValidMatchedCode, senderInstagramId, instagramHandle);
 
                   // This Instagram account is now a Spiral customer. Wipe any
-                  // negative-cache rows previously written for this handle
+                  // negative-cache rows previously written for this identity
                   // under any merchant so their next Story mention resolves
                   // correctly instead of short-circuiting on a stale "not a
-                  // Spiral customer" row.
+                  // Spiral customer" row. Match by every identity key we have
+                  // available so a row hits if any one of them was recorded.
                   try {
-                    const cleared = await storage.clearNegativeCacheForHandle(instagramHandle);
+                    const cleared = await storage.clearNegativeCacheForInstagramIdentity({
+                      senderScopedId: senderInstagramId,
+                      instagramUserId: senderInstagramId,
+                      instagramHandle,
+                    });
                     if (cleared > 0) {
                       console.log(`Cleared ${cleared} stale negative-cache row(s) for newly-verified @${instagramHandle}`);
                     }
