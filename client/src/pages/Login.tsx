@@ -54,7 +54,7 @@ export default function Login() {
       } else if (data.instagramHandle) {
         setLocation("/home");
       } else {
-        setLocation("/connect-instagram");
+        setLocation("/home");
       }
     },
     onError: (error: Error) => {

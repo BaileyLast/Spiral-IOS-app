@@ -39,7 +39,7 @@ export default function VerifyEmail() {
         title: "Email verified",
         description: "Your account is ready to use",
       });
-      setLocation("/connect-instagram");
+      setLocation("/home");
     },
     onError: (error: Error) => {
       toast({
