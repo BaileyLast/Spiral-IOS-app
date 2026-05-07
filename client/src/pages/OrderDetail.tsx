@@ -79,6 +79,9 @@ function LineItemRow({ item }: { item: LineItem }) {
 
 function getStatusLabel(order: Order) {
   if (order.verificationStatus === "verified") return "verified";
+  if (order.verificationStatus === "quick_verified") return "quick_verified";
+  if (order.verificationStatus === "not_public") return "not_public";
+  if (order.verificationStatus === "taken_down_early") return "taken_down_early";
   if (order.verificationStatus === "awaiting_review") return "awaiting_review";
   if (order.verificationStatus === "story_detected") return "story_received";
   if (order.status === "delivered") return "awaiting";
@@ -127,7 +130,7 @@ export default function OrderDetail() {
   const steps = [
     { id: "ordered", label: "Order placed", icon: Package, complete: true },
     { id: "shipped", label: "On the way", icon: Clock, complete: status !== "ordered" },
-    { id: "delivered", label: "Delivered", icon: CheckCircle, complete: ["awaiting", "story_received", "awaiting_review", "verified"].includes(status) },
+    { id: "delivered", label: "Delivered", icon: CheckCircle, complete: ["awaiting", "story_received", "awaiting_review", "quick_verified", "not_public", "taken_down_early", "verified"].includes(status) },
     { id: "verified", label: "Story verified", icon: CheckCircle, complete: status === "verified" },
   ];
 
@@ -268,6 +271,24 @@ export default function OrderDetail() {
           </div>
         )}
 
+        {status === "quick_verified" && (
+          <div className="p-5 rounded-2xl bg-green-50 border border-green-200" data-testid="card-quick-verified">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-green-900" data-testid="text-quick-verified-heading">
+                  Story confirmed
+                </h3>
+                <p className="text-sm text-green-700 mt-1">
+                  Thanks for posting publicly. Keep it up for 24 hours and we'll finalize this.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {status === "verified" && (
           <div className="p-5 rounded-2xl bg-green-50 border border-green-200">
             <div className="flex items-start gap-4">
@@ -282,6 +303,39 @@ export default function OrderDetail() {
                   Your story was verified and your discount is confirmed
                 </p>
               </div>
+            </div>
+          </div>
+        )}
+
+        {(status === "not_public" || status === "taken_down_early") && (
+          <div className="p-5 rounded-2xl bg-orange-50 border border-orange-200" data-testid={`card-${status}`}>
+            <div className="flex items-start gap-4 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
+                <Camera className="w-5 h-5 text-orange-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-orange-900" data-testid={`text-${status}-heading`}>
+                  {status === "not_public"
+                    ? "We couldn't see your Story"
+                    : "Your Story came down too early"}
+                </h3>
+                <p className="text-sm text-orange-700 mt-1" data-testid={`text-${status}-body`}>
+                  {status === "not_public"
+                    ? "Stories must be public — Close Friends doesn't count. Repost publicly and tag the brand to unlock your next discount."
+                    : "Spiral Stories need to stay up for 24 hours. Repost publicly and tag the brand to unlock your next discount."}
+                </p>
+              </div>
+            </div>
+            <div className="bg-orange-100/60 rounded-xl p-4 space-y-2">
+              <div className="flex items-center gap-2 text-sm text-orange-800">
+                <Instagram className="w-4 h-4" />
+                <span className="font-semibold">How to repost:</span>
+              </div>
+              <ol className="text-sm text-orange-800 space-y-1.5 ml-6 list-decimal">
+                <li>Open Instagram and create a new Story (public, not Close Friends)</li>
+                <li>Tag the brand using the @ mention sticker</li>
+                <li>Leave it up for 24 hours</li>
+              </ol>
             </div>
           </div>
         )}

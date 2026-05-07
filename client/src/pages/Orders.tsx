@@ -36,6 +36,10 @@ export function formatDiscountPercent(raw: string | number | null | undefined): 
 
 function getStatusLabel(order: Order) {
   if (order.verificationStatus === "verified") return "Verified";
+  if (order.verificationStatus === "quick_verified") return "Confirmed";
+  if (order.verificationStatus === "not_public") return "Repost Story";
+  if (order.verificationStatus === "taken_down_early") return "Repost Story";
+  if (order.verificationStatus === "awaiting_review") return "Confirming";
   if (order.verificationStatus === "story_detected") return "Story Received";
   if (order.status === "delivered") return "Story Needed";
   if (order.status === "fulfilled") return "On the way";
@@ -44,17 +48,21 @@ function getStatusLabel(order: Order) {
 
 function isCompleted(order: Order) {
   const status = getStatusLabel(order);
-  return status === "Verified" || status === "Story Received";
+  return status === "Verified" || status === "Confirmed";
 }
 
 function getStatusBadge(status: string) {
   switch (status) {
     case "Verified":
+    case "Confirmed":
       return "bg-green-50 text-green-700 border border-green-200";
+    case "Confirming":
     case "Story Received":
       return "bg-blue-50 text-blue-700 border border-blue-200";
     case "Story Needed":
       return "bg-amber-50 text-amber-700 border border-amber-200";
+    case "Repost Story":
+      return "bg-orange-50 text-orange-700 border border-orange-200";
     case "On the way":
       return "bg-blue-50 text-blue-700 border border-blue-200";
     default:

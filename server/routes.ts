@@ -2478,6 +2478,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Register or clear the iOS device push token for the authenticated customer.
+  // Body: { token: string | null } — pass null to unregister (e.g. on logout / permission revoked).
+  // Tokens are used ONLY for failure/reminder pushes — never for success notifications.
+  app.post("/api/customer/push-token", async (req, res) => {
+    try {
+      const customerId = req.session.customerId;
+      if (!customerId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const { token } = req.body as { token?: string | null };
+      const normalized = typeof token === 'string' && token.trim().length > 0 ? token.trim() : null;
+      await storage.updateSpiralCustomerPushToken(customerId, normalized);
+      res.json({ success: true, registered: normalized !== null });
+    } catch (error) {
+      console.error('Failed to register push token:', error);
+      res.status(500).json({ error: 'Failed to register push token' });
+    }
+  });
+
   // Disconnect Instagram account
   app.post("/api/customer/disconnect-instagram", async (req, res) => {
     try {
@@ -3195,16 +3214,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Step 3: Find orders for this customer that still need verification.
       // Includes awaiting_review so reposts after a failed publicity check can re-trigger the cross-check.
       const customerOrders = await storage.getOrdersByCustomerId(customerId);
+      // Include not_public and taken_down_early so reposts after a failed check re-trigger verification.
       const pendingOrders = customerOrders.filter(o =>
         o.verificationStatus === 'pending' ||
         o.verificationStatus === 'story_detected' ||
-        o.verificationStatus === 'awaiting_review'
+        o.verificationStatus === 'awaiting_review' ||
+        o.verificationStatus === 'not_public' ||
+        o.verificationStatus === 'taken_down_early'
       );
 
       if (pendingOrders.length === 0) {
         console.log(`Story mention: No pending orders for customer ${customerId}`);
-        // Send a DM letting them know
-        await sendInstagramDM(senderScopedId, "Thanks for tagging us! We don't see any pending orders for your account right now.");
+        // No DM — shopper will see status in-app; we don't spam non-customers either.
         return;
       }
 
@@ -3273,10 +3294,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`Story mention: Order ${orderToVerify.id} marked AWAITING_REVIEW; quick publicity check scheduled`);
 
-      // Send acknowledgment DM (no discount confirmation yet — that comes after the cross-checks pass)
-      await sendInstagramDM(senderScopedId,
-        `Got your Story! We'll confirm your discount once it's been live publicly for 24 hours. Close Friends posts won't count.`
-      );
+      // No DM — shopper sees "Story received — confirming" status live in-app.
     } catch (error) {
       console.error('Error handling story mention:', error);
     }
@@ -3485,6 +3503,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 lastResult: 'quick_passed',
                 completed: true,
               });
+              // Quick check passed: shopper is in good standing. Auto-unbans them at checkout.
+              // No push (success is silent per spec). Order shows green "Confirmed" tick in-app.
+              await storage.updateOrderVerificationStatus(check.orderId, 'quick_verified');
+              console.log(`[publicity-check] Order ${check.orderId} QUICK_VERIFIED — discount unlocked`);
             } else {
               // Final stage passed — confirm the verification.
               await storage.markVerified(check.verificationId);
@@ -3493,14 +3515,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 lastResult: 'verified',
                 completed: true,
               });
-              const order = await storage.getOrderById(check.orderId);
-              const discountAmt = parseFloat(order?.discountAmount || '0');
-              if (check.senderScopedId) {
-                await sendInstagramDM(
-                  check.senderScopedId,
-                  `Your Story is verified — you saved $${discountAmt.toFixed(2)} on your order. Thanks for sharing!`,
-                );
-              }
+              // No DM, no push — shopper sees "You saved $X!" celebration in-app.
               console.log(`[publicity-check] Order ${check.orderId} VERIFIED after final cross-check`);
             }
           } else if (result.kind === 'not_public') {
@@ -3510,25 +3525,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 lastResult: 'deleted_or_close_friends',
                 completed: true,
               });
-              if (check.senderScopedId) {
-                await sendInstagramDM(
-                  check.senderScopedId,
-                  `We couldn't see your Story when we checked. Spiral Stories must be posted publicly — not to Close Friends — and stay up for 24 hours to count. Repost publicly and tag the brand again to get your discount.`,
-                );
-              }
-              console.log(`[publicity-check] Order ${check.orderId} CLOSE_FRIENDS_OR_DELETED at quick stage`);
+              await storage.updateOrderVerificationStatus(check.orderId, 'not_public');
+              // Push (fails only). Copy never threatens the existing discount — only future access.
+              await sendIosPushToCustomer(
+                check.customerId,
+                'Story not public',
+                `We couldn't see your Story. Repost it publicly — Close Friends doesn't count — to unlock your next Spiral discount.`,
+              );
+              console.log(`[publicity-check] Order ${check.orderId} NOT_PUBLIC at quick stage`);
             } else {
               // Story passed quick check but is gone at the 10h mark — taken down early.
               await storage.recordPublicityCheckAttempt(check.id, {
                 lastResult: 'taken_down_early',
                 completed: true,
               });
-              if (check.senderScopedId) {
-                await sendInstagramDM(
-                  check.senderScopedId,
-                  `Your Story came down before we could confirm your discount. Spiral Stories need to stay public for 24 hours — no shortcuts. You'll get another chance on your next order.`,
-                );
-              }
+              await storage.updateOrderVerificationStatus(check.orderId, 'taken_down_early');
+              await sendIosPushToCustomer(
+                check.customerId,
+                'Story came down too early',
+                `Spiral Stories need to stay up for 24 hours. Repost yours to unlock your next discount.`,
+              );
               console.log(`[publicity-check] Order ${check.orderId} TAKEN_DOWN_EARLY at final stage`);
             }
           } else {
@@ -3564,7 +3580,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
-  // Helper: Send DM back to user via Instagram API. Returns true on success, false on failure.
+  // iOS push notification helpers.
+  // Used ONLY for failure/reminder notifications — never for successful verifications (per spec).
+  // Copy must NEVER threaten the existing discount on the order being notified about; only
+  // mention impact on FUTURE Spiral discounts.
+  // APNs SDK integration (e.g. node-apn) is not yet wired up. When APNS_KEY_ID, APNS_TEAM_ID,
+  // APNS_PRIVATE_KEY, and APNS_BUNDLE_ID secrets are present, this should send via APNs.
+  // Until then, we log the intended push so it's visible in dev and prod logs.
+  async function sendIosPush(token: string, title: string, body: string): Promise<boolean> {
+    try {
+      const apnsConfigured =
+        !!process.env.APNS_KEY_ID &&
+        !!process.env.APNS_TEAM_ID &&
+        !!process.env.APNS_PRIVATE_KEY &&
+        !!process.env.APNS_BUNDLE_ID;
+      if (!apnsConfigured) {
+        console.log(`[PUSH] (stub, APNs not configured) → token=${token.slice(0, 8)}… "${title}" — ${body}`);
+        return true;
+      }
+      // TODO: wire up node-apn here once APNs credentials are in place.
+      console.log(`[PUSH] → token=${token.slice(0, 8)}… "${title}" — ${body}`);
+      return true;
+    } catch (err) {
+      console.error('[PUSH] send failed:', err);
+      return false;
+    }
+  }
+
+  async function sendIosPushToCustomer(customerId: string, title: string, body: string): Promise<boolean> {
+    const customer = await storage.getSpiralCustomerById(customerId);
+    if (!customer?.iosPushToken) {
+      console.log(`[PUSH] Skipped — customer ${customerId} has no iOS push token`);
+      return false;
+    }
+    return sendIosPush(customer.iosPushToken, title, body);
+  }
+
   async function sendInstagramDM(recipientId: string, message: string): Promise<boolean> {
     try {
       const accessToken = process.env.SPIRAL_INSTAGRAM_ACCESS_TOKEN;

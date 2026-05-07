@@ -117,10 +117,27 @@ Preferred communication style: Simple, everyday language.
 3. **Delivered** - Arrived, customer sees "Post Your Story" prompt
 4. **Verified** - Story mention detected via webhook, discount confirmed
 
-### Verification Lifecycle (Simplified)
-1. **pending**: Order placed/delivered, awaiting customer to post Instagram Story tagging merchant
-2. **story_detected**: Story mention webhook received, matched to order
-3. **verified**: Verification complete, discount confirmed
+### Verification Lifecycle
+1. **pending**: Order placed/delivered, awaiting customer to post Story tagging merchant. Locks future discount.
+2. **awaiting_review**: Story mention webhook received, quick publicity check pending (~3 min). Locks future discount.
+3. **quick_verified**: Quick check passed (Story is public). UNLOCKS future discount; awaiting 10h final check.
+4. **verified**: Final check passed, discount confirmed. UNLOCKS future discount.
+5. **not_public**: Quick check failed (Close Friends or already deleted). Locks future discount until shopper reposts.
+6. **taken_down_early**: Final check failed (Story disappeared <24h). Locks future discount until shopper reposts.
+
+### Soft-Ban Model
+- A shopper is "soft-banned" (blocked from new Spiral discounts at checkout) when they have any delivered order in `pending`, `awaiting_review`, `not_public`, or `taken_down_early`. No grace period.
+- Auto-unban happens the moment any owed order moves to `quick_verified` or `verified`.
+- Reposting an Instagram Story tagging the merchant re-triggers verification on `not_public`/`taken_down_early` orders.
+
+### iOS Push Notifications
+- Used **only** for failures and reminders — **never** for successful verifications. Successes are surfaced in-app.
+- Push copy never threatens the discount on the order being notified about; only mentions impact on FUTURE discounts.
+- Required secrets (when ready to go live with APNs): `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY`, `APNS_BUNDLE_ID`. Until configured, pushes are logged with `[PUSH]` prefix.
+- Endpoint: `POST /api/customer/push-token` with `{ token: string | null }` — call on app launch and on logout (with null).
+
+### In-App Status (Replaces Order/Story DMs)
+All order/Story progress is shown live in the app. The five outbound DMs that used to ack story-received, celebrate verification, or warn about Close Friends / early takedown have been removed. Spiral-code account-linking DMs are unchanged.
 
 ### Webhook Health Monitoring
 - `store_settings.webhookSubscriptionStatus`: Tracks whether messaging webhook is active/inactive/failed

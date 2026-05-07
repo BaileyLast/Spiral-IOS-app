@@ -111,6 +111,7 @@ export const spiralCustomers = pgTable("spiral_customers", {
   marketingEmailOptOut: boolean("marketing_email_opt_out").notNull().default(false),
   marketingEmailOptOutAt: timestamp("marketing_email_opt_out_at"),
   unsubscribeToken: text("unsubscribe_token").unique(),
+  iosPushToken: text("ios_push_token"),
 });
 
 export const orders = pgTable("orders", {
@@ -128,7 +129,13 @@ export const orders = pgTable("orders", {
   fulfilledAt: timestamp("fulfilled_at"),
   deliveredAt: timestamp("delivered_at"),
   postDeadline: timestamp("post_deadline"),
-  // Verification status: pending, story_detected, verified
+  // Verification status:
+  //   pending          - delivered, no Story posted yet (locks future discount)
+  //   awaiting_review  - Story tag received, quick publicity check pending (locks future discount)
+  //   quick_verified   - Story passed 3-min public check, awaiting 10h final check (UNLOCKS future discount)
+  //   verified         - Final check passed, discount confirmed (UNLOCKS future discount)
+  //   not_public       - Quick check failed (Close Friends or already deleted) — repost to unlock (locks)
+  //   taken_down_early - Final check failed (Story disappeared <24h) — repost to unlock (locks)
   verificationStatus: text("verification_status").notNull().default("pending"),
   verificationId: varchar("verification_id"),
   webhookTimestamp: timestamp("webhook_timestamp"),

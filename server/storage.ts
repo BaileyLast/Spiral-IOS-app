@@ -133,6 +133,8 @@ export interface IStorage {
   recordPublicityCheckAttempt(id: string, opts: { lastError?: string | null; lastResult?: string | null; rescheduleAt?: Date | null; completed?: boolean }): Promise<PublicityCheck>;
   // Verification status helpers used by publicity check worker
   markVerificationAwaitingReview(verificationId: string, storyMediaId: string | null): Promise<void>;
+  // iOS push token registration (for fail/reminder notifications only — never used for success)
+  updateSpiralCustomerPushToken(id: string, token: string | null): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -601,9 +603,16 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(orders)
       .where(eq(orders.spiralCustomerId, customerId));
-    return all.filter(
-      (o) => o.status === "delivered" && o.verificationStatus !== "verified"
-    );
+    // Soft-ban states: shopper owes a Story for these before they can earn another discount.
+    const owedStates = new Set(["pending", "awaiting_review", "not_public", "taken_down_early"]);
+    return all.filter((o) => o.status === "delivered" && owedStates.has(o.verificationStatus));
+  }
+
+  async updateSpiralCustomerPushToken(id: string, token: string | null): Promise<void> {
+    await db
+      .update(spiralCustomers)
+      .set({ iosPushToken: token })
+      .where(eq(spiralCustomers.id, id));
   }
 
   async updateSpiralCustomerEmailVerified(id: string, verified: boolean): Promise<SpiralCustomer> {
