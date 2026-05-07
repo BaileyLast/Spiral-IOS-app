@@ -1445,6 +1445,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // (only if Story still owed), and fire the one-time delivery reminder push.
   app.post("/webhooks/shopify/fulfillment-events-create", async (req, res) => {
     try {
+      if (!verifyShopifyWebhook(req)) {
+        console.warn('[shopify] fulfillment_events/create webhook signature INVALID — rejecting');
+        return res.status(401).json({ error: 'Invalid webhook signature' });
+      }
+
       // Acknowledge immediately to avoid Shopify retries while we do the work.
       res.status(200).json({ received: true });
 
@@ -3617,20 +3622,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
               console.log(`[publicity-check] Order ${check.orderId} NOT_PUBLIC at quick stage${isDelivered ? ' — customer soft-banned' : ' (not yet delivered, no soft-ban)'}`);
             } else {
               // Story passed quick check but is gone at the 10h mark — taken down early.
+              // Per spec, final-check failure ALWAYS soft-bans (independent of delivered status).
               await storage.recordPublicityCheckAttempt(check.id, {
                 lastResult: 'taken_down_early',
                 completed: true,
               });
               await storage.updateOrderVerificationStatus(check.orderId, 'taken_down_early');
-              if (isDelivered) {
-                await storage.setCustomerSoftBanned(check.customerId, 'taken_down_early');
-              }
+              await storage.setCustomerSoftBanned(check.customerId, 'taken_down_early');
               await sendIosPushToCustomer(
                 check.customerId,
                 'Story came down too early',
                 `Spiral Stories need to stay up for 24 hours. Repost yours to unlock your next discount.`,
               );
-              console.log(`[publicity-check] Order ${check.orderId} TAKEN_DOWN_EARLY at final stage${isDelivered ? ' — customer soft-banned' : ' (not yet delivered, no soft-ban)'}`);
+              console.log(`[publicity-check] Order ${check.orderId} TAKEN_DOWN_EARLY at final stage — customer soft-banned`);
             }
           } else {
             // Scraper error — retry up to MAX_ATTEMPTS, then give up.
