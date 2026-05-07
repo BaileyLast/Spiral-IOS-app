@@ -11,6 +11,7 @@ import {
   spiralCodes,
   merchantScopedUserMap,
   emailSendFailures,
+  publicityChecks,
   type StoreSettings, 
   type DiscountTier, 
   type Verification,
@@ -30,7 +31,9 @@ import {
   type InsertSpiralCode,
   type InsertMerchantScopedUserMap,
   type EmailSendFailure,
-  type InsertEmailSendFailure
+  type InsertEmailSendFailure,
+  type PublicityCheck,
+  type InsertPublicityCheck,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, inArray, and, lt, isNull, desc } from "drizzle-orm";
@@ -122,6 +125,13 @@ export interface IStorage {
   // Email send failures
   recordEmailSendFailure(failure: InsertEmailSendFailure): Promise<EmailSendFailure>;
   getRecentEmailSendFailures(limit?: number): Promise<EmailSendFailure[]>;
+  // Publicity checks (deferred public-story cross-check)
+  createPublicityCheck(check: InsertPublicityCheck): Promise<PublicityCheck>;
+  getDuePublicityChecks(now: Date): Promise<PublicityCheck[]>;
+  getIncompletePublicityCheckByVerification(verificationId: string): Promise<PublicityCheck | undefined>;
+  recordPublicityCheckAttempt(id: string, opts: { lastError?: string | null; lastResult?: string | null; rescheduleAt?: Date | null; completed?: boolean }): Promise<PublicityCheck>;
+  // Verification status helpers used by publicity check worker
+  markVerificationAwaitingReview(verificationId: string, storyMediaId: string | null): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -849,6 +859,79 @@ export class DatabaseStorage implements IStorage {
       .where(eq(spiralCustomers.id, id))
       .returning();
     return updated;
+  }
+
+  async createPublicityCheck(check: InsertPublicityCheck): Promise<PublicityCheck> {
+    const [created] = await db
+      .insert(publicityChecks)
+      .values(check)
+      .returning();
+    return created;
+  }
+
+  async getIncompletePublicityCheckByVerification(verificationId: string): Promise<PublicityCheck | undefined> {
+    const [row] = await db
+      .select()
+      .from(publicityChecks)
+      .where(
+        and(
+          eq(publicityChecks.verificationId, verificationId),
+          isNull(publicityChecks.completedAt),
+        ),
+      )
+      .limit(1);
+    return row;
+  }
+
+  async getDuePublicityChecks(now: Date): Promise<PublicityCheck[]> {
+    return await db
+      .select()
+      .from(publicityChecks)
+      .where(
+        and(
+          isNull(publicityChecks.completedAt),
+          lt(publicityChecks.scheduledAt, now),
+        ),
+      )
+      .orderBy(publicityChecks.scheduledAt)
+      .limit(50);
+  }
+
+  async recordPublicityCheckAttempt(
+    id: string,
+    opts: { lastError?: string | null; lastResult?: string | null; rescheduleAt?: Date | null; completed?: boolean },
+  ): Promise<PublicityCheck> {
+    const existing = await db.select().from(publicityChecks).where(eq(publicityChecks.id, id));
+    const current = existing[0];
+    const nextAttempts = (current?.attempts ?? 0) + 1;
+    const updateSet: Partial<PublicityCheck> = {
+      attempts: nextAttempts,
+      lastError: opts.lastError ?? null,
+      lastResult: opts.lastResult ?? null,
+    };
+    if (opts.completed) {
+      updateSet.completedAt = new Date();
+    }
+    if (opts.rescheduleAt) {
+      updateSet.scheduledAt = opts.rescheduleAt;
+    }
+    const [updated] = await db
+      .update(publicityChecks)
+      .set(updateSet)
+      .where(eq(publicityChecks.id, id))
+      .returning();
+    return updated;
+  }
+
+  async markVerificationAwaitingReview(verificationId: string, storyMediaId: string | null): Promise<void> {
+    const setData: Record<string, unknown> = { status: "awaiting_review" };
+    if (storyMediaId) {
+      setData.storyMediaId = storyMediaId;
+    }
+    await db
+      .update(verifications)
+      .set(setData)
+      .where(eq(verifications.id, verificationId));
   }
 }
 

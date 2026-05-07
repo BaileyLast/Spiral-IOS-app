@@ -3192,10 +3192,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      // Step 3: Find pending orders for this customer
+      // Step 3: Find orders for this customer that still need verification.
+      // Includes awaiting_review so reposts after a failed publicity check can re-trigger the cross-check.
       const customerOrders = await storage.getOrdersByCustomerId(customerId);
-      const pendingOrders = customerOrders.filter(o => 
-        o.verificationStatus === 'pending' || o.verificationStatus === 'story_detected'
+      const pendingOrders = customerOrders.filter(o =>
+        o.verificationStatus === 'pending' ||
+        o.verificationStatus === 'story_detected' ||
+        o.verificationStatus === 'awaiting_review'
       );
 
       if (pendingOrders.length === 0) {
@@ -3212,42 +3215,291 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`Story mention: Verifying order ${orderToVerify.id} for customer ${customerId}`);
 
-      // If there's an existing verification record, update it
-      if (orderToVerify.verificationId) {
-        await storage.markStoryDetectedAndVerified(orderToVerify.verificationId, storyUrl, senderScopedId);
-      } else {
-        // Create a new verification record and mark it verified
-        const customer = await storage.getSpiralCustomerById(customerId);
-        if (customer) {
-          const verification = await storage.createVerification({
-            orderId: orderToVerify.id,
-            shopperEmail: orderToVerify.shopperEmail,
-            instagramHandle: customer.instagramHandle || '',
-            instagramUserId: customer.instagramUserId || '',
-            followerCount: customer.followerCount || 0,
-            discountAmount: orderToVerify.discountAmount,
-            status: 'verified',
-            storyMediaId: null,
-            storyUrl,
-            senderScopedId,
-          });
-          await storage.updateOrderVerificationId(orderToVerify.id, verification.id);
-        }
+      // Extract Instagram story media id from the webhook URL (asset_id query param) when possible.
+      const storyMediaId = extractStoryMediaIdFromUrl(storyUrl);
+      const webhookReceivedAt = new Date();
+
+      // Defer verification: mark as awaiting_review and schedule a publicity cross-check ~10h out.
+      let verificationId = orderToVerify.verificationId ?? null;
+      const customer = await storage.getSpiralCustomerById(customerId);
+      if (verificationId) {
+        await storage.markStoryDetected(verificationId, storyMediaId || '', storyUrl, senderScopedId);
+        await storage.markVerificationAwaitingReview(verificationId, storyMediaId);
+      } else if (customer) {
+        const verification = await storage.createVerification({
+          orderId: orderToVerify.id,
+          shopperEmail: orderToVerify.shopperEmail,
+          instagramHandle: customer.instagramHandle || '',
+          instagramUserId: customer.instagramUserId || '',
+          followerCount: customer.followerCount || 0,
+          discountAmount: orderToVerify.discountAmount,
+          status: 'awaiting_review',
+          storyMediaId: storyMediaId || null,
+          storyUrl,
+          senderScopedId,
+        });
+        verificationId = verification.id;
+        await storage.updateOrderVerificationId(orderToVerify.id, verification.id);
       }
 
-      // Update order verification status
-      await storage.updateOrderVerificationStatus(orderToVerify.id, 'verified');
+      await storage.updateOrderVerificationStatus(orderToVerify.id, 'awaiting_review');
       await storage.updateOrderWebhookTimestamp(orderToVerify.id);
 
-      console.log(`Story mention: Order ${orderToVerify.id} VERIFIED via story mention`);
+      if (verificationId && customer?.instagramUserId) {
+        // Dedupe: skip if there's already an incomplete check for this verification.
+        const existing = await storage.getIncompletePublicityCheckByVerification(verificationId);
+        if (existing) {
+          console.log(`[publicity-check] Skipping schedule — incomplete check ${existing.id} already exists for verification ${verificationId}`);
+        } else {
+          const scheduledAt = new Date(webhookReceivedAt.getTime() + PUBLICITY_CHECK_DELAY_MS);
+          await storage.createPublicityCheck({
+            verificationId,
+            orderId: orderToVerify.id,
+            customerId,
+            instagramUserId: customer.instagramUserId,
+            senderScopedId,
+            storyMediaId: storyMediaId || null,
+            storyUrl,
+            webhookReceivedAt,
+            scheduledAt,
+          });
+          console.log(`[publicity-check] Scheduled for order ${orderToVerify.id} at ${scheduledAt.toISOString()} (storyMediaId=${storyMediaId || 'none'})`);
+        }
+      } else {
+        console.warn(`[publicity-check] Could not schedule — verificationId=${verificationId} igUserId=${customer?.instagramUserId}`);
+      }
 
-      // Send confirmation DM
-      const discountAmt = parseFloat(orderToVerify.discountAmount || '0');
-      await sendInstagramDM(senderScopedId, 
-        `Your story has been verified! You saved $${discountAmt.toFixed(2)} on your order. Thanks for sharing!`
+      console.log(`Story mention: Order ${orderToVerify.id} marked AWAITING_REVIEW; publicity cross-check scheduled`);
+
+      // Send acknowledgment DM (no discount confirmation yet — that comes after the cross-check passes)
+      await sendInstagramDM(senderScopedId,
+        `Got your Story! We'll confirm your discount once it's been live for a few hours. Stories must be public — Close Friends posts won't count.`
       );
     } catch (error) {
       console.error('Error handling story mention:', error);
+    }
+  }
+
+  // Extract the Instagram story media id from a story_mention webhook URL.
+  // Instagram's CDN URLs include the underlying media id as the `asset_id` query param.
+  function extractStoryMediaIdFromUrl(url: string): string | null {
+    if (!url) return null;
+    try {
+      const parsed = new URL(url);
+      const assetId = parsed.searchParams.get('asset_id');
+      if (assetId && /^\d+$/.test(assetId)) return assetId;
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Deferred public-story cross-check (anti Close Friends).
+  // Constants
+  const PUBLICITY_CHECK_DELAY_MS = 10 * 60 * 60 * 1000;     // 10 hours
+  const PUBLICITY_CHECK_RETRY_MS = 30 * 60 * 1000;          // 30 minutes
+  const PUBLICITY_CHECK_MAX_ATTEMPTS = 3;
+  const PUBLICITY_CHECK_INTERVAL_MS = 5 * 60 * 1000;        // poll every 5 min
+  const PUBLICITY_CHECK_TIMESTAMP_TOLERANCE_MS = 30 * 60 * 1000; // 30 min wiggle vs webhook time
+
+  type PublicityResult =
+    | { kind: 'verified' }
+    | { kind: 'not_public' }
+    | { kind: 'error'; message: string };
+
+  // Hit the RapidAPI Instagram scraper to find out whether the customer's story
+  // is currently visible on the public Story tray.
+  // Strategy:
+  //   - If we have a storyMediaId (extracted from the webhook URL), call /story?id=
+  //     for a direct lookup — cleanest signal, one call.
+  //   - Otherwise fall back to /stories?user_id= and check by timestamp window.
+  async function performPublicityScrape(
+    instagramUserId: string,
+    storyMediaId: string | null,
+    webhookReceivedAt: Date,
+  ): Promise<PublicityResult> {
+    const rapidApiKey = process.env.RAPIDAPI_KEY;
+    if (!rapidApiKey) {
+      return { kind: 'error', message: 'RAPIDAPI_KEY not configured' };
+    }
+    const host = 'instagram-api-fast-reliable-data-scraper.p.rapidapi.com';
+    const headers = {
+      'x-rapidapi-key': rapidApiKey,
+      'x-rapidapi-host': host,
+    };
+
+    try {
+      // Preferred path: direct story lookup by id.
+      if (storyMediaId) {
+        const url = `https://${host}/story?id=${encodeURIComponent(storyMediaId)}`;
+        const res = await fetch(url, { method: 'GET', headers });
+        // Hard "not found" → story is no longer publicly viewable (deleted/Close Friends/expired).
+        if (res.status === 404 || res.status === 410) return { kind: 'not_public' };
+        if (!res.ok) {
+          const text = await res.text();
+          return { kind: 'error', message: `scraper /story status ${res.status}: ${text.slice(0, 200)}` };
+        }
+        const data = (await res.json()) as unknown;
+        if (storyResponseLooksMissing(data)) return { kind: 'not_public' };
+        return { kind: 'verified' };
+      }
+
+      // Fallback: list user's active stories and verify a public story exists in the
+      // expected time window of the original webhook.
+      const listUrl = `https://${host}/stories?user_id=${encodeURIComponent(instagramUserId)}`;
+      const listRes = await fetch(listUrl, { method: 'GET', headers });
+      if (listRes.status === 404) return { kind: 'not_public' };
+      if (!listRes.ok) {
+        const text = await listRes.text();
+        return { kind: 'error', message: `scraper /stories status ${listRes.status}: ${text.slice(0, 200)}` };
+      }
+      const listData = (await listRes.json()) as unknown;
+      const items = extractStoryItems(listData);
+      if (!items || items.length === 0) return { kind: 'not_public' };
+
+      const webhookSec = Math.floor(webhookReceivedAt.getTime() / 1000);
+      const lo = webhookSec - Math.floor(PUBLICITY_CHECK_TIMESTAMP_TOLERANCE_MS / 1000);
+      const hi = webhookSec + Math.floor(PUBLICITY_CHECK_TIMESTAMP_TOLERANCE_MS / 1000);
+      const inWindow = items.some((it) => {
+        const taken = extractTakenAtSec(it);
+        return taken !== null && taken >= lo && taken <= hi;
+      });
+      return inWindow ? { kind: 'verified' } : { kind: 'not_public' };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { kind: 'error', message: msg };
+    }
+  }
+
+  // The /story?id= endpoint may return 200 with a body indicating the story was not found
+  // (some scrapers wrap errors in a 200 envelope). Detect those cases.
+  function storyResponseLooksMissing(data: unknown): boolean {
+    if (!data || typeof data !== 'object') return true;
+    const obj = data as Record<string, unknown>;
+    if (typeof obj.error === 'string' && obj.error.length > 0) return true;
+    if (obj.status === 'error' || obj.status === 'fail') return true;
+    if (obj.message && typeof obj.message === 'string' && /not.*found|private|unavailable|expired/i.test(obj.message)) return true;
+    // If the body is essentially empty or has no media url/id, treat as missing.
+    const hasContent = !!(obj.id || obj.pk || obj.media_id || obj.video_url || obj.image_url ||
+      (obj.user as Record<string, unknown> | undefined)?.username || Array.isArray(obj.items));
+    return !hasContent;
+  }
+
+  function extractStoryItems(data: unknown): Array<Record<string, unknown>> | null {
+    if (!data || typeof data !== 'object') return null;
+    const obj = data as Record<string, unknown>;
+    const candidates: unknown[] = [
+      obj.items, obj.stories, obj.data, obj.results,
+      (obj.reel as Record<string, unknown> | undefined)?.items,
+      (obj.user as Record<string, unknown> | undefined)?.items,
+    ];
+    for (const c of candidates) {
+      if (Array.isArray(c)) return c as Array<Record<string, unknown>>;
+    }
+    return null;
+  }
+
+  function storyIdsMatch(item: Record<string, unknown>, target: string): boolean {
+    const candidates: Array<unknown> = [item.id, item.pk, item.media_id, item.story_id];
+    return candidates.some((c) => {
+      if (c === undefined || c === null) return false;
+      const s = String(c);
+      // Instagram ids sometimes appear as "{pk}_{userid}" — match the pk prefix too.
+      return s === target || s.split('_')[0] === target;
+    });
+  }
+
+  function extractTakenAtSec(item: Record<string, unknown>): number | null {
+    const t = item.taken_at ?? item.timestamp ?? item.created_at;
+    if (typeof t === 'number') return t;
+    if (typeof t === 'string') {
+      const n = Number(t);
+      if (Number.isFinite(n)) return n;
+      const d = Date.parse(t);
+      if (Number.isFinite(d)) return Math.floor(d / 1000);
+    }
+    return null;
+  }
+
+  let publicityCheckBusy = false;
+  async function processPublicityChecks(): Promise<void> {
+    if (publicityCheckBusy) {
+      console.log('[publicity-check] Tick skipped — previous run still in progress');
+      return;
+    }
+    publicityCheckBusy = true;
+    try {
+      const due = await storage.getDuePublicityChecks(new Date());
+      if (due.length === 0) return;
+      console.log(`[publicity-check] Processing ${due.length} due check(s)`);
+
+      for (const check of due) {
+        try {
+          const result = await performPublicityScrape(
+            check.instagramUserId,
+            check.storyMediaId,
+            check.webhookReceivedAt,
+          );
+
+          if (result.kind === 'verified') {
+            // Confirm the verification, mark order verified, send celebration DM.
+            await storage.markVerified(check.verificationId);
+            await storage.updateOrderVerificationStatus(check.orderId, 'verified');
+            await storage.recordPublicityCheckAttempt(check.id, {
+              lastResult: 'verified',
+              completed: true,
+            });
+
+            const order = await storage.getOrderById(check.orderId);
+            const discountAmt = parseFloat(order?.discountAmount || '0');
+            if (check.senderScopedId) {
+              await sendInstagramDM(
+                check.senderScopedId,
+                `Your Story is verified — you saved $${discountAmt.toFixed(2)} on your order. Thanks for sharing!`,
+              );
+            }
+            console.log(`[publicity-check] Order ${check.orderId} VERIFIED after cross-check`);
+          } else if (result.kind === 'not_public') {
+            // Story is gone (deleted/expired) or wasn't public (Close Friends).
+            await storage.recordPublicityCheckAttempt(check.id, {
+              lastResult: 'deleted_or_close_friends',
+              completed: true,
+            });
+            // Order stays in awaiting_review for manual merchant review.
+            if (check.senderScopedId) {
+              await sendInstagramDM(
+                check.senderScopedId,
+                `We couldn't confirm your Story was public when we checked. Stories must be public (not Close Friends) and stay live for at least a few hours. Reach out if you think this is a mistake.`,
+              );
+            }
+            console.log(`[publicity-check] Order ${check.orderId} NOT_PUBLIC — left in awaiting_review`);
+          } else {
+            // Scraper error — retry up to MAX_ATTEMPTS, then give up and leave for manual review.
+            const nextAttemptCount = check.attempts + 1;
+            if (nextAttemptCount < PUBLICITY_CHECK_MAX_ATTEMPTS) {
+              await storage.recordPublicityCheckAttempt(check.id, {
+                lastResult: 'scraper_error',
+                lastError: result.message,
+                rescheduleAt: new Date(Date.now() + PUBLICITY_CHECK_RETRY_MS),
+              });
+              console.warn(`[publicity-check] Order ${check.orderId} scraper error (will retry): ${result.message}`);
+            } else {
+              await storage.recordPublicityCheckAttempt(check.id, {
+                lastResult: 'max_attempts_exceeded',
+                lastError: result.message,
+                completed: true,
+              });
+              console.error(`[publicity-check] Order ${check.orderId} max attempts exceeded: ${result.message}`);
+            }
+          }
+        } catch (err) {
+          console.error(`[publicity-check] Error processing check ${check.id}:`, err);
+        }
+      }
+    } catch (err) {
+      console.error('[publicity-check] Worker tick failed:', err);
+    } finally {
+      publicityCheckBusy = false;
     }
   }
 
@@ -3426,6 +3678,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Start the Instagram connect reminder worker
   setTimeout(() => { void processInstagramReminders(); }, 60 * 1000);
   setInterval(() => { void processInstagramReminders(); }, INSTAGRAM_REMINDER_INTERVAL_MS);
+
+  // Start the deferred publicity-check worker (anti Close Friends / deletion)
+  setTimeout(() => { void processPublicityChecks(); }, 90 * 1000);
+  setInterval(() => { void processPublicityChecks(); }, PUBLICITY_CHECK_INTERVAL_MS);
 
   return httpServer;
 }

@@ -79,6 +79,7 @@ function LineItemRow({ item }: { item: LineItem }) {
 
 function getStatusLabel(order: Order) {
   if (order.verificationStatus === "verified") return "verified";
+  if (order.verificationStatus === "awaiting_review") return "awaiting_review";
   if (order.verificationStatus === "story_detected") return "story_received";
   if (order.status === "delivered") return "awaiting";
   if (order.status === "fulfilled") return "shipped";
@@ -126,8 +127,8 @@ export default function OrderDetail() {
   const steps = [
     { id: "ordered", label: "Order placed", icon: Package, complete: true },
     { id: "shipped", label: "On the way", icon: Clock, complete: status !== "ordered" },
-    { id: "delivered", label: "Delivered", icon: CheckCircle, complete: ["awaiting", "story_received", "verified"].includes(status) },
-    { id: "verified", label: "Story verified", icon: CheckCircle, complete: status === "verified" || status === "story_received" },
+    { id: "delivered", label: "Delivered", icon: CheckCircle, complete: ["awaiting", "story_received", "awaiting_review", "verified"].includes(status) },
+    { id: "verified", label: "Story verified", icon: CheckCircle, complete: status === "verified" },
   ];
 
   return (
@@ -243,24 +244,24 @@ export default function OrderDetail() {
                 <li>Tag the brand using the @ mention sticker</li>
               </ol>
               <p className="text-xs text-amber-600 mt-2">
-                We'll verify your story automatically once you tag the brand
+                We'll confirm your discount once your Story has been live for a few hours. Stories must be public — Close Friends posts won't count.
               </p>
             </div>
           </div>
         )}
 
-        {status === "story_received" && (
+        {(status === "story_received" || status === "awaiting_review") && (
           <div className="p-5 rounded-2xl bg-blue-50 border border-blue-200">
             <div className="flex items-start gap-4">
               <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
-                <CheckCircle className="w-5 h-5 text-blue-600" />
+                <Clock className="w-5 h-5 text-blue-600" />
               </div>
               <div>
-                <h3 className="font-bold text-blue-900">
-                  Story received
+                <h3 className="font-bold text-blue-900" data-testid="text-awaiting-review-heading">
+                  Story received — confirming shortly
                 </h3>
-                <p className="text-sm text-blue-700 mt-1">
-                  We detected your story mention and are processing your verification
+                <p className="text-sm text-blue-700 mt-1" data-testid="text-awaiting-review-body">
+                  We'll confirm your discount once your Story has been live for a few hours. Stories must be public — Close Friends posts won't count.
                 </p>
               </div>
             </div>

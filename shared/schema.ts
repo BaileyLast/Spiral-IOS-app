@@ -29,9 +29,10 @@ export const discountTiers = pgTable("discount_tiers", {
   discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }).notNull(),
 });
 
-// Verification status lifecycle (simplified):
+// Verification status lifecycle:
 // - pending: Order delivered, waiting for customer to post Story tagging merchant
-// - story_detected: Story mention webhook received, matched to order
+// - story_detected: Story mention webhook received, matched to order (legacy/transient)
+// - awaiting_review: Story mention received; deferred public-story cross-check pending or failed (Close Friends / deleted)
 // - verified: Verification complete, discount confirmed
 export const verifications = pgTable("verifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -166,6 +167,28 @@ export const emailSendFailures = pgTable("email_send_failures", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Deferred public-story cross-check (anti Close Friends).
+// Created when a story_mention webhook fires; processed ~10h later by a worker
+// that hits the RapidAPI Instagram scraper to confirm the story is still publicly visible.
+export const publicityChecks = pgTable("publicity_checks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  verificationId: varchar("verification_id").notNull(),
+  orderId: varchar("order_id").notNull(),
+  customerId: varchar("customer_id").notNull(),
+  instagramUserId: text("instagram_user_id").notNull(),
+  senderScopedId: text("sender_scoped_id"),
+  storyMediaId: text("story_media_id"),
+  storyUrl: text("story_url"),
+  webhookReceivedAt: timestamp("webhook_received_at").notNull(),
+  scheduledAt: timestamp("scheduled_at").notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  // Result codes: verified, deleted_or_close_friends, scraper_error, max_attempts_exceeded
+  lastResult: text("last_result"),
+  lastError: text("last_error"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const merchantScopedUserMap = pgTable("merchant_scoped_user_map", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   merchantId: varchar("merchant_id").notNull(),
@@ -206,6 +229,7 @@ export const insertSelectedCollectionSchema = createInsertSchema(selectedCollect
 export const insertSpiralCustomerSchema = createInsertSchema(spiralCustomers).omit({ id: true, createdAt: true, lastLoginAt: true });
 export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true });
 export const insertSpiralCodeSchema = createInsertSchema(spiralCodes).omit({ id: true, createdAt: true, verifiedAt: true });
+export const insertPublicityCheckSchema = createInsertSchema(publicityChecks).omit({ id: true, createdAt: true, completedAt: true, attempts: true, lastResult: true, lastError: true });
 
 export type InsertStoreSettings = z.infer<typeof insertStoreSettingsSchema>;
 export type StoreSettings = typeof storeSettings.$inferSelect;
@@ -231,3 +255,5 @@ export type InsertMerchantScopedUserMap = z.infer<typeof insertMerchantScopedUse
 export type MerchantScopedUserMap = typeof merchantScopedUserMap.$inferSelect;
 export type InsertEmailSendFailure = z.infer<typeof insertEmailSendFailureSchema>;
 export type EmailSendFailure = typeof emailSendFailures.$inferSelect;
+export type InsertPublicityCheck = z.infer<typeof insertPublicityCheckSchema>;
+export type PublicityCheck = typeof publicityChecks.$inferSelect;
