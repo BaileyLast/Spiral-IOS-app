@@ -1712,9 +1712,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Soft-ban gate: persisted accountStatus is the source of truth at checkout.
       // Self-heals in BOTH directions if state drifts vs actual owed orders.
+      // Owed includes (a) delivered+pending/awaiting_review and (b) any not_public/taken_down_early
+      // regardless of delivery status — so a final-fail ban isn't auto-cleared just because the
+      // failing order isn't yet delivered.
+      const owedOrders = await getOwedOrdersForCustomer(customerId);
       if (customer.accountStatus === "soft_banned") {
-        const unverifiedDelivered = await storage.getUnverifiedDeliveredOrdersByCustomerId(customerId);
-        if (unverifiedDelivered.length === 0) {
+        if (owedOrders.length === 0) {
           // Stale soft-ban — no orders are actually owed. Auto-clear and continue eligibility checks.
           await storage.clearCustomerSoftBan(customerId);
           console.log(`[soft-ban] Customer ${customerId} auto-cleared at checkout (stale state, no owed orders)`);
@@ -1724,15 +1727,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             code: "soft_banned",
             softBanned: true,
             softBannedReason: customer.softBannedReason ?? "story_owed",
-            reason: unverifiedDelivered.length <= 1
+            reason: owedOrders.length <= 1
               ? "Post a Story for your previous order to unlock your next discount"
-              : `Post a Story for your ${unverifiedDelivered.length} unverified orders to unlock your next discount`,
-            pendingVerificationCount: unverifiedDelivered.length,
+              : `Post a Story for your ${owedOrders.length} unverified orders to unlock your next discount`,
+            pendingVerificationCount: owedOrders.length,
           });
         }
-      }
-      const unverifiedDelivered = await storage.getUnverifiedDeliveredOrdersByCustomerId(customerId);
-      if (unverifiedDelivered.length > 0) {
+      } else if (owedOrders.length > 0) {
         // Self-heal: state drifted (account active but orders owed). Re-soft-ban now.
         await storage.setCustomerSoftBanned(customerId, "story_owed");
         return res.json({
@@ -1740,10 +1741,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           code: "soft_banned",
           softBanned: true,
           softBannedReason: "story_owed",
-          reason: unverifiedDelivered.length === 1
+          reason: owedOrders.length === 1
             ? "Post a Story for your previous order to unlock your next discount"
-            : `Post a Story for your ${unverifiedDelivered.length} unverified orders to unlock your next discount`,
-          pendingVerificationCount: unverifiedDelivered.length,
+            : `Post a Story for your ${owedOrders.length} unverified orders to unlock your next discount`,
+          pendingVerificationCount: owedOrders.length,
         });
       }
 
@@ -3669,9 +3670,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  // Owed = (delivered AND verification in {pending, awaiting_review, not_public, taken_down_early})
+  // OR (verification in {not_public, taken_down_early} regardless of delivery status — final-fail
+  // and quick-fail debt persist whether or not delivery has happened yet).
+  async function getOwedOrdersForCustomer(customerId: string) {
+    const all = await storage.getOrdersByCustomerId(customerId);
+    return all.filter((o) => {
+      const v = o.verificationStatus;
+      if (v === 'not_public' || v === 'taken_down_early') return true;
+      if (o.status === 'delivered' && (v === 'pending' || v === 'awaiting_review')) return true;
+      return false;
+    });
+  }
+
   // Auto-unban: clears soft-ban iff shopper has zero remaining owed orders.
   async function maybeAutoUnbanCustomer(customerId: string): Promise<void> {
-    const owed = await storage.getUnverifiedDeliveredOrdersByCustomerId(customerId);
+    const owed = await getOwedOrdersForCustomer(customerId);
     if (owed.length === 0) {
       await storage.clearCustomerSoftBan(customerId);
       console.log(`[soft-ban] Customer ${customerId} auto-unbanned (no owed orders)`);
