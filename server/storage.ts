@@ -36,7 +36,7 @@ import {
   type InsertPublicityCheck,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, inArray, and, lt, isNull, desc } from "drizzle-orm";
+import { eq, inArray, and, lt, isNull, desc, sql } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 export interface IStorage {
@@ -109,7 +109,8 @@ export interface IStorage {
   getMerchantScopedUserMapByCustomer(merchantId: string, customerId: string): Promise<MerchantScopedUserMap | undefined>;
   // Negative cache: record that a scoped ID is confirmed NOT a Spiral customer
   // so future story_mentions from this sender exit in a single indexed lookup.
-  recordNonSpiralScopedId(merchantId: string, senderScopedId: string): Promise<void>;
+  recordNonSpiralScopedId(merchantId: string, senderScopedId: string, instagramHandle?: string | null): Promise<void>;
+  clearNegativeCacheForHandle(instagramHandle: string): Promise<number>;
   // Touch lastSeenAt and refresh the cached display handle on repeat sightings.
   touchMerchantScopedUserMap(id: string, instagramHandle?: string | null): Promise<void>;
   // Refresh the customer's stored handle (display only) when Instagram returns
@@ -820,7 +821,13 @@ export class DatabaseStorage implements IStorage {
   // (race with createMerchantScopedUserMap, or a customer connected IG between
   // our Profile API call and this insert), we leave the positive row intact —
   // never downgrade positive → negative.
-  async recordNonSpiralScopedId(merchantId: string, senderScopedId: string): Promise<void> {
+  async recordNonSpiralScopedId(merchantId: string, senderScopedId: string, instagramHandle?: string | null): Promise<void> {
+    // Normalize identically to clearNegativeCacheForHandle so the lookup
+    // there always matches what we stored here, regardless of upstream
+    // formatting (leading '@', whitespace, etc.).
+    const normalizedHandle = instagramHandle
+      ? instagramHandle.replace(/^@/, '').trim() || null
+      : null;
     await db
       .insert(merchantScopedUserMap)
       .values({
@@ -828,12 +835,38 @@ export class DatabaseStorage implements IStorage {
         senderScopedId,
         spiralCustomerId: null,
         instagramUserId: null,
-        instagramHandle: null,
+        // Store the resolved handle on the negative row so we can invalidate it
+        // later if/when this Instagram account becomes a Spiral customer (see
+        // clearNegativeCacheForHandle).
+        instagramHandle: normalizedHandle,
         isSpiral: false,
       })
       .onConflictDoNothing({
         target: [merchantScopedUserMap.merchantId, merchantScopedUserMap.senderScopedId],
       });
+  }
+
+  // Wipe every negative-cache row pinned to this Instagram handle (case-
+  // insensitive). Called the moment a customer completes Spiral-code Instagram
+  // verification so any "not a Spiral customer" rows previously recorded for
+  // them under any merchant are removed. Future story_mentions from those
+  // scoped IDs will then re-resolve and be upgraded to positive mappings via
+  // createMerchantScopedUserMap. Positive rows (isSpiral=true) are never
+  // touched. Returns the number of rows deleted (for logging only).
+  async clearNegativeCacheForHandle(instagramHandle: string): Promise<number> {
+    if (!instagramHandle) return 0;
+    const handle = instagramHandle.replace(/^@/, '').trim();
+    if (!handle) return 0;
+    const deleted = await db
+      .delete(merchantScopedUserMap)
+      .where(
+        and(
+          eq(merchantScopedUserMap.isSpiral, false),
+          sql`lower(${merchantScopedUserMap.instagramHandle}) = lower(${handle})`,
+        )
+      )
+      .returning({ id: merchantScopedUserMap.id });
+    return deleted.length;
   }
 
   // Bump lastSeenAt (and optionally refresh the cached display handle) when we

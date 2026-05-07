@@ -3077,6 +3077,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   // Verify the code and link Instagram
                   await storage.verifySpiralCode(pendingValidMatchedCode, senderInstagramId, instagramHandle);
 
+                  // This Instagram account is now a Spiral customer. Wipe any
+                  // negative-cache rows previously written for this handle
+                  // under any merchant so their next Story mention resolves
+                  // correctly instead of short-circuiting on a stale "not a
+                  // Spiral customer" row.
+                  try {
+                    const cleared = await storage.clearNegativeCacheForHandle(instagramHandle);
+                    if (cleared > 0) {
+                      console.log(`Cleared ${cleared} stale negative-cache row(s) for newly-verified @${instagramHandle}`);
+                    }
+                  } catch (clearErr) {
+                    console.error('Failed to clear negative cache after Spiral verification:', clearErr);
+                  }
+
                   // Update customer's Instagram info
                   await storage.updateSpiralCustomerInstagram(pendingValidCode.customerId, {
                     instagramHandle,
@@ -3310,7 +3324,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Confirmed non-Spiral shopper — write a negative-cache row so all
             // future story_mentions from this scoped ID exit in one indexed
             // lookup with no Profile API call.
-            await storage.recordNonSpiralScopedId(settings.id, senderScopedId);
+            await storage.recordNonSpiralScopedId(settings.id, senderScopedId, resolvedUsername);
             console.log(`Story mention: No Spiral customer for @${resolvedUsername} — negative-cached scoped ID ${senderScopedId}`);
           }
         }
