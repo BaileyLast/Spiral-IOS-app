@@ -112,6 +112,13 @@ export const spiralCustomers = pgTable("spiral_customers", {
   marketingEmailOptOutAt: timestamp("marketing_email_opt_out_at"),
   unsubscribeToken: text("unsubscribe_token").unique(),
   iosPushToken: text("ios_push_token"),
+  // Soft-ban model: blocks new Spiral discounts at checkout when shopper owes a Story.
+  // 'active'      — eligible for discounts
+  // 'soft_banned' — has at least one delivered order in pending/awaiting_review/not_public/taken_down_early
+  // Auto-unban happens the moment any owed order moves to quick_verified or verified.
+  accountStatus: text("account_status").notNull().default("active"),
+  softBannedReason: text("soft_banned_reason"),
+  softBannedAt: timestamp("soft_banned_at"),
 });
 
 export const orders = pgTable("orders", {

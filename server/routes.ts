@@ -1657,12 +1657,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Lockout: shopper must have zero unverified delivered orders
-      const unverifiedDelivered = await storage.getUnverifiedDeliveredOrdersByCustomerId(customerId);
-      if (unverifiedDelivered.length > 0) {
+      // Soft-ban gate: persisted accountStatus is the source of truth at checkout.
+      // (Order-level lockout retained as belt-and-suspenders in case of stale state.)
+      if (customer.accountStatus === "soft_banned") {
+        const unverifiedDelivered = await storage.getUnverifiedDeliveredOrdersByCustomerId(customerId);
         return res.json({
           eligible: false,
-          code: "unverified_orders",
+          code: "soft_banned",
+          softBanned: true,
+          softBannedReason: customer.softBannedReason ?? "story_owed",
+          reason: unverifiedDelivered.length <= 1
+            ? "Post a Story for your previous order to unlock your next discount"
+            : `Post a Story for your ${unverifiedDelivered.length} unverified orders to unlock your next discount`,
+          pendingVerificationCount: unverifiedDelivered.length,
+        });
+      }
+      const unverifiedDelivered = await storage.getUnverifiedDeliveredOrdersByCustomerId(customerId);
+      if (unverifiedDelivered.length > 0) {
+        // Self-heal: state drifted (account active but orders owed). Re-soft-ban now.
+        await storage.setCustomerSoftBanned(customerId, "story_owed");
+        return res.json({
+          eligible: false,
+          code: "soft_banned",
+          softBanned: true,
+          softBannedReason: "story_owed",
           reason: unverifiedDelivered.length === 1
             ? "Post a Story for your previous order to unlock your next discount"
             : `Post a Story for your ${unverifiedDelivered.length} unverified orders to unlock your next discount`,
@@ -2130,6 +2148,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         dateOfBirth: customer.dateOfBirth,
         address: customer.address,
         country: customer.country,
+        accountStatus: customer.accountStatus,
+        softBannedReason: customer.softBannedReason,
       });
     } catch (error) {
       console.error("Get customer profile error:", error);
@@ -3506,6 +3526,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Quick check passed: shopper is in good standing. Auto-unbans them at checkout.
               // No push (success is silent per spec). Order shows green "Confirmed" tick in-app.
               await storage.updateOrderVerificationStatus(check.orderId, 'quick_verified');
+              await maybeAutoUnbanCustomer(check.customerId);
               console.log(`[publicity-check] Order ${check.orderId} QUICK_VERIFIED — discount unlocked`);
             } else {
               // Final stage passed — confirm the verification.
@@ -3526,13 +3547,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 completed: true,
               });
               await storage.updateOrderVerificationStatus(check.orderId, 'not_public');
+              await storage.setCustomerSoftBanned(check.customerId, 'not_public');
               // Push (fails only). Copy never threatens the existing discount — only future access.
               await sendIosPushToCustomer(
                 check.customerId,
                 'Story not public',
                 `We couldn't see your Story. Repost it publicly — Close Friends doesn't count — to unlock your next Spiral discount.`,
               );
-              console.log(`[publicity-check] Order ${check.orderId} NOT_PUBLIC at quick stage`);
+              console.log(`[publicity-check] Order ${check.orderId} NOT_PUBLIC at quick stage — customer soft-banned`);
             } else {
               // Story passed quick check but is gone at the 10h mark — taken down early.
               await storage.recordPublicityCheckAttempt(check.id, {
@@ -3540,12 +3562,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 completed: true,
               });
               await storage.updateOrderVerificationStatus(check.orderId, 'taken_down_early');
+              await storage.setCustomerSoftBanned(check.customerId, 'taken_down_early');
               await sendIosPushToCustomer(
                 check.customerId,
                 'Story came down too early',
                 `Spiral Stories need to stay up for 24 hours. Repost yours to unlock your next discount.`,
               );
-              console.log(`[publicity-check] Order ${check.orderId} TAKEN_DOWN_EARLY at final stage`);
+              console.log(`[publicity-check] Order ${check.orderId} TAKEN_DOWN_EARLY at final stage — customer soft-banned`);
             }
           } else {
             // Scraper error — retry up to MAX_ATTEMPTS, then give up.
@@ -3580,26 +3603,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  // Auto-unban: clears soft-ban iff shopper has zero remaining owed orders.
+  async function maybeAutoUnbanCustomer(customerId: string): Promise<void> {
+    const owed = await storage.getUnverifiedDeliveredOrdersByCustomerId(customerId);
+    if (owed.length === 0) {
+      await storage.clearCustomerSoftBan(customerId);
+      console.log(`[soft-ban] Customer ${customerId} auto-unbanned (no owed orders)`);
+    }
+  }
+
+  // Mark an order delivered. Soft-bans the customer (since they now owe a Story) and fires
+  // a single delivery reminder push. Idempotent — safe to call multiple times.
+  async function transitionOrderToDelivered(orderId: string): Promise<void> {
+    const existing = await storage.getOrderById(orderId);
+    if (!existing) {
+      console.warn(`[delivery] Order ${orderId} not found`);
+      return;
+    }
+    if (existing.status !== "delivered") {
+      await storage.markOrderDelivered(orderId);
+    }
+    if (existing.spiralCustomerId) {
+      // Lock at checkout until they post.
+      await storage.setCustomerSoftBanned(existing.spiralCustomerId, "delivery_pending");
+      // Reminder push (fails/reminders only). Copy avoids threatening the existing discount.
+      await sendIosPushToCustomer(
+        existing.spiralCustomerId,
+        "Time to post your Story",
+        "Your order's arrived. Post a Story tagging the brand to unlock your next Spiral discount.",
+      );
+    }
+    console.log(`[delivery] Order ${orderId} marked delivered`);
+  }
+
+  // Internal admin endpoint: mark an order delivered (called by ops tooling or future
+  // Shopify fulfillment_events.create webhook for `delivered` events).
+  app.post("/api/internal/orders/:id/mark-delivered", async (req, res) => {
+    try {
+      const internalKey = req.header("x-spiral-internal-key");
+      if (!internalKey || internalKey !== process.env.SPIRAL_INTERNAL_KEY) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      await transitionOrderToDelivered(req.params.id);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("[delivery] mark-delivered failed:", err);
+      res.status(500).json({ error: "Failed to mark delivered" });
+    }
+  });
+
   // iOS push notification helpers.
   // Used ONLY for failure/reminder notifications — never for successful verifications (per spec).
   // Copy must NEVER threaten the existing discount on the order being notified about; only
   // mention impact on FUTURE Spiral discounts.
-  // APNs SDK integration (e.g. node-apn) is not yet wired up. When APNS_KEY_ID, APNS_TEAM_ID,
-  // APNS_PRIVATE_KEY, and APNS_BUNDLE_ID secrets are present, this should send via APNs.
-  // Until then, we log the intended push so it's visible in dev and prod logs.
+  // APNs is wired via @parse/node-apn. The provider is lazily built on first send so that
+  // missing credentials in dev simply fall back to log-only mode without crashing the server.
+  let apnsProvider: any | null = null;
+  let apnsProviderInitFailed = false;
+  function getApnsProvider(): any | null {
+    if (apnsProvider || apnsProviderInitFailed) return apnsProvider;
+    const keyId = process.env.APNS_KEY_ID;
+    const teamId = process.env.APNS_TEAM_ID;
+    const key = process.env.APNS_PRIVATE_KEY;
+    if (!keyId || !teamId || !key) return null;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const apn = require('@parse/node-apn');
+      apnsProvider = new apn.Provider({
+        token: { key, keyId, teamId },
+        production: process.env.NODE_ENV === 'production',
+      });
+      console.log('[PUSH] APNs provider initialized');
+      return apnsProvider;
+    } catch (err) {
+      apnsProviderInitFailed = true;
+      console.error('[PUSH] Failed to initialize APNs provider:', err);
+      return null;
+    }
+  }
+
   async function sendIosPush(token: string, title: string, body: string): Promise<boolean> {
     try {
-      const apnsConfigured =
-        !!process.env.APNS_KEY_ID &&
-        !!process.env.APNS_TEAM_ID &&
-        !!process.env.APNS_PRIVATE_KEY &&
-        !!process.env.APNS_BUNDLE_ID;
-      if (!apnsConfigured) {
-        console.log(`[PUSH] (stub, APNs not configured) → token=${token.slice(0, 8)}… "${title}" — ${body}`);
+      const bundleId = process.env.APNS_BUNDLE_ID;
+      const provider = getApnsProvider();
+      if (!provider || !bundleId) {
+        console.log(`[PUSH] (log-only, APNs not configured) → token=${token.slice(0, 8)}… "${title}" — ${body}`);
         return true;
       }
-      // TODO: wire up node-apn here once APNs credentials are in place.
-      console.log(`[PUSH] → token=${token.slice(0, 8)}… "${title}" — ${body}`);
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const apn = require('@parse/node-apn');
+      const note = new apn.Notification();
+      note.alert = { title, body };
+      note.topic = bundleId;
+      note.sound = 'default';
+      note.contentAvailable = false;
+      const result = await provider.send(note, token);
+      if (result.failed && result.failed.length > 0) {
+        console.error(`[PUSH] APNs send failed:`, result.failed[0]?.response || result.failed[0]);
+        return false;
+      }
+      console.log(`[PUSH] APNs sent → token=${token.slice(0, 8)}… "${title}"`);
       return true;
     } catch (err) {
       console.error('[PUSH] send failed:', err);

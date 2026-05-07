@@ -44,6 +44,8 @@ interface CustomerProfile {
   instagramProfilePicture?: string;
   instagramAccountType?: string;
   followerCount?: number;
+  accountStatus?: string;
+  softBannedReason?: string | null;
 }
 
 function formatFollowerCount(count: number): string {
@@ -74,6 +76,7 @@ export default function CustomerHome() {
   const recentOrders = orders.slice(0, 3);
   const pendingCount = stats?.pendingVerificationCount ?? 0;
   const pendingOrders = stats?.pendingOrders ?? [];
+  const isSoftBanned = profile?.accountStatus === "soft_banned";
 
   return (
     <div className="min-h-screen safe-top bg-white">
@@ -155,31 +158,33 @@ export default function CustomerHome() {
           </div>
         ) : null}
 
-        {pendingCount > 0 && (
-          <div className="p-5 rounded-2xl bg-amber-50 border border-amber-200" data-testid="card-lockout">
+        {isSoftBanned && (
+          <div className="p-5 rounded-2xl bg-orange-50 border border-orange-200" data-testid="banner-soft-banned">
             <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
-                <Lock className="w-5 h-5 text-amber-600" />
+              <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
+                <Lock className="w-5 h-5 text-orange-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-amber-900" data-testid="text-lockout-headline">
-                  Your next Spiral discount is locked
+                <p className="font-semibold text-orange-900" data-testid="text-soft-ban-heading">
+                  Your next discount is on hold
                 </p>
-                <p className="text-sm text-amber-700 mt-1">
-                  Post a Story for {pendingCount === 1 ? "your previous order" : `your ${pendingCount} unverified orders`} to unlock it.
+                <p className="text-sm text-orange-700 mt-1" data-testid="text-soft-ban-body">
+                  {pendingCount > 1
+                    ? `Post a Story tagging the brand for your ${pendingCount} pending orders to unlock your next Spiral discount.`
+                    : "Post a Story tagging the brand for your pending order to unlock your next Spiral discount."}
                 </p>
                 {pendingOrders.length > 0 && (
                   <div className="mt-3 space-y-1.5">
                     {pendingOrders.map((o) => (
                       <Link key={o.id} href={`/orders/${o.id}`}>
                         <div
-                          className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white border border-amber-200 hover-elevate cursor-pointer"
+                          className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white border border-orange-200 hover-elevate cursor-pointer"
                           data-testid={`link-pending-order-${o.id}`}
                         >
-                          <span className="text-sm font-medium text-amber-900 truncate">
+                          <span className="text-sm font-medium text-orange-900 truncate">
                             {o.storeName || `Order #${o.shopifyOrderId.slice(-6)}`}
                           </span>
-                          <ChevronRight className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                          <ChevronRight className="w-4 h-4 text-orange-500 flex-shrink-0" />
                         </div>
                       </Link>
                     ))}

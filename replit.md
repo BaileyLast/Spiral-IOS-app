@@ -126,15 +126,21 @@ Preferred communication style: Simple, everyday language.
 6. **taken_down_early**: Final check failed (Story disappeared <24h). Locks future discount until shopper reposts.
 
 ### Soft-Ban Model
-- A shopper is "soft-banned" (blocked from new Spiral discounts at checkout) when they have any delivered order in `pending`, `awaiting_review`, `not_public`, or `taken_down_early`. No grace period.
-- Auto-unban happens the moment any owed order moves to `quick_verified` or `verified`.
-- Reposting an Instagram Story tagging the merchant re-triggers verification on `not_public`/`taken_down_early` orders.
+- Persisted on `spiral_customers` via `accountStatus` (`'active'` | `'soft_banned'`), `softBannedReason`, `softBannedAt`.
+- A shopper is soft-banned (blocked from new Spiral discounts at checkout) when they have any delivered order in `pending`, `awaiting_review`, `not_public`, or `taken_down_early`. No grace period.
+- Set on: delivery (`delivery_pending`), quick-check fail (`not_public`), final-check fail (`taken_down_early`).
+- Cleared automatically by `maybeAutoUnbanCustomer` whenever no owed orders remain (i.e. after `quick_verified` or `verified`).
+- `/api/checkout/calculate-discount` gates on `accountStatus === 'soft_banned'` and returns `{ code: "soft_banned", softBanned: true, softBannedReason }`. Self-heals if state ever drifts out of sync with order state.
+- Reposting an Instagram Story tagging the merchant re-triggers verification on `not_public`/`taken_down_early` orders, which then auto-unbans on quick pass.
+- Customer surfaces: orange "Your next discount is on hold" banner shown on Home and Discounts pages whenever `accountStatus === 'soft_banned'`.
 
 ### iOS Push Notifications
 - Used **only** for failures and reminders — **never** for successful verifications. Successes are surfaced in-app.
 - Push copy never threatens the discount on the order being notified about; only mentions impact on FUTURE discounts.
-- Required secrets (when ready to go live with APNs): `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY`, `APNS_BUNDLE_ID`. Until configured, pushes are logged with `[PUSH]` prefix.
+- Wired via `@parse/node-apn`. APNs provider is built lazily on first send; if `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY`, or `APNS_BUNDLE_ID` is missing, pushes fall back to log-only mode (`[PUSH] (log-only, …)`) without crashing.
+- Push triggers: delivery reminder (when an order transitions to `delivered`), quick-check fail (`not_public`), final-check fail (`taken_down_early`).
 - Endpoint: `POST /api/customer/push-token` with `{ token: string | null }` — call on app launch and on logout (with null).
+- Internal endpoint: `POST /api/internal/orders/:id/mark-delivered` (header `x-spiral-internal-key`) transitions an order to `delivered`, soft-bans the customer, and fires the reminder push.
 
 ### In-App Status (Replaces Order/Story DMs)
 All order/Story progress is shown live in the app. The five outbound DMs that used to ack story-received, celebrate verification, or warn about Close Friends / early takedown have been removed. Spiral-code account-linking DMs are unchanged.

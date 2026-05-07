@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { ShoppingBag, ChevronRight, CheckCircle2, Clock, Store } from "lucide-react";
+import { ShoppingBag, ChevronRight, CheckCircle2, Clock, Store, Lock } from "lucide-react";
 import type { Order } from "@shared/schema";
 
 export interface LineItem {
@@ -306,14 +306,29 @@ function SkeletonCard() {
   );
 }
 
+interface MeResponse {
+  id: string;
+  email: string;
+  accountStatus?: string;
+  softBannedReason?: string | null;
+}
+
 export default function Orders() {
   const { data: orders = [], isLoading } = useQuery<Order[]>({
     queryKey: ["/api/customer/orders"],
+  });
+  const { data: me } = useQuery<MeResponse>({
+    queryKey: ["/api/customer/me"],
   });
 
   const activeOrders = orders.filter((o) => !isCompleted(o));
   const historyOrders = orders.filter((o) => isCompleted(o));
   const hasRealOrders = orders.length > 0;
+  const isSoftBanned = me?.accountStatus === "soft_banned";
+  const owedCount = orders.filter((o) => {
+    const s = o.verificationStatus;
+    return o.status === "delivered" && (s === "pending" || s === "awaiting_review" || s === "not_public" || s === "taken_down_early");
+  }).length;
 
   return (
     <div className="min-h-screen safe-top bg-white">
@@ -325,6 +340,26 @@ export default function Orders() {
       </header>
 
       <main className="px-6 pb-8 space-y-6">
+        {isSoftBanned && (
+          <div
+            className="p-4 rounded-2xl bg-orange-50 border border-orange-200 flex items-start gap-3"
+            data-testid="banner-soft-banned"
+          >
+            <div className="w-9 h-9 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
+              <Lock className="w-4 h-4 text-orange-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-orange-900 text-sm" data-testid="text-soft-ban-heading">
+                Your next discount is on hold
+              </p>
+              <p className="text-xs text-orange-700 mt-0.5" data-testid="text-soft-ban-body">
+                {owedCount > 1
+                  ? `Post a Story tagging the brand for your ${owedCount} pending orders to unlock your next Spiral discount.`
+                  : "Post a Story tagging the brand for your pending order to unlock your next Spiral discount."}
+              </p>
+            </div>
+          </div>
+        )}
         {isLoading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => <SkeletonCard key={i} />)}

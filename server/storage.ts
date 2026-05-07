@@ -135,6 +135,11 @@ export interface IStorage {
   markVerificationAwaitingReview(verificationId: string, storyMediaId: string | null): Promise<void>;
   // iOS push token registration (for fail/reminder notifications only — never used for success)
   updateSpiralCustomerPushToken(id: string, token: string | null): Promise<void>;
+  // Soft-ban writes. Reason is a short machine-tag (e.g. 'not_public','taken_down_early','delivery_pending').
+  setCustomerSoftBanned(id: string, reason: string): Promise<void>;
+  clearCustomerSoftBan(id: string): Promise<void>;
+  // Mark an order's status as 'delivered' (transitions order.status, sets deliveredAt if column exists).
+  markOrderDelivered(orderId: string): Promise<Order>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -613,6 +618,37 @@ export class DatabaseStorage implements IStorage {
       .update(spiralCustomers)
       .set({ iosPushToken: token })
       .where(eq(spiralCustomers.id, id));
+  }
+
+  async setCustomerSoftBanned(id: string, reason: string): Promise<void> {
+    await db
+      .update(spiralCustomers)
+      .set({
+        accountStatus: "soft_banned",
+        softBannedReason: reason,
+        softBannedAt: new Date(),
+      })
+      .where(eq(spiralCustomers.id, id));
+  }
+
+  async clearCustomerSoftBan(id: string): Promise<void> {
+    await db
+      .update(spiralCustomers)
+      .set({
+        accountStatus: "active",
+        softBannedReason: null,
+        softBannedAt: null,
+      })
+      .where(eq(spiralCustomers.id, id));
+  }
+
+  async markOrderDelivered(orderId: string): Promise<Order> {
+    const [updated] = await db
+      .update(orders)
+      .set({ status: "delivered" })
+      .where(eq(orders.id, orderId))
+      .returning();
+    return updated;
   }
 
   async updateSpiralCustomerEmailVerified(id: string, verified: boolean): Promise<SpiralCustomer> {
