@@ -37,6 +37,12 @@ export default function Profile() {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
+      // Clear push token server-side BEFORE logout so we don't keep pushing to a logged-out device.
+      try {
+        await apiRequest("POST", "/api/customer/push-token", { token: null });
+      } catch (err) {
+        console.warn("[push-token] clear on logout failed", err);
+      }
       await apiRequest("POST", "/api/customer/logout");
     },
     onSuccess: () => {

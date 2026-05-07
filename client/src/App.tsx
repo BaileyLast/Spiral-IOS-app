@@ -1,5 +1,6 @@
+import { useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
-import { queryClient } from "./lib/queryClient";
+import { queryClient, apiRequest } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -101,10 +102,39 @@ function AppContent() {
   );
 }
 
+// Registers the iOS APNs device token with the backend on app launch. The native iOS shell
+// is expected to expose `window.spiralPushToken` (set before the WebView loads) and/or to
+// invoke `window.spiralRegisterPushToken(token)` after permission is granted. Web-only sessions
+// quietly no-op. The companion logout flow (Profile.tsx) clears the token by POSTing { token: null }.
+function PushTokenRegistrar() {
+  useEffect(() => {
+    const w = window as unknown as {
+      spiralPushToken?: string | null;
+      spiralRegisterPushToken?: (token: string | null) => void;
+    };
+    const send = (token: string | null) => {
+      apiRequest("POST", "/api/customer/push-token", { token }).catch((err) => {
+        console.warn("[push-token] register failed", err);
+      });
+    };
+    if (typeof w.spiralPushToken === "string" && w.spiralPushToken.length > 0) {
+      send(w.spiralPushToken);
+    }
+    w.spiralRegisterPushToken = send;
+    return () => {
+      if (w.spiralRegisterPushToken === send) {
+        w.spiralRegisterPushToken = undefined;
+      }
+    };
+  }, []);
+  return null;
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        <PushTokenRegistrar />
         <AppContent />
         <Toaster />
       </TooltipProvider>
