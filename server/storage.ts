@@ -36,7 +36,7 @@ import {
   type InsertPublicityCheck,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, inArray, and, or, lt, isNull, desc, sql } from "drizzle-orm";
+import { eq, inArray, and, or, lt, isNull, desc, sql, type SQL } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 export interface IStorage {
@@ -866,7 +866,7 @@ export class DatabaseStorage implements IStorage {
     instagramUserId?: string | null;
     instagramHandle?: string | null;
   }): Promise<number> {
-    const conditions = [] as any[];
+    const conditions: SQL[] = [];
 
     if (identity.senderScopedId) {
       conditions.push(eq(merchantScopedUserMap.senderScopedId, identity.senderScopedId));
@@ -883,12 +883,13 @@ export class DatabaseStorage implements IStorage {
 
     if (conditions.length === 0) return 0;
 
+    const matchAnyKey = conditions.length === 1 ? conditions[0] : or(...conditions);
     const deleted = await db
       .delete(merchantScopedUserMap)
       .where(
         and(
           eq(merchantScopedUserMap.isSpiral, false),
-          conditions.length === 1 ? conditions[0] : or(...conditions),
+          matchAnyKey,
         )
       )
       .returning({ id: merchantScopedUserMap.id });
