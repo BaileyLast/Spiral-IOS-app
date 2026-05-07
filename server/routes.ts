@@ -1673,6 +1673,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         lastName: customer.lastName,
         instagramHandle: customer.instagramHandle ? `@${customer.instagramHandle}` : null,
         instagramUserId: customer.instagramUserId,
+        instagramGlobalUserId: customer.instagramGlobalUserId ?? null,
         followerCount: customer.followerCount || 0,
       });
     } catch (error) {
@@ -3867,6 +3868,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[delivery] Order ${orderId} marked delivered — no reminder (verification=${v})`);
     }
   }
+
+  // Internal endpoint: fetch a customer profile by ID. Called server-to-server by the
+  // merchant-dashboard Repl during order webhook handling so it can mirror the
+  // customer's Instagram identity (incl. the global pk) into its own DB.
+  // Guarded by the shared SPIRAL_INTERNAL_KEY header — never expose this without it.
+  app.get("/api/customers/:id", async (req, res) => {
+    try {
+      const internalKey = req.header("x-spiral-internal-key");
+      if (!internalKey || internalKey !== process.env.SPIRAL_INTERNAL_KEY) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      const customer = await storage.getSpiralCustomerById(req.params.id);
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+      res.json({
+        email: customer.email,
+        instagramHandle: customer.instagramHandle ?? null,
+        instagramUserId: customer.instagramUserId ?? null,
+        instagramGlobalUserId: customer.instagramGlobalUserId ?? null,
+        followerCount: customer.followerCount ?? 0,
+      });
+    } catch (err) {
+      console.error("[internal] GET /api/customers/:id failed:", err);
+      res.status(500).json({ error: "Failed to fetch customer" });
+    }
+  });
 
   // Internal admin endpoint: mark an order delivered (called by ops tooling or future
   // Shopify fulfillment_events.create webhook for `delivered` events).
