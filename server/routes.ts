@@ -3710,23 +3710,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return;
     }
     await storage.markOrderDelivered(orderId);
-    const owedStates = new Set(["pending", "awaiting_review", "not_public", "taken_down_early"]);
-    const orderIsOwed = owedStates.has(existing.verificationStatus);
-    if (existing.spiralCustomerId && orderIsOwed) {
-      // Story still owed for this order — lock at checkout until they post.
+    if (!existing.spiralCustomerId) {
+      console.log(`[delivery] Order ${orderId} marked delivered (no spiral customer linked)`);
+      return;
+    }
+    // Delivery reminder fires ONLY when quick check has not yet passed for this order
+    // (i.e. pending or awaiting_review). taken_down_early already implies a quick pass
+    // followed by a final-fail, and quick_verified/verified are good-standing — none of
+    // those should trigger a delivery reminder or overwrite an existing soft-ban reason.
+    const reminderEligible = existing.verificationStatus === 'pending'
+      || existing.verificationStatus === 'awaiting_review';
+    if (reminderEligible) {
+      // Story still owed for this order — lock at checkout until they post. Safe to set
+      // because this branch only runs when verification is pending/awaiting_review, so we
+      // can't be downgrading a stricter taken_down_early reason here.
       await storage.setCustomerSoftBanned(existing.spiralCustomerId, "delivery_pending");
-      // Reminder push (fails/reminders only). Copy avoids threatening the existing discount.
       await sendIosPushToCustomer(
         existing.spiralCustomerId,
         "Time to post your Story",
         "Your order's arrived. Post a Story tagging the brand to unlock your next Spiral discount.",
       );
-      console.log(`[delivery] Order ${orderId} marked delivered — customer soft-banned (story owed)`);
-    } else if (existing.spiralCustomerId) {
-      // Already quick_verified or verified for this order — no soft-ban, no reminder push.
-      console.log(`[delivery] Order ${orderId} marked delivered — customer already in good standing (${existing.verificationStatus})`);
+      console.log(`[delivery] Order ${orderId} marked delivered — customer soft-banned (story owed), reminder push sent`);
     } else {
-      console.log(`[delivery] Order ${orderId} marked delivered (no spiral customer linked)`);
+      // not_public / taken_down_early / quick_verified / verified — no reminder push, no
+      // reason overwrite. Existing soft-ban (e.g. from final-fail) stays intact.
+      console.log(`[delivery] Order ${orderId} marked delivered — no reminder (verification=${existing.verificationStatus})`);
     }
   }
 
