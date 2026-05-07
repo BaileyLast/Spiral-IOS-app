@@ -3670,15 +3670,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
-  // Owed = (delivered AND verification in {pending, awaiting_review, not_public, taken_down_early})
-  // OR (verification in {not_public, taken_down_early} regardless of delivery status — final-fail
-  // and quick-fail debt persist whether or not delivery has happened yet).
+  // Owed = (delivered AND verification in {pending, awaiting_review, not_public})
+  // OR (verification === 'taken_down_early' regardless of delivery status — final-fail debt
+  // is independent of delivery; quick-fail (not_public) only counts once delivered, since a
+  // shopper hasn't yet "owed" anything before delivery).
   async function getOwedOrdersForCustomer(customerId: string) {
     const all = await storage.getOrdersByCustomerId(customerId);
     return all.filter((o) => {
       const v = o.verificationStatus;
-      if (v === 'not_public' || v === 'taken_down_early') return true;
-      if (o.status === 'delivered' && (v === 'pending' || v === 'awaiting_review')) return true;
+      if (v === 'taken_down_early') return true;
+      if (o.status === 'delivered' && (v === 'pending' || v === 'awaiting_review' || v === 'not_public')) return true;
       return false;
     });
   }

@@ -325,13 +325,13 @@ export default function Orders() {
   const historyOrders = orders.filter((o) => isCompleted(o));
   const hasRealOrders = orders.length > 0;
   const isSoftBanned = me?.accountStatus === "soft_banned";
-  // Mirror server-side getOwedOrdersForCustomer exactly so the banner count never disagrees
-  // with checkout: any not_public/taken_down_early counts (regardless of delivery), plus
-  // delivered+pending/awaiting_review.
+  // Mirrors server-side getOwedOrdersForCustomer exactly so banner count never disagrees
+  // with checkout: taken_down_early (final-fail debt) is owed regardless of delivery; quick
+  // states (pending / awaiting_review / not_public) only count once delivered.
   const owedCount = orders.filter((o) => {
     const v = o.verificationStatus;
-    if (v === "not_public" || v === "taken_down_early") return true;
-    if (o.status === "delivered" && (v === "pending" || v === "awaiting_review")) return true;
+    if (v === "taken_down_early") return true;
+    if (o.status === "delivered" && (v === "pending" || v === "awaiting_review" || v === "not_public")) return true;
     return false;
   }).length;
 

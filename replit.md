@@ -127,7 +127,7 @@ Preferred communication style: Simple, everyday language.
 
 ### Soft-Ban Model
 - Persisted on `spiral_customers` via `accountStatus` (`'active'` | `'soft_banned'`), `softBannedReason`, `softBannedAt`.
-- A shopper is soft-banned (blocked from new Spiral discounts at checkout) when they have any delivered order in `pending`, `awaiting_review`, `not_public`, or `taken_down_early`. No grace period.
+- A shopper is soft-banned (blocked from new Spiral discounts at checkout) when they have any owed order. **Owed** = (a) delivered order in `pending`, `awaiting_review`, or `not_public`, OR (b) any order in `taken_down_early` regardless of delivery status (final-fail debt is independent of delivery; quick-fail debt only counts post-delivery since a shopper hasn't "owed" anything before delivery).
 - Set on: delivery (`delivery_pending`), quick-check fail (`not_public`), final-check fail (`taken_down_early`).
 - Cleared automatically by `maybeAutoUnbanCustomer` whenever no owed orders remain (i.e. after `quick_verified` or `verified`).
 - `/api/checkout/calculate-discount` gates on `accountStatus === 'soft_banned'` and returns `{ code: "soft_banned", softBanned: true, softBannedReason }`. Self-heals if state ever drifts out of sync with order state.
