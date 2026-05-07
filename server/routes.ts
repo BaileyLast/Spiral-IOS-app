@@ -1658,19 +1658,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Soft-ban gate: persisted accountStatus is the source of truth at checkout.
-      // (Order-level lockout retained as belt-and-suspenders in case of stale state.)
+      // Self-heals in BOTH directions if state drifts vs actual owed orders.
       if (customer.accountStatus === "soft_banned") {
         const unverifiedDelivered = await storage.getUnverifiedDeliveredOrdersByCustomerId(customerId);
-        return res.json({
-          eligible: false,
-          code: "soft_banned",
-          softBanned: true,
-          softBannedReason: customer.softBannedReason ?? "story_owed",
-          reason: unverifiedDelivered.length <= 1
-            ? "Post a Story for your previous order to unlock your next discount"
-            : `Post a Story for your ${unverifiedDelivered.length} unverified orders to unlock your next discount`,
-          pendingVerificationCount: unverifiedDelivered.length,
-        });
+        if (unverifiedDelivered.length === 0) {
+          // Stale soft-ban — no orders are actually owed. Auto-clear and continue eligibility checks.
+          await storage.clearCustomerSoftBan(customerId);
+          console.log(`[soft-ban] Customer ${customerId} auto-cleared at checkout (stale state, no owed orders)`);
+        } else {
+          return res.json({
+            eligible: false,
+            code: "soft_banned",
+            softBanned: true,
+            softBannedReason: customer.softBannedReason ?? "story_owed",
+            reason: unverifiedDelivered.length <= 1
+              ? "Post a Story for your previous order to unlock your next discount"
+              : `Post a Story for your ${unverifiedDelivered.length} unverified orders to unlock your next discount`,
+            pendingVerificationCount: unverifiedDelivered.length,
+          });
+        }
       }
       const unverifiedDelivered = await storage.getUnverifiedDeliveredOrdersByCustomerId(customerId);
       if (unverifiedDelivered.length > 0) {
