@@ -3241,17 +3241,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      // Step 1: Look up existing scoped ID mapping
-      let mapping = await storage.getMerchantScopedUserMap(settings.id, senderScopedId);
-      let customerId = mapping?.spiralCustomerId;
+      // Step 1: Look up existing scoped ID mapping (positive OR negative cache).
+      // Backend identity is the immutable scoped/Instagram user ID — handles
+      // are display-only and can change at any time without affecting matching.
+      const mapping = await storage.getMerchantScopedUserMap(settings.id, senderScopedId);
 
-      // Step 2: If no mapping exists, try to resolve username via Instagram Profile API and match
+      // Negative-cache short-circuit: this scoped ID was previously confirmed
+      // as a non-Spiral shopper. Drop in a single indexed lookup — no Profile
+      // API call, no order matching, no DB churn.
+      if (mapping && mapping.isSpiral === false) {
+        await storage.touchMerchantScopedUserMap(mapping.id);
+        console.log(`Story mention: Skipping non-Spiral sender ${senderScopedId} (negative cache hit)`);
+        return;
+      }
+
+      let customerId = mapping?.spiralCustomerId ?? undefined;
+
+      // Step 2: If no mapping exists, resolve username via Instagram Profile API
+      // and match against a known Spiral customer. We can only get username
+      // here (Meta doesn't expose the global IG user ID for scoped senders), so
+      // first-encounter matching is necessarily by username — but we cache the
+      // immutable scoped ID + the customer's instagramUserId in the mapping
+      // for all subsequent lookups, so this only happens once per shopper.
       if (!mapping) {
         console.log(`Story mention: No scoped ID mapping for ${senderScopedId}, attempting profile lookup`);
-        
+
         let resolvedUsername = '';
         try {
-          // Use the merchant's Instagram access token to resolve the sender's profile
           if (settings.instagramAccessToken) {
             const profileUrl = `https://graph.instagram.com/v18.0/${senderScopedId}?fields=username&access_token=${settings.instagramAccessToken}`;
             const profileRes = await fetch(profileUrl);
@@ -3267,23 +3283,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error('Story mention: Error resolving profile:', err);
         }
 
-        // Match by Instagram username
         if (resolvedUsername) {
           const customer = await storage.getSpiralCustomerByInstagramHandle(resolvedUsername);
           if (customer) {
             customerId = customer.id;
-            // Create the mapping for future lookups
+            // Cache the mapping using the customer's IMMUTABLE Instagram user ID
+            // as the canonical identity. The handle is stored as a display-only
+            // snapshot; future webhooks key off scoped ID → user ID, never the
+            // handle.
             await storage.createMerchantScopedUserMap({
               merchantId: settings.id,
               senderScopedId,
               spiralCustomerId: customer.id,
+              instagramUserId: customer.instagramUserId,
               instagramHandle: resolvedUsername,
+              isSpiral: true,
             });
-            console.log(`Story mention: Created scoped ID mapping: ${senderScopedId} -> customer ${customer.id} (@${resolvedUsername})`);
+            // Refresh the customer's display handle if Instagram now reports a
+            // different username for the same account (handles are mutable).
+            if (customer.instagramHandle !== resolvedUsername) {
+              await storage.updateSpiralCustomerHandle(customer.id, resolvedUsername);
+              console.log(`Story mention: Refreshed @${customer.instagramHandle} → @${resolvedUsername} for customer ${customer.id}`);
+            }
+            console.log(`Story mention: Created scoped ID mapping: ${senderScopedId} -> customer ${customer.id} (@${resolvedUsername}, IG user id ${customer.instagramUserId ?? 'unknown'})`);
           } else {
-            console.log(`Story mention: No Spiral customer found for @${resolvedUsername}`);
+            // Confirmed non-Spiral shopper — write a negative-cache row so all
+            // future story_mentions from this scoped ID exit in one indexed
+            // lookup with no Profile API call.
+            await storage.recordNonSpiralScopedId(settings.id, senderScopedId);
+            console.log(`Story mention: No Spiral customer for @${resolvedUsername} — negative-cached scoped ID ${senderScopedId}`);
           }
         }
+        // If we couldn't resolve a username at all (Profile API down/missing
+        // token/etc.), DON'T negative-cache — a transient failure shouldn't
+        // permanently blacklist a scoped ID that might belong to a real Spiral
+        // customer. Just drop this event; the next one will retry resolution.
+      } else {
+        // Repeat sighting from a known Spiral customer — touch lastSeenAt for
+        // observability. Display-handle refresh happens at IG-connect time on
+        // the customer record, so we don't refresh it on every story mention.
+        await storage.touchMerchantScopedUserMap(mapping.id);
       }
 
       if (!customerId) {

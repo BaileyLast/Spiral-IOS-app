@@ -103,10 +103,18 @@ export interface IStorage {
   verifySpiralCode(code: string, instagramUserId: string, instagramHandle: string): Promise<SpiralCode>;
   updateSpiralCodeClaimedHandle(customerId: string, claimedHandle: string): Promise<void>;
   invalidateSpiralCode(code: string): Promise<void>;
-  // Merchant scoped user map
+  // Merchant scoped user map (with negative-cache support)
   createMerchantScopedUserMap(map: InsertMerchantScopedUserMap): Promise<MerchantScopedUserMap>;
   getMerchantScopedUserMap(merchantId: string, senderScopedId: string): Promise<MerchantScopedUserMap | undefined>;
   getMerchantScopedUserMapByCustomer(merchantId: string, customerId: string): Promise<MerchantScopedUserMap | undefined>;
+  // Negative cache: record that a scoped ID is confirmed NOT a Spiral customer
+  // so future story_mentions from this sender exit in a single indexed lookup.
+  recordNonSpiralScopedId(merchantId: string, senderScopedId: string): Promise<void>;
+  // Touch lastSeenAt and refresh the cached display handle on repeat sightings.
+  touchMerchantScopedUserMap(id: string, instagramHandle?: string | null): Promise<void>;
+  // Refresh the customer's stored handle (display only) when Instagram returns
+  // a new username for an immutable user ID. Backend identity uses instagramUserId.
+  updateSpiralCustomerHandle(id: string, instagramHandle: string): Promise<void>;
   // Store settings webhook tracking
   updateStoreWebhookStatus(id: string, status: string): Promise<void>;
   updateStoreLastWebhookReceived(id: string): Promise<void>;
@@ -768,15 +776,31 @@ export class DatabaseStorage implements IStorage {
       .where(eq(spiralCodes.code, code.toUpperCase()));
   }
 
+  // Insert OR upgrade a positive mapping (scoped ID → Spiral customer). If a
+  // negative-cache row already exists for this (merchant, scopedId), upgrade it
+  // to positive in place. If a positive row already exists, refresh the cached
+  // identity fields. Composite uniqueness on (merchantId, senderScopedId) is
+  // enforced by the schema, so this is the only correct insert path.
   async createMerchantScopedUserMap(map: InsertMerchantScopedUserMap): Promise<MerchantScopedUserMap> {
     const [created] = await db
       .insert(merchantScopedUserMap)
       .values(map)
+      .onConflictDoUpdate({
+        target: [merchantScopedUserMap.merchantId, merchantScopedUserMap.senderScopedId],
+        set: {
+          spiralCustomerId: map.spiralCustomerId,
+          instagramUserId: map.instagramUserId,
+          instagramHandle: map.instagramHandle,
+          isSpiral: true,
+          lastSeenAt: new Date(),
+        },
+      })
       .returning();
     return created;
   }
 
   async getMerchantScopedUserMap(merchantId: string, senderScopedId: string): Promise<MerchantScopedUserMap | undefined> {
+    // Composite uniqueness on (merchantId, senderScopedId) means at most one row.
     const [result] = await db
       .select()
       .from(merchantScopedUserMap)
@@ -785,8 +809,54 @@ export class DatabaseStorage implements IStorage {
           eq(merchantScopedUserMap.merchantId, merchantId),
           eq(merchantScopedUserMap.senderScopedId, senderScopedId)
         )
-      );
+      )
+      .limit(1);
     return result;
+  }
+
+  // Insert a negative-cache row marking this (merchant, scopedId) as confirmed
+  // non-Spiral so future story_mentions from this scoped ID exit in a single
+  // indexed lookup. ON CONFLICT DO NOTHING: if a positive row already exists
+  // (race with createMerchantScopedUserMap, or a customer connected IG between
+  // our Profile API call and this insert), we leave the positive row intact —
+  // never downgrade positive → negative.
+  async recordNonSpiralScopedId(merchantId: string, senderScopedId: string): Promise<void> {
+    await db
+      .insert(merchantScopedUserMap)
+      .values({
+        merchantId,
+        senderScopedId,
+        spiralCustomerId: null,
+        instagramUserId: null,
+        instagramHandle: null,
+        isSpiral: false,
+      })
+      .onConflictDoNothing({
+        target: [merchantScopedUserMap.merchantId, merchantScopedUserMap.senderScopedId],
+      });
+  }
+
+  // Bump lastSeenAt (and optionally refresh the cached display handle) when we
+  // see a known scoped ID again. Cheap write, useful for ops/debugging.
+  async touchMerchantScopedUserMap(id: string, instagramHandle?: string | null): Promise<void> {
+    const update: Record<string, unknown> = { lastSeenAt: new Date() };
+    if (instagramHandle !== undefined && instagramHandle !== null) {
+      update.instagramHandle = instagramHandle;
+    }
+    await db
+      .update(merchantScopedUserMap)
+      .set(update)
+      .where(eq(merchantScopedUserMap.id, id));
+  }
+
+  // Refresh the customer's display handle (e.g. when Instagram reports a new
+  // username for the same user ID). Backend identity is instagramUserId so this
+  // is purely a display-layer update.
+  async updateSpiralCustomerHandle(id: string, instagramHandle: string): Promise<void> {
+    await db
+      .update(spiralCustomers)
+      .set({ instagramHandle })
+      .where(eq(spiralCustomers.id, id));
   }
 
   async getMerchantScopedUserMapByCustomer(merchantId: string, customerId: string): Promise<MerchantScopedUserMap | undefined> {

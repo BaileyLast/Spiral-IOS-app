@@ -92,7 +92,7 @@ Preferred communication style: Simple, everyday language.
   5. Matches resolved customer to their pending order(s)
   6. Creates scoped ID mapping for future lookups and marks order as verified
   7. Sends confirmation DM to customer via Instagram API
-- **Scoped ID Mapping**: Instagram sends merchant-scoped sender IDs (not global user IDs). The `merchant_scoped_user_map` table caches the mapping between scoped IDs and Spiral customer accounts for fast repeat lookups.
+- **Scoped ID Mapping (with negative cache)**: Instagram sends merchant-scoped sender IDs (not global user IDs). The `merchant_scoped_user_map` table caches scoped ID → Spiral customer mappings (`isSpiral=true`, with cached `instagramUserId` as canonical identity) AND confirmed non-Spiral senders (`isSpiral=false`, `spiralCustomerId=null`) so subsequent story_mentions from random shoppers exit in a single indexed lookup with no Profile API call. Backend matching always uses the immutable `instagramUserId`; `instagramHandle` is display-only and refreshed on the customer record whenever the Profile API returns a new username for the same scoped ID.
 - **OAuth Scopes Required**: `instagram_basic`, `instagram_manage_messages`, `pages_show_list`, `pages_read_engagement`, `pages_manage_metadata`
 - **Webhook Subscription**: Automatically subscribed to `messages` and `messaging_postbacks` fields on the Facebook Page after merchant connects Instagram
 

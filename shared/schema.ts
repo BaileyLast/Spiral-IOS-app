@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, boolean, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, boolean, numeric, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -211,10 +211,28 @@ export const merchantScopedUserMap = pgTable("merchant_scoped_user_map", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   merchantId: varchar("merchant_id").notNull(),
   senderScopedId: text("sender_scoped_id").notNull(),
-  spiralCustomerId: varchar("spiral_customer_id").notNull(),
+  // Nullable: when isSpiral=false this row is a negative-cache entry for a
+  // non-Spiral shopper, so future story_mentions from this scoped ID exit in a
+  // single indexed lookup with no Profile API call and no order matching.
+  spiralCustomerId: varchar("spiral_customer_id"),
+  // Cached at first resolution; backend identity for the customer is the
+  // immutable Instagram user ID, not the (mutable) handle.
+  instagramUserId: text("instagram_user_id"),
+  // Display-only snapshot of the handle at first-seen time. Refreshed whenever
+  // we successfully resolve this scoped ID via the Profile API.
   instagramHandle: text("instagram_handle"),
+  // Negative-cache flag. true = this scoped ID belongs to a known Spiral
+  // customer; false = confirmed non-Spiral, drop without further work.
+  isSpiral: boolean("is_spiral").notNull().default(true),
   firstSeenAt: timestamp("first_seen_at").notNull().defaultNow(),
-});
+  lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
+}, (t) => ({
+  // Enforce one row per (merchant, scoped sender) so negative and positive
+  // cache writes can't race into duplicate rows. All inserts go through
+  // ON CONFLICT to upgrade negative → positive cleanly.
+  merchantSenderUnique: uniqueIndex("merchant_scoped_user_map_merchant_sender_unique")
+    .on(t.merchantId, t.senderScopedId),
+}));
 
 export const insertStoreSettingsSchema = createInsertSchema(storeSettings).omit({ id: true });
 export const insertDiscountTierSchema = createInsertSchema(discountTiers)
