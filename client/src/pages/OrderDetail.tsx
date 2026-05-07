@@ -272,20 +272,14 @@ export default function OrderDetail() {
         )}
 
         {status === "quick_verified" && (
-          <div className="p-5 rounded-2xl bg-green-50 border border-green-200" data-testid="card-quick-verified">
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-              </div>
-              <div>
-                <h3 className="font-bold text-green-900" data-testid="text-quick-verified-heading">
-                  Story confirmed
-                </h3>
-                <p className="text-sm text-green-700 mt-1">
-                  Thanks for posting publicly. Keep it up for 24 hours and we'll finalize this.
-                </p>
-              </div>
-            </div>
+          <div
+            className="flex items-center gap-2 px-1"
+            data-testid="card-quick-verified"
+          >
+            <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+            <p className="text-sm text-gray-600" data-testid="text-quick-verified-heading">
+              Story confirmed
+            </p>
           </div>
         )}
 

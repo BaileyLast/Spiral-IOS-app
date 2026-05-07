@@ -3612,8 +3612,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
-  // Mark an order delivered. Soft-bans the customer (since they now owe a Story) and fires
-  // a single delivery reminder push. Idempotent — safe to call multiple times.
+  // Mark an order delivered. Soft-bans the customer ONLY if this delivered order is still
+  // owed (i.e. not already quick_verified or verified). Fires a single delivery reminder
+  // push when soft-banned. Idempotent — safe to call multiple times.
   async function transitionOrderToDelivered(orderId: string): Promise<void> {
     const existing = await storage.getOrderById(orderId);
     if (!existing) {
@@ -3623,8 +3624,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (existing.status !== "delivered") {
       await storage.markOrderDelivered(orderId);
     }
-    if (existing.spiralCustomerId) {
-      // Lock at checkout until they post.
+    const owedStates = new Set(["pending", "awaiting_review", "not_public", "taken_down_early"]);
+    const orderIsOwed = owedStates.has(existing.verificationStatus);
+    if (existing.spiralCustomerId && orderIsOwed) {
+      // Story still owed for this order — lock at checkout until they post.
       await storage.setCustomerSoftBanned(existing.spiralCustomerId, "delivery_pending");
       // Reminder push (fails/reminders only). Copy avoids threatening the existing discount.
       await sendIosPushToCustomer(
@@ -3632,8 +3635,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "Time to post your Story",
         "Your order's arrived. Post a Story tagging the brand to unlock your next Spiral discount.",
       );
+      console.log(`[delivery] Order ${orderId} marked delivered — customer soft-banned (story owed)`);
+    } else if (existing.spiralCustomerId) {
+      // Already quick_verified or verified for this order — no soft-ban, no reminder push.
+      console.log(`[delivery] Order ${orderId} marked delivered — customer already in good standing (${existing.verificationStatus})`);
+    } else {
+      console.log(`[delivery] Order ${orderId} marked delivered (no spiral customer linked)`);
     }
-    console.log(`[delivery] Order ${orderId} marked delivered`);
   }
 
   // Internal admin endpoint: mark an order delivered (called by ops tooling or future
@@ -3658,17 +3666,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // mention impact on FUTURE Spiral discounts.
   // APNs is wired via @parse/node-apn. The provider is lazily built on first send so that
   // missing credentials in dev simply fall back to log-only mode without crashing the server.
-  let apnsProvider: any | null = null;
+  type ApnsResponse = { failed?: Array<{ response?: unknown; error?: unknown }> };
+  interface ApnsNotification {
+    alert: { title: string; body: string };
+    topic: string;
+    sound: string;
+    contentAvailable: boolean;
+  }
+  interface ApnsProvider {
+    send(note: ApnsNotification, token: string): Promise<ApnsResponse>;
+  }
+  interface ApnsModule {
+    Provider: new (opts: {
+      token: { key: string; keyId: string; teamId: string };
+      production: boolean;
+    }) => ApnsProvider;
+    Notification: new () => ApnsNotification;
+  }
+
+  let apnsProvider: ApnsProvider | null = null;
+  let apnsModule: ApnsModule | null = null;
   let apnsProviderInitFailed = false;
-  function getApnsProvider(): any | null {
+
+  async function loadApnsModule(): Promise<ApnsModule | null> {
+    if (apnsModule) return apnsModule;
+    try {
+      apnsModule = (await import('@parse/node-apn')) as unknown as ApnsModule;
+      return apnsModule;
+    } catch (err) {
+      console.error('[PUSH] Failed to import @parse/node-apn:', err);
+      return null;
+    }
+  }
+
+  async function getApnsProvider(): Promise<ApnsProvider | null> {
     if (apnsProvider || apnsProviderInitFailed) return apnsProvider;
     const keyId = process.env.APNS_KEY_ID;
     const teamId = process.env.APNS_TEAM_ID;
     const key = process.env.APNS_PRIVATE_KEY;
     if (!keyId || !teamId || !key) return null;
+    const apn = await loadApnsModule();
+    if (!apn) {
+      apnsProviderInitFailed = true;
+      return null;
+    }
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const apn = require('@parse/node-apn');
       apnsProvider = new apn.Provider({
         token: { key, keyId, teamId },
         production: process.env.NODE_ENV === 'production',
@@ -3685,13 +3727,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   async function sendIosPush(token: string, title: string, body: string): Promise<boolean> {
     try {
       const bundleId = process.env.APNS_BUNDLE_ID;
-      const provider = getApnsProvider();
+      const provider = await getApnsProvider();
       if (!provider || !bundleId) {
         console.log(`[PUSH] (log-only, APNs not configured) → token=${token.slice(0, 8)}… "${title}" — ${body}`);
         return true;
       }
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const apn = require('@parse/node-apn');
+      const apn = await loadApnsModule();
+      if (!apn) return false;
       const note = new apn.Notification();
       note.alert = { title, body };
       note.topic = bundleId;
@@ -3699,7 +3741,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       note.contentAvailable = false;
       const result = await provider.send(note, token);
       if (result.failed && result.failed.length > 0) {
-        console.error(`[PUSH] APNs send failed:`, result.failed[0]?.response || result.failed[0]);
+        console.error(`[PUSH] APNs send failed:`, result.failed[0]?.response ?? result.failed[0]);
         return false;
       }
       console.log(`[PUSH] APNs sent → token=${token.slice(0, 8)}… "${title}"`);
