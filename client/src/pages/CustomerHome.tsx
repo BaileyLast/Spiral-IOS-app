@@ -86,7 +86,7 @@ export default function CustomerHome() {
   const pendingCount = owedOrders.length;
   const pendingOrders = owedOrders.map((o) => ({
     id: o.id,
-    storeName: (o as unknown as { storeName?: string | null }).storeName ?? null,
+    storeName: o.storeName ?? null,
     shopifyOrderId: o.shopifyOrderId,
   }));
 
