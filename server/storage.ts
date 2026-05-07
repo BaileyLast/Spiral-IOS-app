@@ -129,6 +129,7 @@ export interface IStorage {
   createPublicityCheck(check: InsertPublicityCheck): Promise<PublicityCheck>;
   getDuePublicityChecks(now: Date): Promise<PublicityCheck[]>;
   getIncompletePublicityCheckByVerification(verificationId: string): Promise<PublicityCheck | undefined>;
+  getPublicityCheckByVerificationAndStage(verificationId: string, stage: string): Promise<PublicityCheck | undefined>;
   recordPublicityCheckAttempt(id: string, opts: { lastError?: string | null; lastResult?: string | null; rescheduleAt?: Date | null; completed?: boolean }): Promise<PublicityCheck>;
   // Verification status helpers used by publicity check worker
   markVerificationAwaitingReview(verificationId: string, storyMediaId: string | null): Promise<void>;
@@ -877,6 +878,20 @@ export class DatabaseStorage implements IStorage {
         and(
           eq(publicityChecks.verificationId, verificationId),
           isNull(publicityChecks.completedAt),
+        ),
+      )
+      .limit(1);
+    return row;
+  }
+
+  async getPublicityCheckByVerificationAndStage(verificationId: string, stage: string): Promise<PublicityCheck | undefined> {
+    const [row] = await db
+      .select()
+      .from(publicityChecks)
+      .where(
+        and(
+          eq(publicityChecks.verificationId, verificationId),
+          eq(publicityChecks.stage, stage),
         ),
       )
       .limit(1);

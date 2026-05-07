@@ -181,8 +181,12 @@ export const publicityChecks = pgTable("publicity_checks", {
   storyUrl: text("story_url"),
   webhookReceivedAt: timestamp("webhook_received_at").notNull(),
   scheduledAt: timestamp("scheduled_at").notNull(),
+  // Two-stage check:
+  //   - 'quick'  ~3 min after webhook, proves the Story is publicly visible (not Close Friends)
+  //   - 'final'  ~10 h after webhook, proves the Story stayed up
+  stage: text("stage").notNull().default("quick"),
   attempts: integer("attempts").notNull().default(0),
-  // Result codes: verified, deleted_or_close_friends, scraper_error, max_attempts_exceeded
+  // Result codes: verified, quick_passed, deleted_or_close_friends, taken_down_early, scraper_error, max_attempts_exceeded
   lastResult: text("last_result"),
   lastError: text("last_error"),
   completedAt: timestamp("completed_at"),
@@ -229,7 +233,9 @@ export const insertSelectedCollectionSchema = createInsertSchema(selectedCollect
 export const insertSpiralCustomerSchema = createInsertSchema(spiralCustomers).omit({ id: true, createdAt: true, lastLoginAt: true });
 export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true });
 export const insertSpiralCodeSchema = createInsertSchema(spiralCodes).omit({ id: true, createdAt: true, verifiedAt: true });
-export const insertPublicityCheckSchema = createInsertSchema(publicityChecks).omit({ id: true, createdAt: true, completedAt: true, attempts: true, lastResult: true, lastError: true });
+export const insertPublicityCheckSchema = createInsertSchema(publicityChecks).omit({ id: true, createdAt: true, completedAt: true, attempts: true, lastResult: true, lastError: true, stage: true }).extend({
+  stage: z.enum(["quick", "final"]).default("quick"),
+});
 
 export type InsertStoreSettings = z.infer<typeof insertStoreSettingsSchema>;
 export type StoreSettings = typeof storeSettings.$inferSelect;

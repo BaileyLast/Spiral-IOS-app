@@ -3251,7 +3251,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (existing) {
           console.log(`[publicity-check] Skipping schedule — incomplete check ${existing.id} already exists for verification ${verificationId}`);
         } else {
-          const scheduledAt = new Date(webhookReceivedAt.getTime() + PUBLICITY_CHECK_DELAY_MS);
+          // Stage 1 (quick): in ~3 min, prove the Story is publicly visible (not Close Friends).
+          const scheduledAt = new Date(webhookReceivedAt.getTime() + PUBLICITY_CHECK_QUICK_DELAY_MS);
           await storage.createPublicityCheck({
             verificationId,
             orderId: orderToVerify.id,
@@ -3262,18 +3263,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             storyUrl,
             webhookReceivedAt,
             scheduledAt,
+            stage: 'quick',
           });
-          console.log(`[publicity-check] Scheduled for order ${orderToVerify.id} at ${scheduledAt.toISOString()} (storyMediaId=${storyMediaId || 'none'})`);
+          console.log(`[publicity-check] Quick check scheduled for order ${orderToVerify.id} at ${scheduledAt.toISOString()} (storyMediaId=${storyMediaId || 'none'})`);
         }
       } else {
         console.warn(`[publicity-check] Could not schedule — verificationId=${verificationId} igUserId=${customer?.instagramUserId}`);
       }
 
-      console.log(`Story mention: Order ${orderToVerify.id} marked AWAITING_REVIEW; publicity cross-check scheduled`);
+      console.log(`Story mention: Order ${orderToVerify.id} marked AWAITING_REVIEW; quick publicity check scheduled`);
 
-      // Send acknowledgment DM (no discount confirmation yet — that comes after the cross-check passes)
+      // Send acknowledgment DM (no discount confirmation yet — that comes after the cross-checks pass)
       await sendInstagramDM(senderScopedId,
-        `Got your Story! We'll confirm your discount once it's been live for a few hours. Stories must be public — Close Friends posts won't count.`
+        `Got your Story! We'll confirm your discount once it's been live publicly for 24 hours. Close Friends posts won't count.`
       );
     } catch (error) {
       console.error('Error handling story mention:', error);
@@ -3294,12 +3296,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
-  // Deferred public-story cross-check (anti Close Friends).
+  // Deferred public-story cross-check (anti Close Friends + anti early-takedown).
+  // Two-stage:
+  //   - QUICK (~3 min after webhook): proves the Story is publicly visible (not Close Friends).
+  //     If it fails, the customer hears about it right away — Close Friends DM.
+  //   - FINAL (~10 h after webhook): proves the Story stayed up.
+  //     If it fails, the customer hears the "Stories must stay up for 24 hours" message.
   // Constants
-  const PUBLICITY_CHECK_DELAY_MS = 10 * 60 * 60 * 1000;     // 10 hours
-  const PUBLICITY_CHECK_RETRY_MS = 30 * 60 * 1000;          // 30 minutes
+  const PUBLICITY_CHECK_QUICK_DELAY_MS = 3 * 60 * 1000;     // 3 minutes (let scraper see new story)
+  const PUBLICITY_CHECK_FINAL_DELAY_MS = 10 * 60 * 60 * 1000; // 10 hours
+  const PUBLICITY_CHECK_RETRY_MS = 30 * 60 * 1000;          // 30 minutes between scraper-error retries
+  const PUBLICITY_CHECK_QUICK_RETRY_MS = 2 * 60 * 1000;     // 2 minutes between quick-stage retries
   const PUBLICITY_CHECK_MAX_ATTEMPTS = 3;
-  const PUBLICITY_CHECK_INTERVAL_MS = 5 * 60 * 1000;        // poll every 5 min
+  const PUBLICITY_CHECK_INTERVAL_MS = 60 * 1000;            // poll every 1 min (quick checks need fast pickup)
   const PUBLICITY_CHECK_TIMESTAMP_TOLERANCE_MS = 30 * 60 * 1000; // 30 min wiggle vs webhook time
 
   type PublicityResult =
@@ -3440,56 +3449,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
             check.storyMediaId,
             check.webhookReceivedAt,
           );
+          const stage = (check.stage as 'quick' | 'final') || 'quick';
 
           if (result.kind === 'verified') {
-            // Confirm the verification, mark order verified, send celebration DM.
-            await storage.markVerified(check.verificationId);
-            await storage.updateOrderVerificationStatus(check.orderId, 'verified');
-            await storage.recordPublicityCheckAttempt(check.id, {
-              lastResult: 'verified',
-              completed: true,
-            });
-
-            const order = await storage.getOrderById(check.orderId);
-            const discountAmt = parseFloat(order?.discountAmount || '0');
-            if (check.senderScopedId) {
-              await sendInstagramDM(
-                check.senderScopedId,
-                `Your Story is verified — you saved $${discountAmt.toFixed(2)} on your order. Thanks for sharing!`,
+            if (stage === 'quick') {
+              // Story is publicly visible — not Close Friends. Schedule the final 10h re-check.
+              // Order matters: create the final row FIRST (idempotently), THEN mark quick complete.
+              // This way a crash between the two steps simply means the next tick re-runs the quick
+              // check, sees the final already exists, and still safely marks quick complete.
+              const existingFinal = await storage.getPublicityCheckByVerificationAndStage(
+                check.verificationId,
+                'final',
               );
+              if (!existingFinal) {
+                const finalScheduledAt = new Date(
+                  check.webhookReceivedAt.getTime() + PUBLICITY_CHECK_FINAL_DELAY_MS,
+                );
+                await storage.createPublicityCheck({
+                  verificationId: check.verificationId,
+                  orderId: check.orderId,
+                  customerId: check.customerId,
+                  instagramUserId: check.instagramUserId,
+                  senderScopedId: check.senderScopedId,
+                  storyMediaId: check.storyMediaId,
+                  storyUrl: check.storyUrl,
+                  webhookReceivedAt: check.webhookReceivedAt,
+                  scheduledAt: finalScheduledAt,
+                  stage: 'final',
+                });
+                console.log(`[publicity-check] Order ${check.orderId} QUICK_PASSED — final check scheduled for ${finalScheduledAt.toISOString()}`);
+              } else {
+                console.log(`[publicity-check] Order ${check.orderId} QUICK_PASSED — final check already exists (${existingFinal.id})`);
+              }
+              await storage.recordPublicityCheckAttempt(check.id, {
+                lastResult: 'quick_passed',
+                completed: true,
+              });
+            } else {
+              // Final stage passed — confirm the verification.
+              await storage.markVerified(check.verificationId);
+              await storage.updateOrderVerificationStatus(check.orderId, 'verified');
+              await storage.recordPublicityCheckAttempt(check.id, {
+                lastResult: 'verified',
+                completed: true,
+              });
+              const order = await storage.getOrderById(check.orderId);
+              const discountAmt = parseFloat(order?.discountAmount || '0');
+              if (check.senderScopedId) {
+                await sendInstagramDM(
+                  check.senderScopedId,
+                  `Your Story is verified — you saved $${discountAmt.toFixed(2)} on your order. Thanks for sharing!`,
+                );
+              }
+              console.log(`[publicity-check] Order ${check.orderId} VERIFIED after final cross-check`);
             }
-            console.log(`[publicity-check] Order ${check.orderId} VERIFIED after cross-check`);
           } else if (result.kind === 'not_public') {
-            // Story is gone (deleted/expired) or wasn't public (Close Friends).
-            await storage.recordPublicityCheckAttempt(check.id, {
-              lastResult: 'deleted_or_close_friends',
-              completed: true,
-            });
-            // Order stays in awaiting_review for manual merchant review.
-            if (check.senderScopedId) {
-              await sendInstagramDM(
-                check.senderScopedId,
-                `We couldn't confirm your Story was public when we checked. Stories must be public (not Close Friends) and stay live for at least a few hours. Reach out if you think this is a mistake.`,
-              );
+            if (stage === 'quick') {
+              // Story isn't visible publicly — almost certainly Close Friends, or already deleted.
+              await storage.recordPublicityCheckAttempt(check.id, {
+                lastResult: 'deleted_or_close_friends',
+                completed: true,
+              });
+              if (check.senderScopedId) {
+                await sendInstagramDM(
+                  check.senderScopedId,
+                  `We couldn't see your Story when we checked. Spiral Stories must be posted publicly — not to Close Friends — and stay up for 24 hours to count. Repost publicly and tag the brand again to get your discount.`,
+                );
+              }
+              console.log(`[publicity-check] Order ${check.orderId} CLOSE_FRIENDS_OR_DELETED at quick stage`);
+            } else {
+              // Story passed quick check but is gone at the 10h mark — taken down early.
+              await storage.recordPublicityCheckAttempt(check.id, {
+                lastResult: 'taken_down_early',
+                completed: true,
+              });
+              if (check.senderScopedId) {
+                await sendInstagramDM(
+                  check.senderScopedId,
+                  `Your Story came down before we could confirm your discount. Spiral Stories need to stay public for 24 hours — no shortcuts. You'll get another chance on your next order.`,
+                );
+              }
+              console.log(`[publicity-check] Order ${check.orderId} TAKEN_DOWN_EARLY at final stage`);
             }
-            console.log(`[publicity-check] Order ${check.orderId} NOT_PUBLIC — left in awaiting_review`);
           } else {
-            // Scraper error — retry up to MAX_ATTEMPTS, then give up and leave for manual review.
+            // Scraper error — retry up to MAX_ATTEMPTS, then give up.
             const nextAttemptCount = check.attempts + 1;
+            const retryDelay = stage === 'quick'
+              ? PUBLICITY_CHECK_QUICK_RETRY_MS
+              : PUBLICITY_CHECK_RETRY_MS;
             if (nextAttemptCount < PUBLICITY_CHECK_MAX_ATTEMPTS) {
               await storage.recordPublicityCheckAttempt(check.id, {
                 lastResult: 'scraper_error',
                 lastError: result.message,
-                rescheduleAt: new Date(Date.now() + PUBLICITY_CHECK_RETRY_MS),
+                rescheduleAt: new Date(Date.now() + retryDelay),
               });
-              console.warn(`[publicity-check] Order ${check.orderId} scraper error (will retry): ${result.message}`);
+              console.warn(`[publicity-check] Order ${check.orderId} (${stage}) scraper error (will retry): ${result.message}`);
             } else {
               await storage.recordPublicityCheckAttempt(check.id, {
                 lastResult: 'max_attempts_exceeded',
                 lastError: result.message,
                 completed: true,
               });
-              console.error(`[publicity-check] Order ${check.orderId} max attempts exceeded: ${result.message}`);
+              console.error(`[publicity-check] Order ${check.orderId} (${stage}) max attempts exceeded: ${result.message}`);
             }
           }
         } catch (err) {
