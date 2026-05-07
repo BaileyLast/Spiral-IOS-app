@@ -140,7 +140,8 @@ Preferred communication style: Simple, everyday language.
 - Wired via `@parse/node-apn`. APNs provider is built lazily on first send; if `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY`, or `APNS_BUNDLE_ID` is missing, pushes fall back to log-only mode (`[PUSH] (log-only, …)`) without crashing.
 - Push triggers: delivery reminder (when an order transitions to `delivered`), quick-check fail (`not_public`), final-check fail (`taken_down_early`).
 - Endpoint: `POST /api/customer/push-token` with `{ token: string | null }` — call on app launch and on logout (with null).
-- Internal endpoint: `POST /api/internal/orders/:id/mark-delivered` (header `x-spiral-internal-key`) transitions an order to `delivered`, soft-bans the customer, and fires the reminder push.
+- Internal endpoint: `POST /api/internal/orders/:id/mark-delivered` (header `x-spiral-internal-key`) transitions an order to `delivered`, soft-bans the customer (only if Story is still owed), and fires the reminder push.
+- Production trigger: Shopify `fulfillment_events/create` webhook at `/webhooks/shopify/fulfillment-events-create` calls the same `transitionOrderToDelivered` helper when the event `status === 'delivered'`. Webhook is registered automatically during the Shopify OAuth callback alongside `orders/create` and `fulfillments/create`.
 
 ### In-App Status (Replaces Order/Story DMs)
 All order/Story progress is shown live in the app. The five outbound DMs that used to ack story-received, celebrate verification, or warn about Close Friends / early takedown have been removed. Spiral-code account-linking DMs are unchanged.

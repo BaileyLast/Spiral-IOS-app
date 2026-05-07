@@ -967,6 +967,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const errorText = await fulfillmentsWebhookRes.text();
             console.error('Failed to register fulfillments/create webhook:', fulfillmentsWebhookRes.status, errorText);
           }
+
+          // Register fulfillment_events/create webhook — needed for the "delivered" status
+          // event, which is what triggers the persisted soft-ban + delivery reminder push.
+          const deliveryWebhookRes = await fetch(`https://${shop}/admin/api/2024-01/webhooks.json`, {
+            method: 'POST',
+            headers: {
+              'X-Shopify-Access-Token': data.access_token,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              webhook: {
+                topic: 'fulfillment_events/create',
+                address: `${baseUrl}/webhooks/shopify/fulfillment-events-create`,
+                format: 'json',
+              }
+            }),
+          });
+          if (deliveryWebhookRes.ok) {
+            console.log('Registered fulfillment_events/create webhook');
+          } else {
+            const errorText = await deliveryWebhookRes.text();
+            console.error('Failed to register fulfillment_events/create webhook:', deliveryWebhookRes.status, errorText);
+          }
         } catch (webhookError) {
           console.error('Failed to register webhooks (non-fatal):', webhookError);
         }
@@ -1414,6 +1437,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error processing fulfillment webhook:', error);
       res.status(500).json({ error: 'Failed to process fulfillment' });
+    }
+  });
+
+  // Webhook for Shopify fulfillment_events/create — fires for in-transit, out-for-delivery,
+  // delivered, etc. We act on `delivered` to mark the order delivered, soft-ban the customer
+  // (only if Story still owed), and fire the one-time delivery reminder push.
+  app.post("/webhooks/shopify/fulfillment-events-create", async (req, res) => {
+    try {
+      // Acknowledge immediately to avoid Shopify retries while we do the work.
+      res.status(200).json({ received: true });
+
+      const event = req.body?.fulfillment_event ?? req.body;
+      const status = (event?.status || '').toLowerCase();
+      const shopifyOrderId = event?.order_id?.toString();
+      console.log(`[shopify] fulfillment_events/create received — order=${shopifyOrderId} status=${status}`);
+      if (status !== 'delivered' || !shopifyOrderId) return;
+
+      const order = await storage.getOrderByShopifyOrderId(shopifyOrderId);
+      if (!order) {
+        console.log(`[shopify] No Spiral order for delivered Shopify order ${shopifyOrderId}`);
+        return;
+      }
+      await transitionOrderToDelivered(order.id);
+    } catch (error) {
+      console.error('Error processing fulfillment_events webhook:', error);
     }
   });
 
@@ -3546,6 +3594,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               console.log(`[publicity-check] Order ${check.orderId} VERIFIED after final cross-check`);
             }
           } else if (result.kind === 'not_public') {
+            // Soft-ban only fires for orders that are already DELIVERED (per spec: a non-delivered
+            // order doesn't owe a Story yet). Status update + push happen either way.
+            const orderForBan = await storage.getOrderById(check.orderId);
+            const isDelivered = orderForBan?.status === 'delivered';
             if (stage === 'quick') {
               // Story isn't visible publicly — almost certainly Close Friends, or already deleted.
               await storage.recordPublicityCheckAttempt(check.id, {
@@ -3553,14 +3605,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 completed: true,
               });
               await storage.updateOrderVerificationStatus(check.orderId, 'not_public');
-              await storage.setCustomerSoftBanned(check.customerId, 'not_public');
+              if (isDelivered) {
+                await storage.setCustomerSoftBanned(check.customerId, 'not_public');
+              }
               // Push (fails only). Copy never threatens the existing discount — only future access.
               await sendIosPushToCustomer(
                 check.customerId,
                 'Story not public',
                 `We couldn't see your Story. Repost it publicly — Close Friends doesn't count — to unlock your next Spiral discount.`,
               );
-              console.log(`[publicity-check] Order ${check.orderId} NOT_PUBLIC at quick stage — customer soft-banned`);
+              console.log(`[publicity-check] Order ${check.orderId} NOT_PUBLIC at quick stage${isDelivered ? ' — customer soft-banned' : ' (not yet delivered, no soft-ban)'}`);
             } else {
               // Story passed quick check but is gone at the 10h mark — taken down early.
               await storage.recordPublicityCheckAttempt(check.id, {
@@ -3568,13 +3622,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 completed: true,
               });
               await storage.updateOrderVerificationStatus(check.orderId, 'taken_down_early');
-              await storage.setCustomerSoftBanned(check.customerId, 'taken_down_early');
+              if (isDelivered) {
+                await storage.setCustomerSoftBanned(check.customerId, 'taken_down_early');
+              }
               await sendIosPushToCustomer(
                 check.customerId,
                 'Story came down too early',
                 `Spiral Stories need to stay up for 24 hours. Repost yours to unlock your next discount.`,
               );
-              console.log(`[publicity-check] Order ${check.orderId} TAKEN_DOWN_EARLY at final stage — customer soft-banned`);
+              console.log(`[publicity-check] Order ${check.orderId} TAKEN_DOWN_EARLY at final stage${isDelivered ? ' — customer soft-banned' : ' (not yet delivered, no soft-ban)'}`);
             }
           } else {
             // Scraper error — retry up to MAX_ATTEMPTS, then give up.
