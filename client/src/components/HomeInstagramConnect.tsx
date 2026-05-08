@@ -133,6 +133,23 @@ export default function HomeInstagramConnect() {
             )}
           </Button>
 
+          <Button
+            asChild
+            variant="outline"
+            className="w-full h-12 text-sm font-medium rounded-xl border-emerald-200 text-emerald-800 mb-3"
+            data-testid="button-open-spiral-instagram"
+          >
+            <a
+              href="https://instagram.com/joinspiral"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Instagram className="w-4 h-4 mr-2" />
+              Visit @joinspiral on Instagram
+              <ExternalLink className="w-4 h-4 ml-2" />
+            </a>
+          </Button>
+
           <div className="flex items-center justify-center gap-2 text-sm text-gray-400 mb-3">
             <Loader2 className="w-4 h-4 animate-spin" />
             <span>Waiting for your message...</span>
