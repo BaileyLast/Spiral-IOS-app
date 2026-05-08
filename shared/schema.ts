@@ -3,6 +3,22 @@ import { pgTable, text, varchar, integer, timestamp, boolean, numeric, uniqueInd
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Canonical owed-state set for soft-ban accounting. Single source of truth
+// shared by getOwedOrdersForCustomer, getOwedOrdersByInstagramIdentity, and
+// any client-side count of "Stories you still owe".
+//   - taken_down_early : owed regardless of delivery status (final-fail debt)
+//   - pending / awaiting_review / not_public : owed only once delivered
+export const OWED_VERIFICATION_ANYDELIVERY = ["taken_down_early"] as const;
+export const OWED_VERIFICATION_DELIVERED_ONLY = ["pending", "awaiting_review", "not_public"] as const;
+export type OwedVerificationStatus =
+  | typeof OWED_VERIFICATION_ANYDELIVERY[number]
+  | typeof OWED_VERIFICATION_DELIVERED_ONLY[number];
+export function isOrderOwed(o: { status: string; verificationStatus: string }): boolean {
+  if ((OWED_VERIFICATION_ANYDELIVERY as readonly string[]).includes(o.verificationStatus)) return true;
+  if (o.status === "delivered" && (OWED_VERIFICATION_DELIVERED_ONLY as readonly string[]).includes(o.verificationStatus)) return true;
+  return false;
+}
+
 export const storeSettings = pgTable("store_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   storeName: text("store_name").notNull(),

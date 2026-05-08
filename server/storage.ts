@@ -1,3 +1,4 @@
+import { OWED_VERIFICATION_ANYDELIVERY, OWED_VERIFICATION_DELIVERED_ONLY } from "@shared/schema";
 import { 
   storeSettings, 
   discountTiers, 
@@ -713,8 +714,8 @@ export class DatabaseStorage implements IStorage {
     }
     if (idConds.length === 0) return [];
     const idWhere = idConds.length === 1 ? idConds[0] : or(...idConds)!;
-    // Owed = (verification === 'taken_down_early' regardless of delivery)
-    //     OR (status === 'delivered' AND verification IN pending/awaiting_review/not_public)
+    // Owed-state set is the canonical one from shared/schema.ts
+    // (OWED_VERIFICATION_ANYDELIVERY + OWED_VERIFICATION_DELIVERED_ONLY).
     const rows = await db
       .select()
       .from(orders)
@@ -722,14 +723,10 @@ export class DatabaseStorage implements IStorage {
         and(
           idWhere,
           or(
-            eq(orders.verificationStatus, 'taken_down_early'),
+            inArray(orders.verificationStatus, [...OWED_VERIFICATION_ANYDELIVERY]),
             and(
               eq(orders.status, 'delivered'),
-              or(
-                eq(orders.verificationStatus, 'pending'),
-                eq(orders.verificationStatus, 'awaiting_review'),
-                eq(orders.verificationStatus, 'not_public'),
-              )!,
+              inArray(orders.verificationStatus, [...OWED_VERIFICATION_DELIVERED_ONLY]),
             )!,
           )!,
         )!,
@@ -738,19 +735,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteSpiralCustomerCompletely(id: string): Promise<void> {
-    // Order matters: clear children + anonymize orders BEFORE deleting the
-    // customer row so any FK-style references are gone first.
-    await db.delete(spiralCodes).where(eq(spiralCodes.customerId, id));
-    await db
-      .delete(merchantScopedUserMap)
-      .where(eq(merchantScopedUserMap.spiralCustomerId, id));
-    // Anonymize orders — keep historical rows for analytics but unlink from
-    // the deleted account so /api/customer/orders never re-surfaces them.
-    await db
-      .update(orders)
-      .set({ spiralCustomerId: null })
-      .where(eq(orders.spiralCustomerId, id));
-    await db.delete(spiralCustomers).where(eq(spiralCustomers.id, id));
+    // Atomic: wrap all four writes in a single transaction so a partial
+    // failure can't leave dangling spiral_codes / scoped-id rows or an
+    // orphaned customer with un-anonymized orders.
+    await db.transaction(async (tx) => {
+      await tx.delete(spiralCodes).where(eq(spiralCodes.customerId, id));
+      await tx
+        .delete(merchantScopedUserMap)
+        .where(eq(merchantScopedUserMap.spiralCustomerId, id));
+      // Anonymize orders — keep historical rows (and their IG identity, so
+      // soft-ban inheritance still works) but unlink from the deleted
+      // account so /api/customer/orders never re-surfaces them.
+      await tx
+        .update(orders)
+        .set({ spiralCustomerId: null })
+        .where(eq(orders.spiralCustomerId, id));
+      await tx.delete(spiralCustomers).where(eq(spiralCustomers.id, id));
+    });
   }
 
   async updateSpiralCustomerEmailVerified(id: string, verified: boolean): Promise<SpiralCustomer> {
