@@ -148,11 +148,20 @@ export interface IStorage {
   markVerificationAwaitingReview(verificationId: string, storyMediaId: string | null): Promise<void>;
   // iOS push token registration (for fail/reminder notifications only — never used for success)
   updateSpiralCustomerPushToken(id: string, token: string | null): Promise<void>;
-  // Soft-ban writes. Reason is a short machine-tag (e.g. 'not_public','taken_down_early','delivery_pending').
+  // Soft-ban writes. Reason is a short machine-tag (e.g. 'not_public','taken_down_early','delivery_pending','inherited_from_instagram').
   setCustomerSoftBanned(id: string, reason: string): Promise<void>;
   clearCustomerSoftBan(id: string): Promise<void>;
   // Mark an order's status as 'delivered' (transitions order.status, sets deliveredAt if column exists).
   markOrderDelivered(orderId: string): Promise<Order>;
+  // Cross-account Instagram identity lookup. Returns every Spiral customer
+  // whose Instagram identity matches (by global pk OR by page-scoped user ID).
+  // Used to anchor soft-ban to the Instagram account, not the email — closes
+  // the "new email + same IG" Story-debt exploit at signup.
+  getCustomersByInstagramIdentity(identity: { instagramGlobalUserId?: string | null; instagramUserId?: string | null }): Promise<SpiralCustomer[]>;
+  // Hard-delete a customer + all locally-owned related rows. Anonymizes orders
+  // (sets spiralCustomerId to null) so historical analytics survive while the
+  // account itself is gone. Required for App Store 5.1.1(v) account deletion.
+  deleteSpiralCustomerCompletely(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -669,6 +678,38 @@ export class DatabaseStorage implements IStorage {
       .where(eq(orders.id, orderId))
       .returning();
     return updated;
+  }
+
+  async getCustomersByInstagramIdentity(identity: {
+    instagramGlobalUserId?: string | null;
+    instagramUserId?: string | null;
+  }): Promise<SpiralCustomer[]> {
+    const conds: SQL[] = [];
+    if (identity.instagramGlobalUserId) {
+      conds.push(eq(spiralCustomers.instagramGlobalUserId, identity.instagramGlobalUserId));
+    }
+    if (identity.instagramUserId) {
+      conds.push(eq(spiralCustomers.instagramUserId, identity.instagramUserId));
+    }
+    if (conds.length === 0) return [];
+    const where = conds.length === 1 ? conds[0] : or(...conds);
+    return await db.select().from(spiralCustomers).where(where);
+  }
+
+  async deleteSpiralCustomerCompletely(id: string): Promise<void> {
+    // Order matters: clear children + anonymize orders BEFORE deleting the
+    // customer row so any FK-style references are gone first.
+    await db.delete(spiralCodes).where(eq(spiralCodes.customerId, id));
+    await db
+      .delete(merchantScopedUserMap)
+      .where(eq(merchantScopedUserMap.spiralCustomerId, id));
+    // Anonymize orders — keep historical rows for analytics but unlink from
+    // the deleted account so /api/customer/orders never re-surfaces them.
+    await db
+      .update(orders)
+      .set({ spiralCustomerId: null })
+      .where(eq(orders.spiralCustomerId, id));
+    await db.delete(spiralCustomers).where(eq(spiralCustomers.id, id));
   }
 
   async updateSpiralCustomerEmailVerified(id: string, verified: boolean): Promise<SpiralCustomer> {

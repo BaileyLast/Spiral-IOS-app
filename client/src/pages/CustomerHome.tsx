@@ -160,9 +160,11 @@ export default function CustomerHome() {
                   Your next discount is on hold
                 </p>
                 <p className="text-sm text-orange-700 mt-1" data-testid="text-soft-ban-body">
-                  {pendingCount > 1
-                    ? `Post a Story tagging the brand for your ${pendingCount} pending orders to unlock your next Spiral discount.`
-                    : "Post a Story tagging the brand for your pending order to unlock your next Spiral discount."}
+                  {profile?.softBannedReason === "inherited_from_instagram"
+                    ? "Your Instagram account owes a Story from a previous Spiral order. Post that Story tagging the brand to unlock your next Spiral discount."
+                    : pendingCount > 1
+                      ? `Post a Story tagging the brand for your ${pendingCount} pending orders to unlock your next Spiral discount.`
+                      : "Post a Story tagging the brand for your pending order to unlock your next Spiral discount."}
                 </p>
                 {pendingOrders.length > 0 && (
                   <div className="mt-3 space-y-1.5">

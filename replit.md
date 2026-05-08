@@ -128,9 +128,10 @@ Preferred communication style: Simple, everyday language.
 ### Soft-Ban Model
 - Persisted on `spiral_customers` via `accountStatus` (`'active'` | `'soft_banned'`), `softBannedReason`, `softBannedAt`.
 - A shopper is soft-banned (blocked from new Spiral discounts at checkout) when they have any owed order. **Owed** = (a) delivered order in `pending`, `awaiting_review`, or `not_public`, OR (b) any order in `taken_down_early` regardless of delivery status (final-fail debt is independent of delivery; quick-fail debt only counts post-delivery since a shopper hasn't "owed" anything before delivery).
-- Set on: delivery (`delivery_pending`), quick-check fail (`not_public`), final-check fail (`taken_down_early`).
-- Cleared automatically by `maybeAutoUnbanCustomer` whenever no owed orders remain (i.e. after `quick_verified` or `verified`).
-- `/api/checkout/calculate-discount` gates on `accountStatus === 'soft_banned'` and returns `{ code: "soft_banned", softBanned: true, softBannedReason }`. Self-heals if state ever drifts out of sync with order state.
+- Set on: delivery (`delivery_pending`), quick-check fail (`not_public`), final-check fail (`taken_down_early`), Instagram inheritance at DM verification (`inherited_from_instagram`).
+- **Anchored to Instagram identity, not email.** Debt follows the Instagram account (matched by `instagramGlobalUserId` OR `instagramUserId`) across every Spiral customer that links the same IG profile. Inheritance is evaluated in two places: (1) at DM-verification time in the `/webhooks/instagram-dm` handler — if any sibling account sharing the just-resolved IG identity has owed orders, the new account is soft-banned with reason `inherited_from_instagram`; (2) at checkout in `/api/checkout/calculate-discount` — owed-orders count is the union of own-owed + sibling-IG-owed, so a shopper can't dodge debt by signing up with a new email but the same Instagram.
+- Cleared automatically by `maybeAutoUnbanCustomer` whenever the customer has zero own-owed AND zero sibling-IG-owed orders. The clear cascades: when this customer's own debt clears, every sibling account with the same IG identity is re-evaluated and unbanned if their inherited debt is now also gone.
+- `/api/checkout/calculate-discount` gates on `accountStatus === 'soft_banned'` and returns `{ code: "soft_banned", softBanned: true, softBannedReason }`. Self-heals if state ever drifts out of sync with order state (own + inherited).
 - Reposting an Instagram Story tagging the merchant re-triggers verification on `not_public`/`taken_down_early` orders, which then auto-unbans on quick pass.
 - Customer surfaces: orange "Your next discount is on hold" banner shown on Home and Discounts pages whenever `accountStatus === 'soft_banned'`.
 

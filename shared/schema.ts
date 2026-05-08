@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, boolean, numeric, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, boolean, numeric, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -125,7 +125,12 @@ export const spiralCustomers = pgTable("spiral_customers", {
   accountStatus: text("account_status").notNull().default("active"),
   softBannedReason: text("soft_banned_reason"),
   softBannedAt: timestamp("soft_banned_at"),
-});
+}, (table) => ({
+  // Indexes for IG-anchored soft-ban inheritance lookups
+  // (`getCustomersByInstagramIdentity` ORs these two columns).
+  instagramGlobalUserIdIdx: index("spiral_customers_instagram_global_user_id_idx").on(table.instagramGlobalUserId),
+  instagramUserIdIdx: index("spiral_customers_instagram_user_id_idx").on(table.instagramUserId),
+}));
 
 export const orders = pgTable("orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

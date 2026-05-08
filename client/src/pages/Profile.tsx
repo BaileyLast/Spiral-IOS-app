@@ -1,8 +1,20 @@
+import { useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 import {
   Bell,
   LogOut,
@@ -27,6 +39,8 @@ interface CustomerProfile {
 
 export default function Profile() {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const { data: profile, isLoading: profileLoading } = useQuery<CustomerProfile>({
     queryKey: ["/api/customer/me"],
   });
@@ -49,6 +63,32 @@ export default function Profile() {
       localStorage.removeItem("spiral_customer");
       queryClient.clear();
       setLocation("/");
+    },
+  });
+
+  const deleteAccountMutation = useMutation({
+    mutationFn: async () => {
+      // Clear push token first so the deleted account never gets a stray push.
+      try {
+        await apiRequest("POST", "/api/customer/push-token", { token: null });
+      } catch (err) {
+        console.warn("[push-token] clear on delete failed", err);
+      }
+      await apiRequest("DELETE", "/api/customer/me");
+    },
+    onSuccess: () => {
+      localStorage.removeItem("spiral_customer");
+      queryClient.clear();
+      setDeleteOpen(false);
+      toast({ title: "Account deleted", description: "Your Spiral account has been permanently removed." });
+      setLocation("/");
+    },
+    onError: () => {
+      toast({
+        title: "Couldn't delete account",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -121,6 +161,7 @@ export default function Profile() {
             </button>
 
             <button
+              onClick={() => setDeleteOpen(true)}
               className="w-full flex items-center justify-between p-4 hover-elevate"
               data-testid="button-delete-account"
             >
@@ -130,6 +171,45 @@ export default function Profile() {
               </div>
               <ChevronRight className="w-5 h-5 text-gray-300" />
             </button>
+
+            <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+              <AlertDialogContent data-testid="dialog-delete-account">
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete your Spiral account?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This permanently removes your profile, Instagram link, and verification codes.
+                    Your past order history will be anonymized but kept for the brands you bought from.
+                    This can't be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel
+                    disabled={deleteAccountMutation.isPending}
+                    data-testid="button-cancel-delete-account"
+                  >
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={(e) => {
+                      e.preventDefault();
+                      deleteAccountMutation.mutate();
+                    }}
+                    disabled={deleteAccountMutation.isPending}
+                    className="bg-red-500 text-white hover:bg-red-600"
+                    data-testid="button-confirm-delete-account"
+                  >
+                    {deleteAccountMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      "Delete account"
+                    )}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
 

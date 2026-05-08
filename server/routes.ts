@@ -1714,38 +1714,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Soft-ban gate: persisted accountStatus is the source of truth at checkout.
       // Self-heals in BOTH directions if state drifts vs actual owed orders.
       // Owed includes (a) delivered+pending/awaiting_review and (b) any not_public/taken_down_early
-      // regardless of delivery status — so a final-fail ban isn't auto-cleared just because the
-      // failing order isn't yet delivered.
-      const owedOrders = await getOwedOrdersForCustomer(customerId);
+      // regardless of delivery status. We additionally check INHERITED debt anchored to the
+      // shopper's Instagram identity (across sibling accounts with the same global pk or
+      // page-scoped IG user ID), to close the "new email + same IG" Story-debt exploit.
+      const ownOwed = await getOwedOrdersForCustomer(customerId);
+      const inheritedOwed = await getOwedOrdersForInstagramIdentity({
+        instagramGlobalUserId: customer.instagramGlobalUserId,
+        instagramUserId: customer.instagramUserId,
+        excludeCustomerId: customerId,
+      });
+      const totalOwedCount = ownOwed.length + inheritedOwed.length;
+      const inheritedOnly = ownOwed.length === 0 && inheritedOwed.length > 0;
+
       if (customer.accountStatus === "soft_banned") {
-        if (owedOrders.length === 0) {
-          // Stale soft-ban — no orders are actually owed. Auto-clear and continue eligibility checks.
+        if (totalOwedCount === 0) {
+          // Stale soft-ban — no orders are actually owed (own or inherited). Auto-clear.
           await storage.clearCustomerSoftBan(customerId);
           console.log(`[soft-ban] Customer ${customerId} auto-cleared at checkout (stale state, no owed orders)`);
         } else {
+          const effectiveReason = inheritedOnly
+            ? "inherited_from_instagram"
+            : (customer.softBannedReason ?? "story_owed");
+          // If the user has incurred their own debt since the inherited ban was
+          // set, refresh the persisted reason so future surfaces (banners, push
+          // copy) stop pointing at the sibling IG account.
+          if (!inheritedOnly && customer.softBannedReason === "inherited_from_instagram") {
+            try {
+              await storage.setCustomerSoftBanned(customerId, effectiveReason);
+            } catch (refreshErr) {
+              console.error('Failed to refresh stale inherited soft-ban reason:', refreshErr);
+            }
+          }
           return res.json({
             eligible: false,
             code: "soft_banned",
             softBanned: true,
-            softBannedReason: customer.softBannedReason ?? "story_owed",
-            reason: owedOrders.length <= 1
-              ? "Post a Story for your previous order to unlock your next discount"
-              : `Post a Story for your ${owedOrders.length} unverified orders to unlock your next discount`,
-            pendingVerificationCount: owedOrders.length,
+            softBannedReason: effectiveReason,
+            reason: inheritedOnly
+              ? "Your Instagram account owes a Story from a previous Spiral order. Post that Story to unlock your next discount."
+              : (totalOwedCount <= 1
+                ? "Post a Story for your previous order to unlock your next discount"
+                : `Post a Story for your ${totalOwedCount} unverified orders to unlock your next discount`),
+            pendingVerificationCount: totalOwedCount,
           });
         }
-      } else if (owedOrders.length > 0) {
+      } else if (totalOwedCount > 0) {
         // Self-heal: state drifted (account active but orders owed). Re-soft-ban now.
-        await storage.setCustomerSoftBanned(customerId, "story_owed");
+        const reason = inheritedOnly ? "inherited_from_instagram" : "story_owed";
+        await storage.setCustomerSoftBanned(customerId, reason);
         return res.json({
           eligible: false,
           code: "soft_banned",
           softBanned: true,
-          softBannedReason: "story_owed",
-          reason: owedOrders.length === 1
-            ? "Post a Story for your previous order to unlock your next discount"
-            : `Post a Story for your ${owedOrders.length} unverified orders to unlock your next discount`,
-          pendingVerificationCount: owedOrders.length,
+          softBannedReason: reason,
+          reason: inheritedOnly
+            ? "Your Instagram account owes a Story from a previous Spiral order. Post that Story to unlock your next discount."
+            : (totalOwedCount === 1
+              ? "Post a Story for your previous order to unlock your next discount"
+              : `Post a Story for your ${totalOwedCount} unverified orders to unlock your next discount`),
+          pendingVerificationCount: totalOwedCount,
         });
       }
 
@@ -2150,6 +2177,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/customer/logout", async (req, res) => {
     req.session.customerId = undefined;
     res.json({ success: true });
+  });
+
+  // App Store 5.1.1(v): functional in-app account deletion. Hard-deletes the
+  // customer + spiral_codes + merchant_scoped_user_map entries; orders are
+  // anonymized (spiralCustomerId set to null) so historical analytics survive.
+  // Ends the session as the final step.
+  app.delete("/api/customer/me", async (req, res) => {
+    try {
+      const customerId = req.session.customerId;
+      if (!customerId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const customer = await storage.getSpiralCustomerById(customerId);
+      if (!customer) {
+        req.session.customerId = undefined;
+        return res.json({ success: true });
+      }
+      await storage.deleteSpiralCustomerCompletely(customerId);
+      req.session.customerId = undefined;
+      console.log(`[delete-account] Hard-deleted customer ${customerId} (${customer.email})`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete account error:", error);
+      res.status(500).json({ error: "Failed to delete account" });
+    }
   });
 
   // Get current customer profile
@@ -3127,6 +3179,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     followerCount,
                   });
 
+                  // Soft-ban inheritance: if any sibling Spiral account sharing
+                  // this newly-resolved Instagram identity has owed Story debt,
+                  // carry that ban over to the just-verified account so a new
+                  // email can't be used to dodge debt anchored to the IG profile.
+                  try {
+                    const inheritedDebt = await getOwedOrdersForInstagramIdentity({
+                      instagramGlobalUserId: globalInstagramUserId,
+                      instagramUserId: senderInstagramId,
+                      excludeCustomerId: pendingValidCode.customerId,
+                    });
+                    if (inheritedDebt.length > 0) {
+                      await storage.setCustomerSoftBanned(pendingValidCode.customerId, "inherited_from_instagram");
+                      console.log(`[soft-ban] Customer ${pendingValidCode.customerId} inherited soft-ban from Instagram identity (@${instagramHandle}, ${inheritedDebt.length} owed order(s) on sibling accounts)`);
+                    }
+                  } catch (inheritErr) {
+                    console.error('Failed to evaluate IG-anchored soft-ban inheritance:', inheritErr);
+                  }
+
                   console.log(`Verified Spiral code ${pendingValidMatchedCode} for customer ${pendingValidCode.customerId} - Instagram: @${instagramHandle} (${senderInstagramId})`);
 
                   // Send confirmation DM back
@@ -3817,12 +3887,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   }
 
-  // Auto-unban: clears soft-ban iff shopper has zero remaining owed orders.
+  // Cross-account Instagram-anchored owed-orders count. Returns the union of
+  // owed orders across every Spiral customer that shares this Instagram identity
+  // (matched by global pk OR by page-scoped IG user ID), optionally excluding
+  // one customer (used when checking "do my SIBLING accounts owe a Story?").
+  // Closes the soft-ban exploit where a shopper signs up with a new email but
+  // the same Instagram to skip Story debt.
+  async function getOwedOrdersForInstagramIdentity(opts: {
+    instagramGlobalUserId?: string | null;
+    instagramUserId?: string | null;
+    excludeCustomerId?: string | null;
+  }) {
+    if (!opts.instagramGlobalUserId && !opts.instagramUserId) return [];
+    const siblings = await storage.getCustomersByInstagramIdentity({
+      instagramGlobalUserId: opts.instagramGlobalUserId ?? null,
+      instagramUserId: opts.instagramUserId ?? null,
+    });
+    const filtered = siblings.filter((c) => c.id !== opts.excludeCustomerId);
+    const all = await Promise.all(filtered.map((c) => getOwedOrdersForCustomer(c.id)));
+    return all.flat();
+  }
+
+  // Auto-unban: clears soft-ban iff shopper has zero remaining owed orders —
+  // including any inherited Instagram-anchored debt from sibling accounts.
+  // Also cascades the clear: when this customer's owed orders are gone, walk
+  // every sibling account sharing the same Instagram identity and re-evaluate
+  // their bans, since an inherited ban there might now be clearable too.
   async function maybeAutoUnbanCustomer(customerId: string): Promise<void> {
-    const owed = await getOwedOrdersForCustomer(customerId);
-    if (owed.length === 0) {
+    const customer = await storage.getSpiralCustomerById(customerId);
+    if (!customer) return;
+    const ownOwed = await getOwedOrdersForCustomer(customerId);
+    const inheritedOwed = await getOwedOrdersForInstagramIdentity({
+      instagramGlobalUserId: customer.instagramGlobalUserId,
+      instagramUserId: customer.instagramUserId,
+      excludeCustomerId: customerId,
+    });
+    if (ownOwed.length === 0 && inheritedOwed.length === 0) {
       await storage.clearCustomerSoftBan(customerId);
-      console.log(`[soft-ban] Customer ${customerId} auto-unbanned (no owed orders)`);
+      console.log(`[soft-ban] Customer ${customerId} auto-unbanned (no owed orders, no IG-anchored debt)`);
+    }
+    // If THIS customer's owed list shrank, sibling accounts that inherited a
+    // ban from this debt may now be clear too. Re-evaluate them once.
+    if (ownOwed.length === 0 && (customer.instagramGlobalUserId || customer.instagramUserId)) {
+      const siblings = await storage.getCustomersByInstagramIdentity({
+        instagramGlobalUserId: customer.instagramGlobalUserId,
+        instagramUserId: customer.instagramUserId,
+      });
+      for (const sib of siblings) {
+        if (sib.id === customerId) continue;
+        if (sib.accountStatus !== "soft_banned") continue;
+        const sibOwn = await getOwedOrdersForCustomer(sib.id);
+        const sibInherited = await getOwedOrdersForInstagramIdentity({
+          instagramGlobalUserId: sib.instagramGlobalUserId,
+          instagramUserId: sib.instagramUserId,
+          excludeCustomerId: sib.id,
+        });
+        if (sibOwn.length === 0 && sibInherited.length === 0) {
+          await storage.clearCustomerSoftBan(sib.id);
+          console.log(`[soft-ban] Sibling customer ${sib.id} auto-unbanned (IG-anchored debt cleared via ${customerId})`);
+        }
+      }
     }
   }
 

@@ -358,9 +358,11 @@ export default function Orders() {
                 Your next discount is on hold
               </p>
               <p className="text-xs text-orange-700 mt-0.5" data-testid="text-soft-ban-body">
-                {owedCount > 1
-                  ? `Post a Story tagging the brand for your ${owedCount} pending orders to unlock your next Spiral discount.`
-                  : "Post a Story tagging the brand for your pending order to unlock your next Spiral discount."}
+                {me?.softBannedReason === "inherited_from_instagram"
+                  ? "Your Instagram account owes a Story from a previous Spiral order. Post that Story tagging the brand to unlock your next Spiral discount."
+                  : owedCount > 1
+                    ? `Post a Story tagging the brand for your ${owedCount} pending orders to unlock your next Spiral discount.`
+                    : "Post a Story tagging the brand for your pending order to unlock your next Spiral discount."}
               </p>
             </div>
           </div>
