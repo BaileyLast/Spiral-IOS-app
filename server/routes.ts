@@ -3136,21 +3136,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   // Verify the code and link Instagram
                   await storage.verifySpiralCode(pendingValidMatchedCode, senderInstagramId, instagramHandle);
 
+                  // Send the welcome DM IMMEDIATELY after the code is marked
+                  // verified, BEFORE any of the secondary side-effects below
+                  // (global-ID lookup, customer record update, soft-ban
+                  // inheritance check). Those calls have historically thrown
+                  // and bubbled to the outer webhook catch, silently skipping
+                  // this DM. We're inside the 24h messaging window because the
+                  // shopper just DM'd us their code, so this is a safe send.
+                  try {
+                    console.log(`Sending welcome DM to ${senderInstagramId}...`);
+                    const dmSent = await sendInstagramDM(
+                      senderInstagramId,
+                      "Welcome to Spiral. You're verified and ready to earn instant discounts at checkout. Just shop, post a Story after delivery, and we'll handle the rest."
+                    );
+                    console.log(`Welcome DM ${dmSent ? 'sent successfully' : 'FAILED'} for ${senderInstagramId}`);
+                  } catch (welcomeErr) {
+                    console.error('Welcome DM send threw unexpectedly:', welcomeErr);
+                  }
+
                   // Resolve the account-wide Instagram user ID (the `pk`).
                   // This is the only identifier that reliably matches negative
                   // cache rows across merchants, since every page-scoped ID
                   // (DM sender, story_mention sender, Graph API ID) differs
                   // for the same person across pages.
                   let globalInstagramUserId: string | null = null;
-                  if (process.env.RAPIDAPI_KEY && instagramHandle) {
-                    globalInstagramUserId = await fetchInstagramGlobalUserIdByUsername(instagramHandle, process.env.RAPIDAPI_KEY);
-                    if (globalInstagramUserId) {
-                      try {
-                        await storage.updateSpiralCustomerGlobalUserId(pendingValidCode.customerId, globalInstagramUserId);
-                      } catch (err) {
-                        console.error('Failed to persist global IG user ID on customer:', err);
+                  try {
+                    if (process.env.RAPIDAPI_KEY && instagramHandle) {
+                      globalInstagramUserId = await fetchInstagramGlobalUserIdByUsername(instagramHandle, process.env.RAPIDAPI_KEY);
+                      if (globalInstagramUserId) {
+                        try {
+                          await storage.updateSpiralCustomerGlobalUserId(pendingValidCode.customerId, globalInstagramUserId);
+                        } catch (err) {
+                          console.error('Failed to persist global IG user ID on customer:', err);
+                        }
                       }
                     }
+                  } catch (globalIdErr) {
+                    console.error('Global IG user ID lookup failed (non-fatal):', globalIdErr);
                   }
 
                   // This Instagram account is now a Spiral customer. Wipe any
@@ -3174,16 +3196,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     console.error('Failed to clear negative cache after Spiral verification:', clearErr);
                   }
 
-                  // Update customer's Instagram info
-                  await storage.updateSpiralCustomerInstagram(pendingValidCode.customerId, {
-                    instagramHandle,
-                    instagramUserId: senderInstagramId,
-                    instagramAccessToken: null,
-                    instagramTokenExpiry: null,
-                    instagramProfilePicture: profilePicture || null,
-                    instagramAccountType: "UNKNOWN",
-                    followerCount,
-                  });
+                  // Update customer's Instagram info — wrapped because a unique
+                  // constraint conflict (e.g. the same IG account previously
+                  // linked to another customer that wasn't fully cleaned up)
+                  // would otherwise bubble out and skip soft-ban inheritance.
+                  try {
+                    await storage.updateSpiralCustomerInstagram(pendingValidCode.customerId, {
+                      instagramHandle,
+                      instagramUserId: senderInstagramId,
+                      instagramAccessToken: null,
+                      instagramTokenExpiry: null,
+                      instagramProfilePicture: profilePicture || null,
+                      instagramAccountType: "UNKNOWN",
+                      followerCount,
+                    });
+                  } catch (updateErr) {
+                    console.error('Failed to update customer Instagram info (non-fatal, code already verified):', updateErr);
+                  }
 
                   // Soft-ban inheritance: if any sibling Spiral account sharing
                   // this newly-resolved Instagram identity has owed Story debt,
@@ -3204,17 +3233,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   }
 
                   console.log(`Verified Spiral code ${pendingValidMatchedCode} for customer ${pendingValidCode.customerId} - Instagram: @${instagramHandle} (${senderInstagramId})`);
-
-                  // Send confirmation DM back
-                  console.log(`Sending welcome DM to ${senderInstagramId}...`);
-                  const dmSent = await sendInstagramDM(senderInstagramId, "🎉 Welcome to Spiral! You're now verified and ready to earn discounts on every order. ✨ Just shop, post a Story, and we'll take care of the rest!");
-                  console.log(`Welcome DM ${dmSent ? 'sent successfully' : 'FAILED'} for ${senderInstagramId}`);
+                  // (Welcome DM was already sent immediately after verifySpiralCode above.)
                 } else if (expiredCode) {
                   console.log(`Spiral code ${expiredMatchedCode} is expired`);
-                  await sendInstagramDM(senderInstagramId, "This code has expired. Please get a new code from the Spiral app.");
+                  await sendInstagramDM(senderInstagramId, "This code has expired. Open the Spiral app to get a new one.");
                 } else if (verifiedCode) {
                   console.log(`Spiral code ${verifiedMatchedCode} was already used`);
-                  await sendInstagramDM(senderInstagramId, "This code has already been used. You're already verified!");
+                  await sendInstagramDM(senderInstagramId, "This code has already been used. You're already verified.");
                 } else if (potentialCodes.length > 0) {
                   console.log(`No matching Spiral code found in message. Tried: ${potentialCodes.join(", ")}`);
                 } else {
@@ -4161,15 +4186,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const accessToken = process.env.SPIRAL_INSTAGRAM_ACCESS_TOKEN;
       const settings = await storage.getStoreSettings();
-      const pageId = settings?.instagramPageId;
-      
+      const pageId = settings?.instagramPageId || process.env.SPIRAL_INSTAGRAM_BUSINESS_ID;
+
       if (!accessToken || !pageId) {
-        console.log('Instagram access token or page ID not configured, skipping DM reply');
+        console.error('[IG DM] Skipping send — missing access token or page ID', {
+          hasAccessToken: !!accessToken,
+          hasPageId: !!pageId,
+        });
         return false;
       }
 
-      const url = `https://graph.instagram.com/v21.0/${pageId}/messages`;
-      
+      // SPIRAL_INSTAGRAM_ACCESS_TOKEN is a Page access token generated from
+      // the Meta dashboard ("Generate access tokens" for @joinspiral). The
+      // canonical messaging endpoint for that token shape is the Facebook
+      // Graph host with the Page ID — graph.instagram.com is for the
+      // Instagram Login (IG user-token) flow, which we don't use here.
+      const url = `https://graph.facebook.com/v21.0/${pageId}/messages`;
+
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -4179,19 +4212,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         body: JSON.stringify({
           recipient: { id: recipientId },
           message: { text: message },
+          messaging_type: 'RESPONSE',
         }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Failed to send Instagram DM:', response.status, errorData);
+        const errorData = await response.json().catch(() => ({})) as {
+          error?: { message?: string; code?: number; error_subcode?: number; fbtrace_id?: string; type?: string };
+        };
+        console.error('[IG DM] Send failed', {
+          httpStatus: response.status,
+          recipientId,
+          metaErrorCode: errorData?.error?.code,
+          metaErrorSubcode: errorData?.error?.error_subcode,
+          metaErrorType: errorData?.error?.type,
+          metaErrorMessage: errorData?.error?.message,
+          fbtraceId: errorData?.error?.fbtrace_id,
+        });
         return false;
       }
 
-      console.log(`Sent Instagram DM to ${recipientId}: "${message}"`);
+      const okData = await response.json().catch(() => ({})) as { message_id?: string; recipient_id?: string };
+      console.log(`[IG DM] Sent to ${recipientId} (message_id=${okData?.message_id ?? 'unknown'}): "${message}"`);
       return true;
     } catch (error) {
-      console.error('Error sending Instagram DM:', error);
+      console.error('[IG DM] Send threw:', error);
       return false;
     }
   }
