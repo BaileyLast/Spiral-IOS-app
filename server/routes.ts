@@ -3498,17 +3498,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      // Step 3: Find orders for this customer that still need verification.
-      // Includes awaiting_review so reposts after a failed publicity check can re-trigger the cross-check.
+      // Step 3: Find orders that this Story can verify. Combines:
+      //   (a) the current customer's own orders in any verification-eligible state, AND
+      //   (b) anonymized historical orders sharing the same Instagram identity
+      //       (orders.spiralCustomerId may be null after the previous account was
+      //       deleted — without this, inherited debt has no resolution path).
+      // Owed-by-IG covers {taken_down_early always, pending/awaiting_review/not_public
+      // when delivered}; we also pull the customer's own pending/story_detected
+      // pre-delivery orders so a Story posted before delivery still latches.
+      const customerObj = await storage.getSpiralCustomerById(customerId);
       const customerOrders = await storage.getOrdersByCustomerId(customerId);
-      // Include not_public and taken_down_early so reposts after a failed check re-trigger verification.
-      const pendingOrders = customerOrders.filter(o =>
+      const ownEligible = customerOrders.filter(o =>
         o.verificationStatus === 'pending' ||
         o.verificationStatus === 'story_detected' ||
         o.verificationStatus === 'awaiting_review' ||
         o.verificationStatus === 'not_public' ||
         o.verificationStatus === 'taken_down_early'
       );
+      const igOwed = (customerObj?.instagramGlobalUserId || customerObj?.instagramUserId)
+        ? await storage.getOwedOrdersByInstagramIdentity({
+            instagramGlobalUserId: customerObj?.instagramGlobalUserId ?? null,
+            instagramUserId: customerObj?.instagramUserId ?? null,
+          })
+        : [];
+      const byId = new Map<string, typeof customerOrders[number]>();
+      for (const o of [...ownEligible, ...igOwed]) byId.set(o.id, o);
+      const pendingOrders = Array.from(byId.values());
 
       if (pendingOrders.length === 0) {
         console.log(`Story mention: No pending orders for customer ${customerId}`);
