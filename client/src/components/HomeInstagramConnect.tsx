@@ -81,25 +81,25 @@ export default function HomeInstagramConnect() {
 
   return (
     <div
-      className="rounded-2xl border border-orange-200 bg-orange-50 p-5"
+      className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5"
       data-testid="card-home-connect-instagram"
     >
       <div className="flex items-start gap-3 mb-4">
-        <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
-          <Lock className="w-5 h-5 text-orange-600" />
+        <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
+          <Lock className="w-5 h-5 text-emerald-600" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-orange-900" data-testid="text-connect-heading">
+          <p className="font-semibold text-emerald-900" data-testid="text-connect-heading">
             Verify your Instagram to start
           </p>
-          <p className="text-sm text-orange-700 mt-1" data-testid="text-connect-body">
+          <p className="text-sm text-emerald-700 mt-1" data-testid="text-connect-body">
             Spiral discounts, marketplace and orders are locked until you connect Instagram.
           </p>
         </div>
       </div>
 
       {spiralCode?.status === "pending" && (
-        <div className="bg-white rounded-2xl border border-orange-100 p-5">
+        <div className="bg-white rounded-2xl border border-emerald-100 p-5">
           <p className="text-sm text-gray-500 mb-3 text-center">
             Send this code to @joinspiral on Instagram:
           </p>
@@ -151,7 +151,7 @@ export default function HomeInstagramConnect() {
       )}
 
       {!spiralCode && (
-        <div className="bg-white rounded-2xl border border-orange-100 p-6 flex items-center justify-center gap-2 text-sm text-gray-400">
+        <div className="bg-white rounded-2xl border border-emerald-100 p-6 flex items-center justify-center gap-2 text-sm text-gray-400">
           <Loader2 className="w-4 h-4 animate-spin" />
           <span>Generating your code...</span>
         </div>
