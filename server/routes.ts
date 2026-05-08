@@ -1297,14 +1297,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Extract Instagram fields (nullable - may be missing for orders needing remediation)
       let instagramHandle = instagramHandleAttr?.value || null;
       let instagramUserId = instagramUserIdAttr?.value || null;
+      let instagramGlobalUserId: string | null = null;
       let followerCount = followerCountAttr?.value ? parseInt(followerCountAttr.value, 10) : null;
       
       // If we have a Spiral customer ID, fetch their data
-      if (spiralCustomerId && (!instagramHandle || !instagramUserId)) {
+      if (spiralCustomerId) {
         const customer = await storage.getSpiralCustomerById(spiralCustomerId);
         if (customer) {
           instagramHandle = instagramHandle || customer.instagramHandle;
           instagramUserId = instagramUserId || customer.instagramUserId;
+          instagramGlobalUserId = customer.instagramGlobalUserId ?? null;
           followerCount = followerCount ?? customer.followerCount;
         }
       }
@@ -1352,6 +1354,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         spiralCustomerId: spiralCustomerId,
         instagramHandle: instagramHandle,
         instagramUserId: instagramUserId,
+        instagramGlobalUserId: instagramGlobalUserId,
         followerCount: followerCount,
         discountPercent: String(discountPercent.toFixed(2)),
         orderTotal: String(orderTotal.toFixed(2)),
@@ -1922,6 +1925,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         spiralCustomerId: customer.id,
         instagramHandle: customer.instagramHandle,
         instagramUserId: customer.instagramUserId,
+        instagramGlobalUserId: customer.instagramGlobalUserId ?? null,
         followerCount: customer.followerCount,
         discountPercent: discountPct.toFixed(2),
         orderTotal: orderTotal.toFixed(2),
@@ -2192,12 +2196,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const customer = await storage.getSpiralCustomerById(customerId);
       if (!customer) {
         req.session.customerId = undefined;
-        return res.json({ success: true });
+        return res.status(204).end();
       }
       await storage.deleteSpiralCustomerCompletely(customerId);
       req.session.customerId = undefined;
       console.log(`[delete-account] Hard-deleted customer ${customerId} (${customer.email})`);
-      res.json({ success: true });
+      res.status(204).end();
     } catch (error) {
       console.error("Delete account error:", error);
       res.status(500).json({ error: "Failed to delete account" });
@@ -3899,13 +3903,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     excludeCustomerId?: string | null;
   }) {
     if (!opts.instagramGlobalUserId && !opts.instagramUserId) return [];
-    const siblings = await storage.getCustomersByInstagramIdentity({
+    // Deletion-resilient path: query orders directly by IG identity. Survives
+    // customer-row deletion (orders.spiralCustomerId may be null but the
+    // order keeps its IG identity columns), so the "delete + re-signup with
+    // same Instagram" Story-debt exploit stays closed.
+    const debtOrders = await storage.getOwedOrdersByInstagramIdentity({
       instagramGlobalUserId: opts.instagramGlobalUserId ?? null,
       instagramUserId: opts.instagramUserId ?? null,
     });
-    const filtered = siblings.filter((c) => c.id !== opts.excludeCustomerId);
-    const all = await Promise.all(filtered.map((c) => getOwedOrdersForCustomer(c.id)));
-    return all.flat();
+    const filtered = opts.excludeCustomerId
+      ? debtOrders.filter((o) => o.spiralCustomerId !== opts.excludeCustomerId)
+      : debtOrders;
+    return filtered;
   }
 
   // Auto-unban: clears soft-ban iff shopper has zero remaining owed orders —

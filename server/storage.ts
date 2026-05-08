@@ -158,6 +158,10 @@ export interface IStorage {
   // Used to anchor soft-ban to the Instagram account, not the email — closes
   // the "new email + same IG" Story-debt exploit at signup.
   getCustomersByInstagramIdentity(identity: { instagramGlobalUserId?: string | null; instagramUserId?: string | null }): Promise<SpiralCustomer[]>;
+  // Deletion-resilient owed-order lookup keyed by Instagram identity rather
+  // than spiral_customers.id — survives account deletion so a shopper can't
+  // wipe their Story debt by deleting + re-signing-up with the same IG.
+  getOwedOrdersByInstagramIdentity(identity: { instagramGlobalUserId?: string | null; instagramUserId?: string | null }): Promise<Order[]>;
   // Hard-delete a customer + all locally-owned related rows. Anonymizes orders
   // (sets spiralCustomerId to null) so historical analytics survive while the
   // account itself is gone. Required for App Store 5.1.1(v) account deletion.
@@ -694,6 +698,43 @@ export class DatabaseStorage implements IStorage {
     if (conds.length === 0) return [];
     const where = conds.length === 1 ? conds[0] : or(...conds);
     return await db.select().from(spiralCustomers).where(where);
+  }
+
+  async getOwedOrdersByInstagramIdentity(identity: {
+    instagramGlobalUserId?: string | null;
+    instagramUserId?: string | null;
+  }): Promise<Order[]> {
+    const idConds: SQL[] = [];
+    if (identity.instagramGlobalUserId) {
+      idConds.push(eq(orders.instagramGlobalUserId, identity.instagramGlobalUserId));
+    }
+    if (identity.instagramUserId) {
+      idConds.push(eq(orders.instagramUserId, identity.instagramUserId));
+    }
+    if (idConds.length === 0) return [];
+    const idWhere = idConds.length === 1 ? idConds[0] : or(...idConds)!;
+    // Owed = (verification === 'taken_down_early' regardless of delivery)
+    //     OR (status === 'delivered' AND verification IN pending/awaiting_review/not_public)
+    const rows = await db
+      .select()
+      .from(orders)
+      .where(
+        and(
+          idWhere,
+          or(
+            eq(orders.verificationStatus, 'taken_down_early'),
+            and(
+              eq(orders.status, 'delivered'),
+              or(
+                eq(orders.verificationStatus, 'pending'),
+                eq(orders.verificationStatus, 'awaiting_review'),
+                eq(orders.verificationStatus, 'not_public'),
+              )!,
+            )!,
+          )!,
+        )!,
+      );
+    return rows;
   }
 
   async deleteSpiralCustomerCompletely(id: string): Promise<void> {

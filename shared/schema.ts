@@ -139,6 +139,10 @@ export const orders = pgTable("orders", {
   spiralCustomerId: varchar("spiral_customer_id"),
   instagramHandle: text("instagram_handle"),
   instagramUserId: text("instagram_user_id"),
+  // Global, account-wide Instagram numeric user ID captured at order creation.
+  // Lets soft-ban inheritance survive customer-row deletion (the order keeps
+  // the IG identity even after the spiral_customers row is gone).
+  instagramGlobalUserId: text("instagram_global_user_id"),
   followerCount: integer("follower_count"),
   discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }).notNull(),
   orderTotal: numeric("order_total", { precision: 10, scale: 2 }).notNull(),
@@ -162,7 +166,11 @@ export const orders = pgTable("orders", {
   storeName: text("store_name"),
   storeLogo: text("store_logo"),
   lineItems: text("line_items"), // JSON array of {title, quantity}
-});
+}, (table) => ({
+  // Indexes for IG-anchored owed-order lookups that survive customer deletion.
+  ordersInstagramGlobalUserIdIdx: index("orders_instagram_global_user_id_idx").on(table.instagramGlobalUserId),
+  ordersInstagramUserIdIdx: index("orders_instagram_user_id_idx").on(table.instagramUserId),
+}));
 
 // Spiral verification codes - for DM-based Instagram verification
 // Status: pending (waiting for DM), verified (DM received, Instagram linked), expired (24h passed)
