@@ -93,7 +93,7 @@ export default function HomeInstagramConnect() {
             Verify your Instagram to start
           </p>
           <p className="text-sm text-emerald-700 mt-1" data-testid="text-connect-body">
-            Spiral discounts, marketplace and orders are locked until you connect Instagram.
+            Connect Instagram to start earning Spiral discounts at checkout.
           </p>
         </div>
       </div>
