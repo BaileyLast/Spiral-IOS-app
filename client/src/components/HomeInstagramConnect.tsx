@@ -144,9 +144,9 @@ export default function HomeInstagramConnect() {
               target="_blank"
               rel="noopener noreferrer"
             >
-              <Instagram className="w-4 h-4 mr-2" />
-              Visit @joinspiral on Instagram
-              <ExternalLink className="w-4 h-4 ml-2" />
+              <Instagram className="w-4 h-4 mr-2 shrink-0" />
+              <span className="truncate">Visit @joinspiral</span>
+              <ExternalLink className="w-3.5 h-3.5 ml-2 shrink-0" />
             </a>
           </Button>
 
