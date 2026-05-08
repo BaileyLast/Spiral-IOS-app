@@ -1738,14 +1738,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const effectiveReason = inheritedOnly
             ? "inherited_from_instagram"
             : (customer.softBannedReason ?? "story_owed");
-          // If the user has incurred their own debt since the inherited ban was
-          // set, refresh the persisted reason so future surfaces (banners, push
-          // copy) stop pointing at the sibling IG account.
-          if (!inheritedOnly && customer.softBannedReason === "inherited_from_instagram") {
+          // Keep the persisted reason aligned with the live owed-state so any
+          // surface that reads /api/customer/me directly (Home/Discounts banner)
+          // shows accurate copy in both directions:
+          //   - own debt cleared, only inherited remains -> "inherited_from_instagram"
+          //   - new own debt incurred while inherited-banned -> back to "story_owed"
+          if (customer.softBannedReason !== effectiveReason) {
             try {
               await storage.setCustomerSoftBanned(customerId, effectiveReason);
             } catch (refreshErr) {
-              console.error('Failed to refresh stale inherited soft-ban reason:', refreshErr);
+              console.error('Failed to refresh soft-ban reason at checkout:', refreshErr);
             }
           }
           return res.json({
