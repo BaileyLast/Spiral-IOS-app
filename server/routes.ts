@@ -4216,8 +4216,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     let pageId: string | undefined;
     try {
       const accessToken = process.env.SPIRAL_INSTAGRAM_ACCESS_TOKEN;
-      const settings = await storage.getStoreSettings();
-      pageId = settings?.instagramPageId || process.env.SPIRAL_INSTAGRAM_BUSINESS_ID;
+      // sendInstagramDM is exclusively for DMs FROM @joinspiral (welcome DM,
+      // verification-code replies). It MUST use @joinspiral's page ID, never
+      // a merchant-connected page ID from store_settings — pairing the
+      // @joinspiral access token with a merchant's page ID makes Meta return
+      // HTTP 401 / OAuthException 190 ("Cannot parse access token"), because
+      // the token is scoped to a different page than the one in the URL.
+      pageId = process.env.SPIRAL_INSTAGRAM_BUSINESS_ID;
 
       if (!accessToken || !pageId) {
         console.error('[IG DM] Skipping send — missing access token or page ID', {
