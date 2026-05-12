@@ -152,6 +152,14 @@ export interface IStorage {
   // Soft-ban writes. Reason is a short machine-tag (e.g. 'not_public','taken_down_early','delivery_pending','inherited_from_instagram').
   setCustomerSoftBanned(id: string, reason: string): Promise<void>;
   clearCustomerSoftBan(id: string): Promise<void>;
+  // Welcome-DM diagnostics. Persists what Meta returned when we tried to send
+  // the post-verification welcome DM, so we can read the ground truth via SQL
+  // when Replit's deployment log capture drops the surrounding console.logs.
+  recordWelcomeDmAttempt(
+    id: string,
+    status: "sent" | "failed" | "skipped_no_token" | "threw",
+    details: Record<string, unknown>
+  ): Promise<void>;
   // Mark an order's status as 'delivered' (transitions order.status, sets deliveredAt if column exists).
   markOrderDelivered(orderId: string): Promise<Order>;
   // Cross-account Instagram identity lookup. Returns every Spiral customer
@@ -672,6 +680,21 @@ export class DatabaseStorage implements IStorage {
         accountStatus: "active",
         softBannedReason: null,
         softBannedAt: null,
+      })
+      .where(eq(spiralCustomers.id, id));
+  }
+
+  async recordWelcomeDmAttempt(
+    id: string,
+    status: "sent" | "failed" | "skipped_no_token" | "threw",
+    details: Record<string, unknown>
+  ): Promise<void> {
+    await db
+      .update(spiralCustomers)
+      .set({
+        lastWelcomeDmAttemptAt: new Date(),
+        lastWelcomeDmStatus: status,
+        lastWelcomeDmDetails: details,
       })
       .where(eq(spiralCustomers.id, id));
   }

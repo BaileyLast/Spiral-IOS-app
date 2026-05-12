@@ -3145,13 +3145,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   // shopper just DM'd us their code, so this is a safe send.
                   try {
                     console.log(`Sending welcome DM to ${senderInstagramId}...`);
-                    const dmSent = await sendInstagramDM(
+                    const dmResult = await sendInstagramDM(
                       senderInstagramId,
                       "Welcome to Spiral. You're verified and ready to earn instant discounts at checkout. Just shop, post a Story after delivery, and we'll handle the rest."
                     );
-                    console.log(`Welcome DM ${dmSent ? 'sent successfully' : 'FAILED'} for ${senderInstagramId}`);
+                    const persistStatus: "sent" | "failed" | "skipped_no_token" | "threw" = dmResult.ok
+                      ? "sent"
+                      : dmResult.reason === "skipped_no_token"
+                        ? "skipped_no_token"
+                        : dmResult.reason === "threw"
+                          ? "threw"
+                          : "failed";
+                    console.log(`Welcome DM result for ${senderInstagramId}: ${persistStatus}`, dmResult);
+                    try {
+                      await storage.recordWelcomeDmAttempt(
+                        pendingValidCode.customerId,
+                        persistStatus,
+                        { recipientId: senderInstagramId, ...dmResult }
+                      );
+                    } catch (persistErr) {
+                      console.error('Failed to persist welcome DM result:', persistErr);
+                    }
                   } catch (welcomeErr) {
                     console.error('Welcome DM send threw unexpectedly:', welcomeErr);
+                    try {
+                      await storage.recordWelcomeDmAttempt(
+                        pendingValidCode.customerId,
+                        "threw",
+                        { recipientId: senderInstagramId, errorMessage: welcomeErr instanceof Error ? welcomeErr.message : String(welcomeErr) }
+                      );
+                    } catch (_) { /* swallow */ }
                   }
 
                   // Resolve the account-wide Instagram user ID (the `pk`).
@@ -4182,18 +4205,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return sendIosPush(customer.iosPushToken, title, body);
   }
 
-  async function sendInstagramDM(recipientId: string, message: string): Promise<boolean> {
+  type InstagramDmResult =
+    | { ok: true; messageId: string | null; recipientId: string; endpoint: string; pageId: string }
+    | { ok: false; reason: "skipped_no_token"; hasAccessToken: boolean; hasPageId: boolean }
+    | { ok: false; reason: "meta_error"; httpStatus: number; endpoint: string; pageId: string; metaErrorCode?: number; metaErrorSubcode?: number; metaErrorType?: string; metaErrorMessage?: string; fbtraceId?: string }
+    | { ok: false; reason: "threw"; errorMessage: string; endpoint?: string; pageId?: string };
+
+  async function sendInstagramDM(recipientId: string, message: string): Promise<InstagramDmResult> {
+    let endpoint: string | undefined;
+    let pageId: string | undefined;
     try {
       const accessToken = process.env.SPIRAL_INSTAGRAM_ACCESS_TOKEN;
       const settings = await storage.getStoreSettings();
-      const pageId = settings?.instagramPageId || process.env.SPIRAL_INSTAGRAM_BUSINESS_ID;
+      pageId = settings?.instagramPageId || process.env.SPIRAL_INSTAGRAM_BUSINESS_ID;
 
       if (!accessToken || !pageId) {
         console.error('[IG DM] Skipping send — missing access token or page ID', {
           hasAccessToken: !!accessToken,
           hasPageId: !!pageId,
         });
-        return false;
+        return { ok: false, reason: "skipped_no_token", hasAccessToken: !!accessToken, hasPageId: !!pageId };
       }
 
       // SPIRAL_INSTAGRAM_ACCESS_TOKEN is a Page access token generated from
@@ -4201,9 +4232,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // canonical messaging endpoint for that token shape is the Facebook
       // Graph host with the Page ID — graph.instagram.com is for the
       // Instagram Login (IG user-token) flow, which we don't use here.
-      const url = `https://graph.facebook.com/v21.0/${pageId}/messages`;
+      endpoint = `https://graph.facebook.com/v21.0/${pageId}/messages`;
 
-      const response = await fetch(url, {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -4229,15 +4260,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
           metaErrorMessage: errorData?.error?.message,
           fbtraceId: errorData?.error?.fbtrace_id,
         });
-        return false;
+        return {
+          ok: false,
+          reason: "meta_error",
+          httpStatus: response.status,
+          endpoint,
+          pageId,
+          metaErrorCode: errorData?.error?.code,
+          metaErrorSubcode: errorData?.error?.error_subcode,
+          metaErrorType: errorData?.error?.type,
+          metaErrorMessage: errorData?.error?.message,
+          fbtraceId: errorData?.error?.fbtrace_id,
+        };
       }
 
       const okData = await response.json().catch(() => ({})) as { message_id?: string; recipient_id?: string };
       console.log(`[IG DM] Sent to ${recipientId} (message_id=${okData?.message_id ?? 'unknown'}): "${message}"`);
-      return true;
+      return { ok: true, messageId: okData?.message_id ?? null, recipientId, endpoint, pageId };
     } catch (error) {
       console.error('[IG DM] Send threw:', error);
-      return false;
+      return { ok: false, reason: "threw", errorMessage: error instanceof Error ? error.message : String(error), endpoint, pageId };
     }
   }
 

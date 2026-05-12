@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, boolean, numeric, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, boolean, numeric, uniqueIndex, index, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -141,6 +141,13 @@ export const spiralCustomers = pgTable("spiral_customers", {
   accountStatus: text("account_status").notNull().default("active"),
   softBannedReason: text("soft_banned_reason"),
   softBannedAt: timestamp("soft_banned_at"),
+  // Welcome-DM diagnostics: persisted because Replit's deployment log capture
+  // drops the console.logs around sendInstagramDM, leaving us blind to whether
+  // Meta accepted the send or rejected it. Reading these columns after a
+  // verification test gives the ground truth in one query.
+  lastWelcomeDmAttemptAt: timestamp("last_welcome_dm_attempt_at"),
+  lastWelcomeDmStatus: text("last_welcome_dm_status"),
+  lastWelcomeDmDetails: jsonb("last_welcome_dm_details"),
 }, (table) => ({
   // Indexes for IG-anchored soft-ban inheritance lookups
   // (`getCustomersByInstagramIdentity` ORs these two columns).
