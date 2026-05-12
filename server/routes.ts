@@ -4206,38 +4206,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   type InstagramDmResult =
-    | { ok: true; messageId: string | null; recipientId: string; endpoint: string; pageId: string }
-    | { ok: false; reason: "skipped_no_token"; hasAccessToken: boolean; hasPageId: boolean }
-    | { ok: false; reason: "meta_error"; httpStatus: number; endpoint: string; pageId: string; metaErrorCode?: number; metaErrorSubcode?: number; metaErrorType?: string; metaErrorMessage?: string; fbtraceId?: string }
-    | { ok: false; reason: "threw"; errorMessage: string; endpoint?: string; pageId?: string };
+    | { ok: true; messageId: string | null; recipientId: string; endpoint: string }
+    | { ok: false; reason: "skipped_no_token"; hasAccessToken: boolean }
+    | { ok: false; reason: "meta_error"; httpStatus: number; endpoint: string; metaErrorCode?: number; metaErrorSubcode?: number; metaErrorType?: string; metaErrorMessage?: string; fbtraceId?: string }
+    | { ok: false; reason: "threw"; errorMessage: string; endpoint?: string };
 
   async function sendInstagramDM(recipientId: string, message: string): Promise<InstagramDmResult> {
     let endpoint: string | undefined;
-    let pageId: string | undefined;
     try {
       const accessToken = process.env.SPIRAL_INSTAGRAM_ACCESS_TOKEN;
-      // sendInstagramDM is exclusively for DMs FROM @joinspiral (welcome DM,
-      // verification-code replies). It MUST use @joinspiral's page ID, never
-      // a merchant-connected page ID from store_settings — pairing the
-      // @joinspiral access token with a merchant's page ID makes Meta return
-      // HTTP 401 / OAuthException 190 ("Cannot parse access token"), because
-      // the token is scoped to a different page than the one in the URL.
-      pageId = process.env.SPIRAL_INSTAGRAM_BUSINESS_ID;
 
-      if (!accessToken || !pageId) {
-        console.error('[IG DM] Skipping send — missing access token or page ID', {
-          hasAccessToken: !!accessToken,
-          hasPageId: !!pageId,
-        });
-        return { ok: false, reason: "skipped_no_token", hasAccessToken: !!accessToken, hasPageId: !!pageId };
+      if (!accessToken) {
+        console.error('[IG DM] Skipping send — missing access token');
+        return { ok: false, reason: "skipped_no_token", hasAccessToken: false };
       }
 
-      // SPIRAL_INSTAGRAM_ACCESS_TOKEN is a Page access token generated from
-      // the Meta dashboard ("Generate access tokens" for @joinspiral). The
-      // canonical messaging endpoint for that token shape is the Facebook
-      // Graph host with the Page ID — graph.instagram.com is for the
-      // Instagram Login (IG user-token) flow, which we don't use here.
-      endpoint = `https://graph.facebook.com/v21.0/${pageId}/messages`;
+      // SPIRAL_INSTAGRAM_ACCESS_TOKEN is an Instagram Graph API token (IGAA…
+      // prefix) issued through the Instagram Login flow for @joinspiral, NOT
+      // a Facebook Page token. The matching messaging endpoint is therefore
+      // graph.instagram.com/v21.0/me/messages — sending it to
+      // graph.facebook.com/{pageId}/messages returns HTTP 401 / OAuthException
+      // 190 "Cannot parse access token", because that host expects a Page
+      // token shape. `me` resolves to @joinspiral's IG user from the token.
+      endpoint = `https://graph.instagram.com/v21.0/me/messages`;
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -4270,7 +4261,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           reason: "meta_error",
           httpStatus: response.status,
           endpoint,
-          pageId,
           metaErrorCode: errorData?.error?.code,
           metaErrorSubcode: errorData?.error?.error_subcode,
           metaErrorType: errorData?.error?.type,
@@ -4281,10 +4271,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const okData = await response.json().catch(() => ({})) as { message_id?: string; recipient_id?: string };
       console.log(`[IG DM] Sent to ${recipientId} (message_id=${okData?.message_id ?? 'unknown'}): "${message}"`);
-      return { ok: true, messageId: okData?.message_id ?? null, recipientId, endpoint, pageId };
+      return { ok: true, messageId: okData?.message_id ?? null, recipientId, endpoint };
     } catch (error) {
       console.error('[IG DM] Send threw:', error);
-      return { ok: false, reason: "threw", errorMessage: error instanceof Error ? error.message : String(error), endpoint, pageId };
+      return { ok: false, reason: "threw", errorMessage: error instanceof Error ? error.message : String(error), endpoint };
     }
   }
 
