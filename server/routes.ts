@@ -3264,7 +3264,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   console.log(`Spiral code ${verifiedMatchedCode} was already used`);
                   await sendInstagramDM(senderInstagramId, "This code has already been used. You're already verified.");
                 } else if (potentialCodes.length > 0) {
+                  // Message contained something code-shaped (6 chars in
+                  // Spiral's alphabet) but none matched a real row — almost
+                  // certainly a typo from a real shopper, so reply with a
+                  // gentle nudge instead of staying silent. We deliberately
+                  // do NOT reply when no code-shape is present at all (next
+                  // branch), because that would spam strangers who DM
+                  // @joinspiral with "hi"/etc.
                   console.log(`No matching Spiral code found in message. Tried: ${potentialCodes.join(", ")}`);
+                  await sendInstagramDM(senderInstagramId, "That code doesn't look right. Double-check it in the Spiral app and try again.");
                 } else {
                   console.log(`No code pattern found in message: ${messageText}`);
                 }
