@@ -1,18 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { CreditCard, RefreshCw, Wifi, WifiOff } from "lucide-react";
+import { CreditCard, RefreshCw } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { StoreSettings } from "@shared/schema";
-import { useToast } from "@/hooks/use-toast";
 import { StatusBadge } from "@/components/StatusBadge";
 const shopifyIcon = "/shopify-icon.png";
-const instagramIcon = "/instagram-icon.png";
 
 export default function Connections() {
-  const { toast } = useToast();
-
   const { data: settings, isLoading } = useQuery<StoreSettings>({
     queryKey: ["/api/settings"],
   });
@@ -21,12 +16,7 @@ export default function Connections() {
     window.location.href = '/auth/shopify';
   };
 
-  const handleConnectInstagram = () => {
-    window.location.href = '/auth/instagram';
-  };
-
   const isShopifyConnected = !!(settings?.accessToken && settings?.shopDomain);
-  const isInstagramConnected = !!(settings?.instagramBusinessAccountId && settings?.instagramAccessToken);
 
   if (isLoading) {
     return (
