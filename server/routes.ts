@@ -3147,7 +3147,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     console.log(`Sending welcome DM to ${senderInstagramId}...`);
                     const dmResult = await sendInstagramDM(
                       senderInstagramId,
-                      "Welcome to Spiral. You're verified and ready to earn instant discounts at checkout. Just shop, post a Story after delivery, and we'll handle the rest."
+                      "🛍️ Welcome to Spiral! You're verified — start earning instant discounts at your favourite online stores."
                     );
                     const persistStatus: "sent" | "failed" | "skipped_no_token" | "threw" = dmResult.ok
                       ? "sent"
