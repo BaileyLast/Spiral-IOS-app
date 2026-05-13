@@ -171,13 +171,14 @@ export default function Marketplace() {
               const displayName = cleanBrandName(brand.storeName, brand.instagramUsername);
               const initial = brandInitial(brand.instagramUsername || displayName);
               const palette = paletteFor(brand.instagramUsername || displayName);
+              let host = "";
+              try { host = new URL(brand.storefrontUrl).host.toLowerCase(); } catch { /* skip */ }
               return (
-                <a
+                <button
                   key={brand.storefrontUrl}
-                  href={brand.storefrontUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block rounded-2xl bg-gray-50 border border-gray-100 p-4 hover-elevate active-elevate-2"
+                  type="button"
+                  onClick={() => host && setLocation(`/marketplace/${encodeURIComponent(host)}`)}
+                  className="block w-full text-left rounded-2xl bg-gray-50 border border-gray-100 p-4 hover-elevate active-elevate-2"
                   data-testid={`card-brand-${brand.instagramUsername || brand.storeName}`}
                 >
                   <div className="flex flex-col items-center text-center">
@@ -236,7 +237,7 @@ export default function Marketplace() {
                       );
                     })()}
                   </div>
-                </a>
+                </button>
               );
             })}
           </div>

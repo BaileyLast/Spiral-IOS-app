@@ -14,6 +14,7 @@ import Orders from "@/pages/Orders";
 import OrderDetail from "@/pages/OrderDetail";
 import Profile from "@/pages/Profile";
 import Marketplace from "@/pages/Marketplace";
+import MerchantProducts from "@/pages/MerchantProducts";
 import CustomerHome from "@/pages/CustomerHome";
 import ManageAccount from "@/pages/ManageAccount";
 import Privacy from "@/pages/Privacy";
@@ -33,6 +34,9 @@ function BottomNav() {
   const isActive = (path: string) => {
     if (path === "/discounts") {
       return location === "/discounts" || location.startsWith("/orders/");
+    }
+    if (path === "/marketplace") {
+      return location === "/marketplace" || location.startsWith("/marketplace/");
     }
     return location === path;
   };
@@ -76,6 +80,7 @@ function Router() {
       <Route path="/instagram-help" component={InstagramHelp} />
       <Route path="/home" component={CustomerHome} />
       <Route path="/marketplace" component={Marketplace} />
+      <Route path="/marketplace/:host" component={MerchantProducts} />
       <Route path="/discounts" component={Orders} />
       <Route path="/orders/:id" component={OrderDetail} />
       <Route path="/profile" component={Profile} />
