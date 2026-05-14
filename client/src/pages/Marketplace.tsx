@@ -41,6 +41,7 @@ function paletteFor(seed: string): string {
 }
 
 interface Brand {
+  id: string;
   storeName: string;
   storefrontUrl: string;
   instagramUsername: string | null;
@@ -49,6 +50,7 @@ interface Brand {
   secondaryCategories: string[] | null;
   country: string | null;
   shippingCountries: string[] | null;
+  selectedProductCount: number;
 }
 
 interface CustomerProfile {
@@ -99,7 +101,11 @@ export default function Marketplace() {
 
   const filteredBrands = useMemo(() => {
     if (!brands) return [];
-    return brands.filter((b) => brandShipsToCountry(b, effectiveCountry));
+    // Defensive: server already filters out brands with no curated products,
+    // but guard here too in case an older server build is still running.
+    return brands
+      .filter((b) => (b.selectedProductCount ?? 0) > 0)
+      .filter((b) => brandShipsToCountry(b, effectiveCountry));
   }, [brands, effectiveCountry]);
 
   return (
@@ -171,13 +177,11 @@ export default function Marketplace() {
               const displayName = cleanBrandName(brand.storeName, brand.instagramUsername);
               const initial = brandInitial(brand.instagramUsername || displayName);
               const palette = paletteFor(brand.instagramUsername || displayName);
-              let host = "";
-              try { host = new URL(brand.storefrontUrl).host.toLowerCase(); } catch { /* skip */ }
               return (
                 <button
-                  key={brand.storefrontUrl}
+                  key={brand.id}
                   type="button"
-                  onClick={() => host && setLocation(`/marketplace/${encodeURIComponent(host)}`)}
+                  onClick={() => setLocation(`/marketplace/${encodeURIComponent(brand.id)}`)}
                   className="block w-full text-left rounded-2xl bg-gray-50 border border-gray-100 p-4 hover-elevate active-elevate-2"
                   data-testid={`card-brand-${brand.instagramUsername || brand.storeName}`}
                 >

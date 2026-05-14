@@ -80,7 +80,7 @@ function Router() {
       <Route path="/instagram-help" component={InstagramHelp} />
       <Route path="/home" component={CustomerHome} />
       <Route path="/marketplace" component={Marketplace} />
-      <Route path="/marketplace/:host" component={MerchantProducts} />
+      <Route path="/marketplace/:brandId" component={MerchantProducts} />
       <Route path="/discounts" component={Orders} />
       <Route path="/orders/:id" component={OrderDetail} />
       <Route path="/profile" component={Profile} />

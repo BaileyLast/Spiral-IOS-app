@@ -4130,6 +4130,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     categoryClassifiedAt: z.string().nullable().optional(),
     country: z.string().nullable().optional(),
     shippingCountries: z.array(z.string()).nullable().optional(),
+    selectedProductCount: z.number().int().nonnegative().nullable().optional(),
   });
   // Drop individual brands that fail validation (rather than 502 the whole list)
   // so one bad merchant record can't break the marketplace for everyone.
@@ -4149,6 +4150,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // compatibility with existing clients (it mirrors `primaryCategory`).
   function shapeForClient(brand: UpstreamBrand) {
     return {
+      id: brand.id,
       storeName: brand.storeName,
       storefrontUrl: brand.storefrontUrl,
       instagramUsername: brand.instagramUsername ?? null,
@@ -4157,31 +4159,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
       secondaryCategories: brand.secondaryCategories ?? [],
       country: brand.country ?? null,
       shippingCountries: brand.shippingCountries ?? null,
+      selectedProductCount: brand.selectedProductCount ?? 0,
     };
   }
+  // Hide brands that haven't curated any Spiral products yet — there's nothing
+  // for shoppers to browse on the brand detail page.
   function shapeListForClient(brands: CachedBrands) {
-    return brands.map(shapeForClient);
+    return brands
+      .filter((b) => (b.selectedProductCount ?? 0) > 0)
+      .map(shapeForClient);
   }
 
-  // Per-merchant product feed for the marketplace product browser.
-  // We proxy + cache Shopify's public /products.json (no auth required, exposed
-  // by every Shopify storefront) so shoppers can browse a brand's products
-  // before tapping through to checkout. The host param MUST match a brand
-  // already in our brands cache — otherwise this endpoint becomes an open
-  // proxy that lets anyone fetch any URL through our server.
+  // Per-brand curated product feed for the marketplace product browser.
+  // Proxies + caches the merchant dashboard's `/api/brands/:brandId/products`
+  // endpoint, which returns only the products the merchant has explicitly
+  // opted into Spiral. The brandId MUST match a brand already in our brands
+  // cache — otherwise this endpoint becomes an open proxy that lets anyone
+  // fetch any brand id through the upstream.
   const PRODUCTS_CACHE_TTL_MS = 10 * 60 * 1000;
+  const productCardSchema = z.object({
+    id: z.union([z.string(), z.number()]).transform((v) => String(v)),
+    title: z.string(),
+    handle: z.string().nullable().optional(),
+    image: z.string().nullable().optional(),
+    price: z.union([z.string(), z.number()]).nullable().optional().transform((v) =>
+      v == null ? null : String(v),
+    ),
+    available: z.boolean().nullable().optional(),
+    productUrl: z.string(),
+  });
+  const productsResponseSchema = z.array(z.unknown()).transform((arr) =>
+    arr
+      .map((item) => {
+        const parsed = productCardSchema.safeParse(item);
+        return parsed.success ? parsed.data : null;
+      })
+      .filter((p): p is z.infer<typeof productCardSchema> => p !== null),
+  );
   type ProductCardForClient = {
     id: string;
     title: string;
+    handle: string | null;
     image: string | null;
     price: string | null;
-    currency: string | null;
     productUrl: string;
     available: boolean;
   };
   const productsCache = new Map<string, { data: ProductCardForClient[]; fetchedAt: number }>();
 
-  async function getKnownBrandHosts(): Promise<Set<string>> {
+  async function getKnownBrandIds(): Promise<Set<string>> {
     // Refresh the brands cache if cold so a first-load shopper hitting a
     // product page directly (e.g. via shared link) doesn't get a 404.
     if (!brandsCache || Date.now() - brandsCache.fetchedAt >= BRANDS_CACHE_TTL_MS) {
@@ -4196,83 +4222,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } catch (_) { /* fall through to whatever cache we have */ }
     }
-    const hosts = new Set<string>();
-    for (const b of brandsCache?.data ?? []) {
-      try { hosts.add(new URL(b.storefrontUrl).host.toLowerCase()); } catch { /* skip */ }
-    }
-    return hosts;
+    const ids = new Set<string>();
+    for (const b of brandsCache?.data ?? []) ids.add(b.id);
+    return ids;
   }
 
-  app.get("/api/merchant-products", async (req, res) => {
+  app.get("/api/brands/:brandId/products", async (req, res) => {
     try {
-      const host = String(req.query.host ?? "").trim().toLowerCase();
-      if (!host || !/^[a-z0-9.-]+$/.test(host)) {
-        return res.status(400).json({ error: "Invalid host" });
+      const brandId = String(req.params.brandId ?? "").trim();
+      // UUID-ish guard — alphanumerics + hyphens only, modest length cap.
+      if (!brandId || !/^[a-zA-Z0-9-]{1,64}$/.test(brandId)) {
+        return res.status(400).json({ error: "Invalid brandId" });
       }
-      const knownHosts = await getKnownBrandHosts();
-      if (!knownHosts.has(host)) {
-        return res.status(404).json({ error: "Unknown merchant" });
+      const knownIds = await getKnownBrandIds();
+      if (!knownIds.has(brandId)) {
+        return res.status(404).json({ error: "Unknown brand" });
       }
-      const cached = productsCache.get(host);
+      const cached = productsCache.get(brandId);
       if (cached && Date.now() - cached.fetchedAt < PRODUCTS_CACHE_TTL_MS) {
         return res.json(cached.data);
       }
-      const upstream = await fetch(`https://${host}/products.json?limit=100`, {
-        headers: { 'Accept': 'application/json' },
-      });
+      const upstreamUrl = `https://spiral-merchant-dashboard.replit.app/api/brands/${encodeURIComponent(brandId)}/products`;
+      let upstream: Response;
+      try {
+        upstream = await fetch(upstreamUrl, { headers: { 'Accept': 'application/json' } });
+      } catch (err) {
+        if (cached) {
+          console.warn(`[brand-products] ${brandId} fetch threw, serving stale cache:`, err);
+          return res.json(cached.data);
+        }
+        throw err;
+      }
       if (!upstream.ok) {
         if (cached) {
-          console.warn(`[merchant-products] ${host} returned ${upstream.status}, serving stale cache`);
+          console.warn(`[brand-products] ${brandId} returned ${upstream.status}, serving stale cache`);
           return res.json(cached.data);
         }
         return res.status(502).json({ error: "Failed to load products" });
       }
-      let raw: { products?: unknown[] } | null = null;
-      try {
-        raw = await upstream.json() as { products?: unknown[] };
-      } catch {
-        raw = null;
-      }
-      // Malformed response (no products array at all) — don't poison cache with
-      // an empty list. Serve stale if we have it, otherwise 502.
-      if (!raw || !Array.isArray(raw.products)) {
+      let raw: unknown = null;
+      try { raw = await upstream.json(); } catch { raw = null; }
+      const parsed = productsResponseSchema.safeParse(raw);
+      if (!parsed.success) {
         if (cached) {
-          console.warn(`[merchant-products] ${host} returned malformed payload, serving stale cache`);
+          console.warn(`[brand-products] ${brandId} returned malformed payload, serving stale cache`);
           return res.json(cached.data);
         }
         return res.status(502).json({ error: "Invalid upstream response" });
       }
-      const products = raw.products;
-      const shaped: ProductCardForClient[] = products
-        .map((p): ProductCardForClient | null => {
-          const obj = p as Record<string, unknown>;
-          const id = obj.id != null ? String(obj.id) : null;
-          const title = typeof obj.title === 'string' ? obj.title : null;
-          const handle = typeof obj.handle === 'string' ? obj.handle : null;
-          if (!id || !title || !handle) return null;
-          const images = Array.isArray(obj.images) ? obj.images as Array<Record<string, unknown>> : [];
-          const firstImg = images[0];
-          const image = firstImg && typeof firstImg.src === 'string' ? firstImg.src : null;
-          const variants = Array.isArray(obj.variants) ? obj.variants as Array<Record<string, unknown>> : [];
-          const firstVariant = variants[0];
-          const price = firstVariant && (typeof firstVariant.price === 'string' || typeof firstVariant.price === 'number')
-            ? String(firstVariant.price) : null;
-          const available = variants.some((v) => v.available === true);
-          return {
-            id,
-            title,
-            image,
-            price,
-            currency: null, // /products.json doesn't expose currency; resolved client-side via brand country if needed
-            productUrl: `https://${host}/products/${handle}`,
-            available,
-          };
-        })
-        .filter((p): p is ProductCardForClient => p !== null);
-      productsCache.set(host, { data: shaped, fetchedAt: Date.now() });
+      const shaped: ProductCardForClient[] = parsed.data.map((p) => ({
+        id: p.id,
+        title: p.title,
+        handle: p.handle ?? null,
+        image: p.image ?? null,
+        price: p.price ?? null,
+        available: p.available ?? true,
+        productUrl: p.productUrl,
+      }));
+      productsCache.set(brandId, { data: shaped, fetchedAt: Date.now() });
       res.json(shaped);
     } catch (error) {
-      console.error("[merchant-products] Failed to fetch products:", error);
+      console.error("[brand-products] Failed to fetch products:", error);
       res.status(502).json({ error: "Failed to load products" });
     }
   });

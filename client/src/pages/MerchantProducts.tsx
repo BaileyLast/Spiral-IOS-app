@@ -5,6 +5,7 @@ import { ChevronLeft, Store, ExternalLink } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface Brand {
+  id: string;
   storeName: string;
   storefrontUrl: string;
   instagramUsername: string | null;
@@ -13,14 +14,15 @@ interface Brand {
   secondaryCategories: string[] | null;
   country: string | null;
   shippingCountries: string[] | null;
+  selectedProductCount: number;
 }
 
 interface Product {
   id: string;
   title: string;
+  handle: string | null;
   image: string | null;
   price: string | null;
-  currency: string | null;
   productUrl: string;
   available: boolean;
 }
@@ -56,31 +58,29 @@ function formatPrice(price: string | null): string | null {
 }
 
 export default function MerchantProducts() {
-  const [, params] = useRoute<{ host: string }>("/marketplace/:host");
+  const [, params] = useRoute<{ brandId: string }>("/marketplace/:brandId");
   const [, setLocation] = useLocation();
-  const host = params?.host ? decodeURIComponent(params.host).toLowerCase() : "";
+  const brandId = params?.brandId ? decodeURIComponent(params.brandId) : "";
 
   const { data: brands } = useQuery<Brand[]>({ queryKey: ["/api/brands"] });
   const brand = useMemo(() => {
-    if (!brands || !host) return null;
-    return brands.find((b) => {
-      try { return new URL(b.storefrontUrl).host.toLowerCase() === host; } catch { return false; }
-    }) ?? null;
-  }, [brands, host]);
+    if (!brands || !brandId) return null;
+    return brands.find((b) => b.id === brandId) ?? null;
+  }, [brands, brandId]);
 
   const { data: products, isLoading, isError } = useQuery<Product[]>({
-    queryKey: ["/api/merchant-products", host],
+    queryKey: ["/api/brands", brandId, "products"],
     queryFn: async () => {
-      const res = await fetch(`/api/merchant-products?host=${encodeURIComponent(host)}`, {
+      const res = await fetch(`/api/brands/${encodeURIComponent(brandId)}/products`, {
         credentials: "include",
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     },
-    enabled: !!host,
+    enabled: !!brandId,
   });
 
-  const displayName = brand ? cleanBrandName(brand.storeName, brand.instagramUsername) : host;
+  const displayName = brand ? cleanBrandName(brand.storeName, brand.instagramUsername) : "";
   const initial = (displayName.trim()[0] || "?").toUpperCase();
   const palette = paletteFor(brand?.instagramUsername || displayName);
 
