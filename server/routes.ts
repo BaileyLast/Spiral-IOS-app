@@ -4131,6 +4131,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     country: z.string().nullable().optional(),
     shippingCountries: z.array(z.string()).nullable().optional(),
     selectedProductCount: z.number().int().nonnegative().nullable().optional(),
+    // Optional during the rollout window — once the merchant dashboard is
+    // deployed with this field, any record missing it is treated as enabled
+    // (truthy) but logged so we can spot regressions. See `shapeListForClient`
+    // and `getKnownBrandIds` for the defensive filter.
+    spiralEnabled: z.boolean().nullable().optional(),
   });
   // Drop individual brands that fail validation (rather than 502 the whole list)
   // so one bad merchant record can't break the marketplace for everyone.
@@ -4162,12 +4167,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       selectedProductCount: brand.selectedProductCount ?? 0,
     };
   }
-  // Hide brands that haven't curated any Spiral products yet — there's nothing
-  // for shoppers to browse on the brand detail page.
+  // Defensive filter shared by the marketplace list and the per-brand
+  // products route. Hides brands that have explicitly disabled Spiral
+  // (`spiralEnabled === false`) OR have no curated products. The merchant
+  // dashboard is the source of truth and should already filter disabled
+  // stores out of `/api/brands`, but we re-check here so a stale or buggy
+  // upstream payload can't leak a disabled store to shoppers. A missing
+  // `spiralEnabled` is treated as enabled (truthy) during the rollout window.
+  function isBrandVisibleForMarketplace(b: UpstreamBrand): boolean {
+    if (b.spiralEnabled === false) return false;
+    return (b.selectedProductCount ?? 0) > 0;
+  }
   function shapeListForClient(brands: CachedBrands) {
-    return brands
-      .filter((b) => (b.selectedProductCount ?? 0) > 0)
-      .map(shapeForClient);
+    const missingCount = brands.filter(
+      (b) => b.spiralEnabled === undefined || b.spiralEnabled === null,
+    ).length;
+    if (missingCount > 0) {
+      console.warn(
+        `[brands] ${missingCount}/${brands.length} brand records missing spiralEnabled — upstream needs redeploy`,
+      );
+    }
+    return brands.filter(isBrandVisibleForMarketplace).map(shapeForClient);
   }
 
   // Per-brand curated product feed for the marketplace product browser.
@@ -4222,8 +4242,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } catch (_) { /* fall through to whatever cache we have */ }
     }
+    // Mirror the same defensive filter as `shapeListForClient` so a disabled
+    // or empty-curation brand can't be queried for products even if its id
+    // is somehow known (e.g. via a shared link from before it was disabled).
     const ids = new Set<string>();
-    for (const b of brandsCache?.data ?? []) ids.add(b.id);
+    for (const b of brandsCache?.data ?? []) {
+      if (!isBrandVisibleForMarketplace(b)) continue;
+      ids.add(b.id);
+    }
     return ids;
   }
 
