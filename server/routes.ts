@@ -4191,12 +4191,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   // Per-brand curated product feed for the marketplace product browser.
-  // Proxies + caches the merchant dashboard's `/api/brands/:brandId/products`
-  // endpoint, which returns only the products the merchant has explicitly
-  // opted into Spiral. The brandId MUST match a brand already in our brands
-  // cache — otherwise this endpoint becomes an open proxy that lets anyone
-  // fetch any brand id through the upstream.
-  const PRODUCTS_CACHE_TTL_MS = 10 * 60 * 1000;
+  // Proxies the merchant dashboard's `/api/brands/:brandId/products` endpoint,
+  // which returns only the products the merchant has explicitly opted into
+  // Spiral. The brandId MUST match a brand already in our brands cache —
+  // otherwise this endpoint becomes an open proxy that lets anyone fetch
+  // any brand id through the upstream.
+  //
+  // Caching policy: we deliberately do NOT cache the response here so that
+  // when a merchant toggles a product on/off it shows up in the customer app
+  // within seconds. The merchant dashboard already has its own short-lived
+  // cache (and busts it on selection writes), so this proxy stays thin.
+  // The `lastGoodProducts` map below is fallback-only — it's never served
+  // when the upstream is healthy, only when the upstream is down/erroring.
   const productCardSchema = z.object({
     id: z.union([z.string(), z.number()]).transform((v) => String(v)),
     title: z.string(),
@@ -4225,7 +4231,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     productUrl: string;
     available: boolean;
   };
-  const productsCache = new Map<string, { data: ProductCardForClient[]; fetchedAt: number }>();
+  // Fallback-only: holds the last successful upstream response per brand so
+  // we can keep serving shoppers if the merchant dashboard is briefly down
+  // or returns garbage. Never used as a serving cache when upstream is OK.
+  const lastGoodProducts = new Map<string, ProductCardForClient[]>();
 
   async function getKnownBrandIds(): Promise<Set<string>> {
     // Refresh the brands cache if cold so a first-load shopper hitting a
@@ -4264,25 +4273,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!knownIds.has(brandId)) {
         return res.status(404).json({ error: "Unknown brand" });
       }
-      const cached = productsCache.get(brandId);
-      if (cached && Date.now() - cached.fetchedAt < PRODUCTS_CACHE_TTL_MS) {
-        return res.json(cached.data);
-      }
+      // Always pass through to upstream so product (un)selection by the
+      // merchant is reflected in the customer app within seconds. The
+      // `lastGoodProducts` map below is fallback-only — only consulted when
+      // the upstream fails. The merchant dashboard owns its own cache.
+      const fallback = lastGoodProducts.get(brandId);
       const upstreamUrl = `https://spiral-merchant-dashboard.replit.app/api/brands/${encodeURIComponent(brandId)}/products`;
       let upstream: Response;
       try {
         upstream = await fetch(upstreamUrl, { headers: { 'Accept': 'application/json' } });
       } catch (err) {
-        if (cached) {
-          console.warn(`[brand-products] ${brandId} fetch threw, serving stale cache:`, err);
-          return res.json(cached.data);
+        if (fallback) {
+          console.warn(`[brand-products] ${brandId} fetch threw, serving last-good fallback:`, err);
+          return res.json(fallback);
         }
         throw err;
       }
       if (!upstream.ok) {
-        if (cached) {
-          console.warn(`[brand-products] ${brandId} returned ${upstream.status}, serving stale cache`);
-          return res.json(cached.data);
+        if (fallback) {
+          console.warn(`[brand-products] ${brandId} returned ${upstream.status}, serving last-good fallback`);
+          return res.json(fallback);
         }
         return res.status(502).json({ error: "Failed to load products" });
       }
@@ -4290,9 +4300,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try { raw = await upstream.json(); } catch { raw = null; }
       const parsed = productsResponseSchema.safeParse(raw);
       if (!parsed.success) {
-        if (cached) {
-          console.warn(`[brand-products] ${brandId} returned malformed payload, serving stale cache`);
-          return res.json(cached.data);
+        if (fallback) {
+          console.warn(`[brand-products] ${brandId} returned malformed payload, serving last-good fallback`);
+          return res.json(fallback);
         }
         return res.status(502).json({ error: "Invalid upstream response" });
       }
@@ -4305,7 +4315,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         available: p.available ?? true,
         productUrl: p.productUrl,
       }));
-      productsCache.set(brandId, { data: shaped, fetchedAt: Date.now() });
+      lastGoodProducts.set(brandId, shaped);
       res.json(shaped);
     } catch (error) {
       console.error("[brand-products] Failed to fetch products:", error);
