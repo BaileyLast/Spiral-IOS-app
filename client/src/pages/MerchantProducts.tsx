@@ -203,14 +203,12 @@ export default function MerchantProducts() {
           </div>
         </div>
         {pricingState.kind === "eligible" && (
-          <div className="mt-3 flex items-center gap-2">
-            <span
-              className="inline-flex items-center rounded-full bg-[#EBF9F5] px-2.5 py-1 text-xs font-semibold text-[#2BAE88]"
-              data-testid="badge-spiral-discount"
-            >
-              Your Spiral price · {pricingState.percent}% off
-            </span>
-          </div>
+          <p
+            className="mt-3 text-sm text-[#2BAE88]"
+            data-testid="badge-spiral-discount"
+          >
+            You receive <span className="font-bold">{pricingState.percent}% off</span> selected products at this store
+          </p>
         )}
       </header>
 
