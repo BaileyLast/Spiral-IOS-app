@@ -4136,6 +4136,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // (truthy) but logged so we can spot regressions. See `shapeListForClient`
     // and `getKnownBrandIds` for the defensive filter.
     spiralEnabled: z.boolean().nullable().optional(),
+    // Per-brand Spiral discount rules. Used by the marketplace to render
+    // each shopper's personalized price (strikethrough original + discounted)
+    // without an extra round trip per brand. Optional during rollout — a
+    // missing or empty `discountTiers` is treated as "no Spiral discount
+    // available at this store" and the marketplace falls back to original
+    // prices only.
+    minFollowers: z.number().int().nonnegative().nullable().optional(),
+    discountTiers: z
+      .array(
+        z.object({
+          fromFollowers: z.number().int().nonnegative(),
+          toFollowers: z.number().int().nonnegative().nullable(),
+          discountPercent: z.number().nonnegative(),
+        }),
+      )
+      .nullable()
+      .optional(),
   });
   // Drop individual brands that fail validation (rather than 502 the whole list)
   // so one bad merchant record can't break the marketplace for everyone.
@@ -4165,6 +4182,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       country: brand.country ?? null,
       shippingCountries: brand.shippingCountries ?? null,
       selectedProductCount: brand.selectedProductCount ?? 0,
+      minFollowers: brand.minFollowers ?? 0,
+      discountTiers: brand.discountTiers ?? [],
     };
   }
   // Defensive filter shared by the marketplace list and the per-brand

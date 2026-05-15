@@ -1,8 +1,14 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useRoute } from "wouter";
-import { ChevronLeft, Store, ExternalLink } from "lucide-react";
+import { ChevronLeft, Store, ExternalLink, Instagram } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
+interface DiscountTier {
+  fromFollowers: number;
+  toFollowers: number | null;
+  discountPercent: number;
+}
 
 interface Brand {
   id: string;
@@ -15,6 +21,8 @@ interface Brand {
   country: string | null;
   shippingCountries: string[] | null;
   selectedProductCount: number;
+  minFollowers?: number;
+  discountTiers?: DiscountTier[];
 }
 
 interface Product {
@@ -25,6 +33,15 @@ interface Product {
   price: string | null;
   productUrl: string;
   available: boolean;
+}
+
+interface CustomerProfile {
+  id: string;
+  instagramHandle?: string | null;
+  instagramUserId?: string | null;
+  followerCount?: number | null;
+  accountStatus?: string | null;
+  softBannedReason?: string | null;
 }
 
 const FALLBACK_PALETTE = [
@@ -50,11 +67,60 @@ function cleanBrandName(storeName: string, instagramUsername: string | null): st
   return storeName;
 }
 
-function formatPrice(price: string | null): string | null {
+function formatPrice(value: number | null): string | null {
+  if (value == null || !isFinite(value)) return null;
+  return `$${value.toFixed(2)}`;
+}
+
+function parsePrice(price: string | null): number | null {
   if (!price) return null;
   const n = parseFloat(price);
-  if (!isFinite(n)) return null;
-  return `$${n.toFixed(2)}`;
+  return isFinite(n) ? n : null;
+}
+
+// Mirrors the matching rule used in `/api/checkout/calculate-discount`.
+// Returns the discountPercent for the shopper's follower count, or null
+// if no tier matches (or the brand has no tiers configured).
+function pickTierPercent(tiers: DiscountTier[], followerCount: number): number | null {
+  if (!tiers || tiers.length === 0) return null;
+  const sorted = [...tiers].sort((a, b) => a.fromFollowers - b.fromFollowers);
+  const match = sorted.find(
+    (t) => followerCount >= t.fromFollowers && (t.toFollowers === null || followerCount <= t.toFollowers),
+  );
+  return match ? match.discountPercent : null;
+}
+
+type PricingState =
+  | { kind: "loading" }
+  | { kind: "soft_banned"; reason: string | null }
+  | { kind: "not_connected" }
+  | { kind: "below_min"; minFollowers: number; followerCount: number }
+  | { kind: "no_tier" }
+  | { kind: "no_rules" }
+  | { kind: "eligible"; percent: number };
+
+function resolvePricingState(
+  profile: CustomerProfile | null | undefined,
+  brand: Brand | null,
+): PricingState {
+  if (!brand) return { kind: "loading" };
+  // No profile yet → don't promise anything; render originals silently.
+  if (!profile) return { kind: "loading" };
+  if (profile.accountStatus === "soft_banned") {
+    return { kind: "soft_banned", reason: profile.softBannedReason ?? null };
+  }
+  const tiers = brand.discountTiers ?? [];
+  // Brand simply hasn't configured Spiral discounts.
+  if (tiers.length === 0) return { kind: "no_rules" };
+  if (!profile.instagramHandle) return { kind: "not_connected" };
+  const followerCount = profile.followerCount ?? 0;
+  const minFollowers = brand.minFollowers ?? 0;
+  if (followerCount < minFollowers) {
+    return { kind: "below_min", minFollowers, followerCount };
+  }
+  const percent = pickTierPercent(tiers, followerCount);
+  if (percent == null || percent <= 0) return { kind: "no_tier" };
+  return { kind: "eligible", percent };
 }
 
 export default function MerchantProducts() {
@@ -63,6 +129,8 @@ export default function MerchantProducts() {
   const brandId = params?.brandId ? decodeURIComponent(params.brandId) : "";
 
   const { data: brands } = useQuery<Brand[]>({ queryKey: ["/api/brands"] });
+  const { data: profile } = useQuery<CustomerProfile>({ queryKey: ["/api/customer/me"] });
+
   const brand = useMemo(() => {
     if (!brands || !brandId) return null;
     return brands.find((b) => b.id === brandId) ?? null;
@@ -79,6 +147,8 @@ export default function MerchantProducts() {
     },
     enabled: !!brandId,
   });
+
+  const pricingState = useMemo(() => resolvePricingState(profile ?? null, brand), [profile, brand]);
 
   const displayName = brand ? cleanBrandName(brand.storeName, brand.instagramUsername) : "";
   const initial = (displayName.trim()[0] || "?").toUpperCase();
@@ -125,9 +195,58 @@ export default function MerchantProducts() {
             )}
           </div>
         </div>
+        {pricingState.kind === "eligible" && (
+          <div className="mt-3 flex items-center gap-2">
+            <span
+              className="inline-flex items-center rounded-full bg-[#EBF9F5] px-2.5 py-1 text-xs font-semibold text-[#2BAE88]"
+              data-testid="badge-spiral-discount"
+            >
+              Your Spiral price · {pricingState.percent}% off
+            </span>
+          </div>
+        )}
       </header>
 
       <main className="px-4 pb-8 pt-4">
+        {pricingState.kind === "soft_banned" && (
+          <div
+            className="mb-4 rounded-2xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-900"
+            data-testid="banner-on-hold"
+          >
+            <p className="font-semibold">Your next discount is on hold</p>
+            <p className="text-orange-800/80 mt-0.5">
+              {pricingState.reason === "inherited_from_instagram"
+                ? "Your Instagram account owes a Story from a previous Spiral order. Post it to unlock your next discount."
+                : "Post a Story for your previous order to unlock your next discount."}
+            </p>
+          </div>
+        )}
+        {pricingState.kind === "not_connected" && (
+          <div
+            className="mb-4 rounded-2xl border border-[#A8F5E0] bg-[#EBF9F5] p-3 text-sm text-[#155843] flex items-start gap-2"
+            data-testid="banner-connect-instagram"
+          >
+            <Instagram className="w-4 h-4 mt-0.5 shrink-0" />
+            <p>
+              <button
+                onClick={() => setLocation("/connect-instagram")}
+                className="font-semibold underline underline-offset-2"
+                data-testid="link-connect-instagram"
+              >
+                Connect Instagram
+              </button>{" "}
+              to see your Spiral price at this brand.
+            </p>
+          </div>
+        )}
+        {pricingState.kind === "below_min" && (
+          <div
+            className="mb-4 rounded-2xl border border-gray-100 bg-gray-50 p-3 text-sm text-gray-600"
+            data-testid="banner-min-followers"
+          >
+            {pricingState.minFollowers.toLocaleString()} followers needed for a Spiral discount at this brand.
+          </div>
+        )}
         {isLoading ? (
           <div className="grid grid-cols-2 gap-3" data-testid="grid-products-loading">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -157,7 +276,14 @@ export default function MerchantProducts() {
         ) : (
           <div className="grid grid-cols-2 gap-3" data-testid="grid-products">
             {products.map((p) => {
-              const formatted = formatPrice(p.price);
+              const original = parsePrice(p.price);
+              const formattedOriginal = formatPrice(original);
+              const discounted =
+                pricingState.kind === "eligible" && original != null
+                  ? Math.max(0, original * (1 - pricingState.percent / 100))
+                  : null;
+              const formattedDiscounted = formatPrice(discounted);
+              const showDual = formattedDiscounted != null && formattedOriginal != null;
               return (
                 <a
                   key={p.id}
@@ -188,15 +314,30 @@ export default function MerchantProducts() {
                       {p.title}
                     </p>
                     <div className="mt-1 flex items-center justify-between gap-2">
-                      {formatted ? (
+                      {showDual ? (
+                        <div className="flex items-baseline gap-1.5 min-w-0">
+                          <span
+                            className="text-xs text-gray-400 line-through decoration-[#4ECCA3] decoration-2"
+                            data-testid={`text-product-price-original-${p.id}`}
+                          >
+                            {formattedOriginal}
+                          </span>
+                          <span
+                            className="text-sm font-bold text-[#2BAE88] truncate"
+                            data-testid={`text-product-price-spiral-${p.id}`}
+                          >
+                            {formattedDiscounted}
+                          </span>
+                        </div>
+                      ) : formattedOriginal ? (
                         <p className="text-sm font-bold text-gray-900" data-testid={`text-product-price-${p.id}`}>
-                          {formatted}
+                          {formattedOriginal}
                         </p>
                       ) : (
                         <span />
                       )}
                       {!p.available && (
-                        <span className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">
+                        <span className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold shrink-0">
                           Sold out
                         </span>
                       )}
