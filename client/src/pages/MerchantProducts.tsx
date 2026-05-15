@@ -95,7 +95,7 @@ type PricingState =
   | { kind: "soft_banned"; reason: string | null }
   | { kind: "not_connected" }
   | { kind: "below_min"; minFollowers: number; followerCount: number }
-  | { kind: "no_tier" }
+  | { kind: "no_tier"; lowestTierFollowers: number | null; followerCount: number }
   | { kind: "no_rules" }
   | { kind: "eligible"; percent: number };
 
@@ -119,7 +119,14 @@ function resolvePricingState(
     return { kind: "below_min", minFollowers, followerCount };
   }
   const percent = pickTierPercent(tiers, followerCount);
-  if (percent == null || percent <= 0) return { kind: "no_tier" };
+  if (percent == null || percent <= 0) {
+    const lowest = [...tiers].sort((a, b) => a.fromFollowers - b.fromFollowers)[0];
+    return {
+      kind: "no_tier",
+      lowestTierFollowers: lowest ? lowest.fromFollowers : null,
+      followerCount,
+    };
+  }
   return { kind: "eligible", percent };
 }
 
@@ -245,6 +252,17 @@ export default function MerchantProducts() {
             data-testid="banner-min-followers"
           >
             {pricingState.minFollowers.toLocaleString()} followers needed for a Spiral discount at this brand.
+          </div>
+        )}
+        {pricingState.kind === "no_tier" && pricingState.lowestTierFollowers != null && (
+          <div
+            className="mb-4 rounded-2xl border border-gray-100 bg-gray-50 p-3 text-sm text-gray-600"
+            data-testid="banner-no-tier"
+          >
+            Earn a Spiral discount at this brand from {pricingState.lowestTierFollowers.toLocaleString()}+ followers.
+            {pricingState.followerCount > 0 && (
+              <> You're at {pricingState.followerCount.toLocaleString()}.</>
+            )}
           </div>
         )}
         {isLoading ? (
