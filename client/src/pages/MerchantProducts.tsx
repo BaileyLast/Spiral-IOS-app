@@ -254,17 +254,6 @@ export default function MerchantProducts() {
             {pricingState.minFollowers.toLocaleString()} followers needed for a Spiral discount at this brand.
           </div>
         )}
-        {pricingState.kind === "no_tier" && pricingState.lowestTierFollowers != null && (
-          <div
-            className="mb-4 rounded-2xl border border-gray-100 bg-gray-50 p-3 text-sm text-gray-600"
-            data-testid="banner-no-tier"
-          >
-            Earn a Spiral discount at this brand from {pricingState.lowestTierFollowers.toLocaleString()}+ followers.
-            {pricingState.followerCount > 0 && (
-              <> You're at {pricingState.followerCount.toLocaleString()}.</>
-            )}
-          </div>
-        )}
         {isLoading ? (
           <div className="grid grid-cols-2 gap-3" data-testid="grid-products-loading">
             {Array.from({ length: 6 }).map((_, i) => (
