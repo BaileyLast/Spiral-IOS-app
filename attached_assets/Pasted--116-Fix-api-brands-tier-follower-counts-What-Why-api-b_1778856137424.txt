@@ -1,0 +1,25 @@
+#116 - Fix /api/brands tier follower counts
+What & Why
+/api/brands computes discount tiers by reading raw rows from the discount_tiers table, but the merchant dashboard UI computes them from store_settings fields (maxDiscount, tierItemCaps, tierBoundaries) using computeEffectiveTiers(). These two sources diverge when a merchant's stored tierBoundaries array fails validation (the wrong length, e.g. 13 elements vs. the required 12) — in that case the UI falls back to default boundaries (10% → 500 followers) but the raw DB rows still carry the old wrong fromFollowers values.
+
+Confirmed in production: finleys-mugs-a and test-2 both have 13-element tierBoundaries in store_settings, so the dashboard shows 10% → 500 followers (correct default) while /api/brands returns 10% → 1500 or 1000 followers (stale rows). The iOS customer app sees whichever fromFollowers value the API sends.
+
+Fix: drop getAllDiscountTiers() from the brands path and instead include maxDiscount, tierItemCaps, and tierBoundaries in getActiveMerchants() so computeEffectiveTiers() can be called inline per merchant. This permanently eliminates the dual-source-of-truth problem.
+
+Done looks like
+GET /api/brands returns each store's discountTiers computed by computeEffectiveTiers() — identical to what the merchant dashboard UI displays
+For finleys-mugs-a, the 10% tier shows fromFollowers: 500 (not 1500)
+For test-2, the 10% tier shows fromFollowers: 500 (not 1000)
+getAllDiscountTiers() is no longer called from the brands cache-build path
+All 84 existing tests pass
+Out of scope
+Cleaning up or migrating the stale discount_tiers rows themselves (the table is still used by the checkout/discount function paths — only the brands API path is changing)
+Changing computeEffectiveTiers logic
+Any change to minFollowers derived from store_settings.minFollowers (keep existing behaviour — m.minFollowers ?? 0)
+Steps
+Extend getActiveMerchants() return type — Add maxDiscount, tierItemCaps, and tierBoundaries to both the IStorage interface signature and the DatabaseStorage.getActiveMerchants() SELECT query, pulling them from storeSettings columns of the same names.
+Replace getAllDiscountTiers() in /api/brands — In the cache-build block of app.get("/api/brands"), remove storage.getAllDiscountTiers() from the Promise.all. For each merchant m, call computeEffectiveTiers(m) (the function already defined earlier in routes.ts) to produce rawTiers, then pass that to buildBrandRecord. No change to buildBrandRecord itself.
+Relevant files
+server/storage.ts:44-57,158-176
+server/routes.ts:146-175,561-610
+server/brandProductsHandler.ts:52-85
