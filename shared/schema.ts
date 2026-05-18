@@ -174,6 +174,16 @@ export const orders = pgTable("orders", {
   fulfilledAt: timestamp("fulfilled_at"),
   deliveredAt: timestamp("delivered_at"),
   postDeadline: timestamp("post_deadline"),
+  // Raw shipment_status from Shopify (label_printed, in_transit, out_for_delivery,
+  // ready_for_pickup, delivered, attempted_delivery, failure, etc.). We mirror
+  // whatever Shopify tells us so the shopper sees honest progress regardless of
+  // how this particular merchant ships (carrier vs. click-and-collect vs. manual).
+  shopifyTrackingStatus: text("shopify_tracking_status"),
+  trackingStatusUpdatedAt: timestamp("tracking_status_updated_at"),
+  // Set the first time we see ready_for_pickup. Used by the background fallback
+  // job: 24h after this, if no `delivered` event has arrived, we treat the order
+  // as collected and trigger the Story prompt.
+  readyForPickupAt: timestamp("ready_for_pickup_at"),
   // Verification status:
   //   pending          - delivered, no Story posted yet (locks future discount)
   //   awaiting_review  - Story tag received, quick publicity check pending (locks future discount)

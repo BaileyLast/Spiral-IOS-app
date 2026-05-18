@@ -112,10 +112,25 @@ Preferred communication style: Simple, everyday language.
 - `INSTAGRAM_WEBHOOK_VERIFY_TOKEN`: Webhook verification token (`spiral_verify_token`)
 
 ### Order Status Flow
-1. **Ordered** - Order placed, waiting for delivery
-2. **Fulfilled/Shipped** - On the way to customer
-3. **Delivered** - Arrived, customer sees "Post Your Story" prompt
+1. **Ordered** - Order placed, waiting for fulfillment
+2. **Fulfilled/Shipped** - Fulfillment created. App displays the raw Shopify `shipment_status` (e.g. "On the way", "Out for delivery", "Ready for pickup") via `orders.shopifyTrackingStatus`, which is mirrored from every `fulfillment_events/create` and `fulfillments/update` webhook.
+3. **Delivered** - Triggers "Post Your Story" prompt. Reached via, in order of preference:
+   - `fulfillment_events/create` with `status=delivered` (carrier-tracked)
+   - `fulfillments/update` with `shipment_status=delivered` (backup path some accounts use)
+   - Customer taps "I've collected it" in the app while `shopifyTrackingStatus=ready_for_pickup` → `POST /api/customer/orders/:id/mark-collected`
+   - Background fallback (`runDeliveryFallbackJob`, every 30 min):
+     - 24h after first `ready_for_pickup` → auto-marked as collected (click-and-collect safety net)
+     - 7d after `fulfilled` with no tracking event ever received → auto-marked delivered (manual/no-carrier-integration safety net)
 4. **Verified** - Story mention detected via webhook, discount confirmed
+
+All delivery paths funnel into the same idempotent `transitionOrderToDelivered` helper, so duplicate signals from different sources are safe.
+
+### Shopify Webhook Topics Registered
+Registered during the Shopify OAuth callback. Re-register for already-connected stores by calling `POST /api/internal/shopify/backfill-webhooks` with header `x-spiral-internal-key`.
+- `orders/create` → `/webhooks/shopify/orders-create`
+- `fulfillments/create` → `/webhooks/shopify/fulfillments-create`
+- `fulfillments/update` → `/webhooks/shopify/fulfillments-update`
+- `fulfillment_events/create` → `/webhooks/shopify/fulfillment-events-create`
 
 ### Verification Lifecycle
 1. **pending**: Order placed/delivered, awaiting customer to post Story tagging merchant. Locks future discount.

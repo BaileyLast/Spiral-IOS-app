@@ -990,6 +990,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const errorText = await deliveryWebhookRes.text();
             console.error('Failed to register fulfillment_events/create webhook:', deliveryWebhookRes.status, errorText);
           }
+
+          // Register fulfillments/update — backup delivery signal. Some Shopify
+          // accounts surface `delivered` via shipment_status on a fulfillment
+          // update rather than as a fulfillment_event. Listening to both means
+          // we don't miss the signal.
+          const fulfillmentsUpdateRes = await fetch(`https://${shop}/admin/api/2024-01/webhooks.json`, {
+            method: 'POST',
+            headers: {
+              'X-Shopify-Access-Token': data.access_token,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              webhook: {
+                topic: 'fulfillments/update',
+                address: `${baseUrl}/webhooks/shopify/fulfillments-update`,
+                format: 'json',
+              }
+            }),
+          });
+          if (fulfillmentsUpdateRes.ok) {
+            console.log('Registered fulfillments/update webhook');
+          } else {
+            const errorText = await fulfillmentsUpdateRes.text();
+            console.error('Failed to register fulfillments/update webhook:', fulfillmentsUpdateRes.status, errorText);
+          }
         } catch (webhookError) {
           console.error('Failed to register webhooks (non-fatal):', webhookError);
         }
@@ -1245,6 +1270,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const postDeadline = new Date(fulfilledAt);
       postDeadline.setDate(postDeadline.getDate() + postingWindowDays);
       
+      // Guard: a late/retried fulfillments/create must NOT downgrade an order
+      // that has already advanced to delivered. Without this, a delivered order
+      // could be flipped back to "fulfilled", suppressing the Story prompt.
+      if (order.status === 'delivered') {
+        console.log(`[shopify] fulfillments/create ignored — order ${order.id} already delivered`);
+        return res.status(200).json({ status: 'already_delivered', orderId: order.id });
+      }
+
       // Update order with fulfillment info
       const updatedOrder = await storage.updateOrderFulfillment(order.id, fulfilledAt, postDeadline);
       
@@ -1278,16 +1311,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const status = (event?.status || '').toLowerCase();
       const shopifyOrderId = event?.order_id?.toString();
       console.log(`[shopify] fulfillment_events/create received — order=${shopifyOrderId} status=${status}`);
-      if (status !== 'delivered' || !shopifyOrderId) return;
+      if (!shopifyOrderId || !status) return;
 
       const order = await storage.getOrderByShopifyOrderId(shopifyOrderId);
       if (!order) {
-        console.log(`[shopify] No Spiral order for delivered Shopify order ${shopifyOrderId}`);
+        console.log(`[shopify] No Spiral order for Shopify order ${shopifyOrderId}`);
         return;
       }
-      await transitionOrderToDelivered(order.id);
+
+      // Mirror the raw status onto the order so the app shows honest progress
+      // (in_transit, out_for_delivery, ready_for_pickup, etc.) regardless of
+      // how this merchant ships.
+      await storage.updateOrderTrackingStatus(order.id, status);
+
+      // Only `delivered` triggers the Story flow. `ready_for_pickup` is handled
+      // by either (a) a later `delivered` event from the carrier, (b) the
+      // shopper tapping "I've collected it" in the app, or (c) the 24h
+      // background fallback in runDeliveryFallbackJob.
+      if (status === 'delivered') {
+        await transitionOrderToDelivered(order.id);
+      }
     } catch (error) {
       console.error('Error processing fulfillment_events webhook:', error);
+    }
+  });
+
+  // Webhook for Shopify fulfillments/update — second source of truth for
+  // `delivered`. Some accounts surface delivery via `shipment_status` on a
+  // fulfillment update rather than as a fulfillment_event. `transitionOrderToDelivered`
+  // is idempotent so duplicate signals are safe.
+  app.post("/webhooks/shopify/fulfillments-update", async (req, res) => {
+    try {
+      if (!verifyShopifyWebhook(req)) {
+        console.warn('[shopify] fulfillments/update webhook signature INVALID — rejecting');
+        return res.status(401).json({ error: 'Invalid webhook signature' });
+      }
+      res.status(200).json({ received: true });
+
+      const fulfillment = req.body;
+      const shopifyOrderId = fulfillment?.order_id?.toString();
+      const shipmentStatus = (fulfillment?.shipment_status || '').toLowerCase();
+      console.log(`[shopify] fulfillments/update received — order=${shopifyOrderId} shipment_status=${shipmentStatus}`);
+      if (!shopifyOrderId) return;
+
+      const order = await storage.getOrderByShopifyOrderId(shopifyOrderId);
+      if (!order) return;
+
+      if (shipmentStatus) {
+        await storage.updateOrderTrackingStatus(order.id, shipmentStatus);
+      }
+      if (shipmentStatus === 'delivered') {
+        await transitionOrderToDelivered(order.id);
+      }
+    } catch (error) {
+      console.error('Error processing fulfillments/update webhook:', error);
     }
   });
 
@@ -2571,6 +2648,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to fetch order:", error);
       res.status(500).json({ error: "Failed to fetch order" });
+    }
+  });
+
+  // Shopper-triggered "I've collected it" for click-and-collect orders that are
+  // sitting on ready_for_pickup. Shopify often won't progress these to
+  // `delivered` (small local merchants don't manually mark collection), so the
+  // shopper can confirm in-app and trigger the Story flow immediately.
+  app.post("/api/customer/orders/:id/mark-collected", async (req, res) => {
+    try {
+      // Lightweight CSRF defence: require the request to originate from our
+      // own host. Session cookie is sameSite=none for Replit cross-origin
+      // preview, so we can't rely on the browser to block cross-site POSTs.
+      const origin = req.get('origin') || req.get('referer') || '';
+      const host = req.get('host') || '';
+      if (origin && host && !origin.includes(host)) {
+        return res.status(403).json({ error: "Cross-origin request rejected" });
+      }
+      const customerId = req.session.customerId;
+      if (!customerId) return res.status(401).json({ error: "Not authenticated" });
+
+      const order = await storage.getOrderById(req.params.id);
+      if (!order) return res.status(404).json({ error: "Order not found" });
+      if (order.spiralCustomerId !== customerId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      // Only allow the manual confirm when the order is genuinely sitting on
+      // ready_for_pickup. Don't let shoppers tap it on a shipped parcel before
+      // it has actually arrived.
+      if (order.shopifyTrackingStatus !== 'ready_for_pickup') {
+        return res.status(400).json({ error: "Order is not awaiting pickup" });
+      }
+      if (order.status === 'delivered') {
+        return res.json({ success: true, alreadyDelivered: true });
+      }
+      await transitionOrderToDelivered(order.id);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("[delivery] customer mark-collected failed:", err);
+      res.status(500).json({ error: "Failed to mark collected" });
     }
   });
 
@@ -3916,6 +4032,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Internal admin endpoint: mark an order delivered (called by ops tooling or future
   // Shopify fulfillment_events.create webhook for `delivered` events).
+  // Internal endpoint: re-register every Shopify webhook for the currently
+  // connected store. Use this to backfill stores that connected before
+  // fulfillment-related webhooks were added — those merchants' Shopify never
+  // knew to ping us about deliveries, so their orders sit on "ordered" forever.
+  // Safe to call multiple times: Shopify rejects duplicate (topic, address)
+  // pairs with a 422 we just log and move on from.
+  app.post("/api/internal/shopify/backfill-webhooks", async (req, res) => {
+    try {
+      const internalKey = req.header("x-spiral-internal-key");
+      if (!internalKey || internalKey !== process.env.SPIRAL_INTERNAL_KEY) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      const settings = await storage.getStoreSettings();
+      if (!settings?.shopDomain || !settings?.accessToken) {
+        return res.status(400).json({ error: "No Shopify store connected" });
+      }
+      const baseUrl = process.env.SHOPIFY_APP_BASE_URL ||
+        process.env.SHOPIFY_REDIRECT_URI?.replace('/shopify/callback', '');
+      if (!baseUrl) return res.status(500).json({ error: "No base URL configured" });
+
+      const topics: Array<{ topic: string; address: string }> = [
+        { topic: 'orders/create', address: `${baseUrl}/webhooks/shopify/orders-create` },
+        { topic: 'fulfillments/create', address: `${baseUrl}/webhooks/shopify/fulfillments-create` },
+        { topic: 'fulfillments/update', address: `${baseUrl}/webhooks/shopify/fulfillments-update` },
+        { topic: 'fulfillment_events/create', address: `${baseUrl}/webhooks/shopify/fulfillment-events-create` },
+      ];
+      const results: Record<string, { ok: boolean; status: number; body?: string }> = {};
+      for (const t of topics) {
+        try {
+          const r = await fetch(`https://${settings.shopDomain}/admin/api/2024-01/webhooks.json`, {
+            method: 'POST',
+            headers: {
+              'X-Shopify-Access-Token': settings.accessToken,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ webhook: { topic: t.topic, address: t.address, format: 'json' } }),
+          });
+          const body = r.ok ? undefined : (await r.text()).slice(0, 300);
+          results[t.topic] = { ok: r.ok, status: r.status, body };
+          console.log(`[shopify-backfill] ${t.topic} -> ${r.status} ${r.ok ? 'OK' : body}`);
+        } catch (e) {
+          results[t.topic] = { ok: false, status: 0, body: String(e) };
+          console.error(`[shopify-backfill] ${t.topic} failed:`, e);
+        }
+      }
+      res.json({ shop: settings.shopDomain, results });
+    } catch (err) {
+      console.error("[shopify-backfill] failed:", err);
+      res.status(500).json({ error: "Failed to backfill webhooks" });
+    }
+  });
+
   app.post("/api/internal/orders/:id/mark-delivered", async (req, res) => {
     try {
       const internalKey = req.header("x-spiral-internal-key");
@@ -4422,6 +4590,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Start the deferred publicity-check worker (anti Close Friends / deletion)
   setTimeout(() => { void processPublicityChecks(); }, 90 * 1000);
   setInterval(() => { void processPublicityChecks(); }, PUBLICITY_CHECK_INTERVAL_MS);
+
+  // Background delivery fallback. Catches the two cases Shopify can't tell us
+  // about in real time:
+  //   1. ready_for_pickup → no later `delivered` event (typical for small
+  //      local merchants doing click-and-collect; they don't manually mark
+  //      collection). After 24h we treat the order as collected.
+  //   2. fulfilled, but no tracking event ever arrives (merchant ships by
+  //      hand with no carrier integration). After 7 days we treat as delivered.
+  // transitionOrderToDelivered is idempotent so a duplicate real `delivered`
+  // event later is a no-op.
+  const DELIVERY_FALLBACK_INTERVAL_MS = 30 * 60 * 1000;
+  async function runDeliveryFallbackJob() {
+    try {
+      const due = await storage.getOrdersAwaitingDeliveryFallback();
+      if (due.length === 0) return;
+      console.log(`[delivery-fallback] processing ${due.length} order(s)`);
+      for (const o of due) {
+        const reason = o.readyForPickupAt ? 'ready_for_pickup_24h' : 'no_tracking_7d';
+        console.log(`[delivery-fallback] order=${o.id} reason=${reason}`);
+        try {
+          await transitionOrderToDelivered(o.id);
+        } catch (err) {
+          console.error(`[delivery-fallback] order=${o.id} failed:`, err);
+        }
+      }
+    } catch (err) {
+      console.error('[delivery-fallback] job failed:', err);
+    }
+  }
+  setTimeout(() => { void runDeliveryFallbackJob(); }, 2 * 60 * 1000);
+  setInterval(() => { void runDeliveryFallbackJob(); }, DELIVERY_FALLBACK_INTERVAL_MS);
 
   return httpServer;
 }

@@ -67,6 +67,8 @@ export interface IStorage {
   getOrderByInstagramUserId(instagramUserId: string): Promise<Order | undefined>;
   updateOrderVerificationStatus(orderId: string, status: string, verificationId?: string): Promise<void>;
   updateOrderFulfillment(orderId: string, fulfilledAt: Date, postDeadline: Date): Promise<Order>;
+  updateOrderTrackingStatus(orderId: string, status: string): Promise<Order | undefined>;
+  getOrdersAwaitingDeliveryFallback(): Promise<Order[]>;
   // Products and Collections
   syncProducts(products: InsertShopifyProduct[]): Promise<ShopifyProduct[]>;
   getProducts(): Promise<ShopifyProduct[]>;
@@ -467,6 +469,63 @@ export class DatabaseStorage implements IStorage {
       .where(eq(orders.id, orderId))
       .returning();
     return updated;
+  }
+
+  async updateOrderTrackingStatus(orderId: string, status: string): Promise<Order | undefined> {
+    const set: Record<string, unknown> = {
+      shopifyTrackingStatus: status,
+      trackingStatusUpdatedAt: new Date(),
+    };
+    // Stamp readyForPickupAt on the first ready_for_pickup we see — used by
+    // the background fallback to decide when to auto-mark as collected.
+    if (status === 'ready_for_pickup') {
+      const existing = await this.getOrderById(orderId);
+      if (existing && !existing.readyForPickupAt) {
+        set.readyForPickupAt = new Date();
+      }
+    }
+    const [updated] = await db
+      .update(orders)
+      .set(set)
+      .where(eq(orders.id, orderId))
+      .returning();
+    return updated;
+  }
+
+  // Orders that should be auto-transitioned to delivered by the background job:
+  //   - ready_for_pickup ≥ 24h ago, not yet delivered  (click-and-collect fallback)
+  //   - fulfilled ≥ 7d ago, no tracking status ever arrived, not yet delivered
+  //     (manual / no-carrier-integration safety net)
+  async getOrdersAwaitingDeliveryFallback(): Promise<Order[]> {
+    const READY_FALLBACK_MS = 24 * 60 * 60 * 1000;
+    const NO_TRACKING_FALLBACK_MS = 7 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const readyCutoff = new Date(now - READY_FALLBACK_MS);
+    const fulfilledCutoff = new Date(now - NO_TRACKING_FALLBACK_MS);
+    return await db
+      .select()
+      .from(orders)
+      .where(
+        and(
+          sql`${orders.status} <> 'delivered'`,
+          or(
+            and(
+              sql`${orders.readyForPickupAt} IS NOT NULL`,
+              lt(orders.readyForPickupAt, readyCutoff),
+              // Must still be sitting on ready_for_pickup. If Shopify later
+              // moved status to in_transit / out_for_delivery / delivered,
+              // a stale readyForPickupAt must not force premature delivery.
+              eq(orders.shopifyTrackingStatus, 'ready_for_pickup'),
+            )!,
+            and(
+              eq(orders.status, 'fulfilled'),
+              sql`${orders.fulfilledAt} IS NOT NULL`,
+              lt(orders.fulfilledAt, fulfilledCutoff),
+              isNull(orders.shopifyTrackingStatus),
+            )!,
+          )!,
+        )!,
+      );
   }
 
   async syncProducts(products: InsertShopifyProduct[]): Promise<ShopifyProduct[]> {

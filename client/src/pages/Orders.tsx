@@ -42,7 +42,26 @@ function getStatusLabel(order: Order) {
   if (order.verificationStatus === "awaiting_review") return "Confirming";
   if (order.verificationStatus === "story_detected") return "Story Received";
   if (order.status === "delivered") return "Story Needed";
-  if (order.status === "fulfilled") return "On the way";
+  // Use the raw Shopify shipment_status when present so the shopper sees
+  // honest progress regardless of how this merchant ships.
+  if (order.status === "fulfilled") {
+    switch (order.shopifyTrackingStatus) {
+      case "ready_for_pickup":
+        return "Ready for pickup";
+      case "out_for_delivery":
+        return "Out for delivery";
+      case "attempted_delivery":
+        return "Delivery attempted";
+      case "failure":
+        return "Delivery issue";
+      case "in_transit":
+      case "confirmed":
+      case "label_printed":
+      case "label_purchased":
+      default:
+        return "On the way";
+    }
+  }
   return "Ordered";
 }
 
@@ -62,6 +81,13 @@ function getStatusBadge(status: string) {
     case "Story Needed":
       return "bg-amber-50 text-amber-700 border border-amber-200";
     case "Repost Story":
+      return "bg-orange-50 text-orange-700 border border-orange-200";
+    case "Ready for pickup":
+      return "bg-indigo-50 text-indigo-700 border border-indigo-200";
+    case "Out for delivery":
+      return "bg-blue-50 text-blue-700 border border-blue-200";
+    case "Delivery attempted":
+    case "Delivery issue":
       return "bg-orange-50 text-orange-700 border border-orange-200";
     case "On the way":
       return "bg-blue-50 text-blue-700 border border-blue-200";

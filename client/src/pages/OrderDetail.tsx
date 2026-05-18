@@ -1,9 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
-import { ArrowLeft, CheckCircle, Clock, Package, Instagram, Camera, Loader2, ShoppingBag } from "lucide-react";
+import { ArrowLeft, CheckCircle, Clock, Package, Instagram, Camera, Loader2, ShoppingBag, Store } from "lucide-react";
 import type { Order } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import {
   parseLineItems,
   lineItemDisplayName,
@@ -92,10 +94,30 @@ function getStatusLabel(order: Order) {
 export default function OrderDetail() {
   const [, params] = useRoute("/orders/:id");
   const orderId = params?.id;
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { data: order, isLoading } = useQuery<Order>({
     queryKey: ["/api/customer/orders", orderId],
     enabled: !!orderId,
+  });
+
+  const markCollectedMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", `/api/customer/orders/${orderId}/mark-collected`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/customer/orders", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/customer/orders"] });
+      toast({ title: "Thanks!", description: "We've marked your order as collected." });
+    },
+    onError: () => {
+      toast({
+        title: "Couldn't confirm pickup",
+        description: "Please try again in a moment.",
+        variant: "destructive",
+      });
+    },
   });
 
   if (isLoading) {
@@ -126,11 +148,23 @@ export default function OrderDetail() {
   const status = getStatusLabel(order);
   const lineItems = parseLineItems(order.lineItems).filter((item) => lineItemDisplayName(item).length > 0);
   const percentLabel = formatDiscountPercent(order.discountPercent);
+  const isPickup = !!order.readyForPickupAt || order.shopifyTrackingStatus === "ready_for_pickup";
+  const awaitingPickup = order.shopifyTrackingStatus === "ready_for_pickup" && order.status !== "delivered";
+
+  // Friendly label for the in-transit step depending on shipping method.
+  const shippedLabel = (() => {
+    if (isPickup) return "Ready for pickup";
+    switch (order.shopifyTrackingStatus) {
+      case "out_for_delivery": return "Out for delivery";
+      case "in_transit": return "In transit";
+      default: return "On the way";
+    }
+  })();
 
   const steps = [
     { id: "ordered", label: "Order placed", icon: Package, complete: true },
-    { id: "shipped", label: "On the way", icon: Clock, complete: status !== "ordered" },
-    { id: "delivered", label: "Delivered", icon: CheckCircle, complete: ["awaiting", "story_received", "awaiting_review", "quick_verified", "not_public", "taken_down_early", "verified"].includes(status) },
+    { id: "shipped", label: shippedLabel, icon: isPickup ? Store : Clock, complete: status !== "ordered" },
+    { id: "delivered", label: isPickup ? "Collected" : "Delivered", icon: CheckCircle, complete: ["awaiting", "story_received", "awaiting_review", "quick_verified", "not_public", "taken_down_early", "verified"].includes(status) },
     { id: "verified", label: "Story verified", icon: CheckCircle, complete: status === "verified" },
   ];
 
@@ -219,6 +253,36 @@ export default function OrderDetail() {
             })}
           </div>
         </div>
+
+        {awaitingPickup && (
+          <div className="p-5 rounded-2xl bg-indigo-50 border border-indigo-200" data-testid="card-ready-for-pickup">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                <Store className="w-5 h-5 text-indigo-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-indigo-900">
+                  Your order is ready to pick up
+                </h3>
+                <p className="text-sm text-indigo-700 mt-1">
+                  Once you've grabbed it, tap below to unlock your Story step.
+                </p>
+              </div>
+            </div>
+            <Button
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={() => markCollectedMutation.mutate()}
+              disabled={markCollectedMutation.isPending}
+              data-testid="button-mark-collected"
+            >
+              {markCollectedMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                "I've collected it"
+              )}
+            </Button>
+          </div>
+        )}
 
         {status === "awaiting" && (
           <div className="p-5 rounded-2xl bg-amber-50 border border-amber-200">
