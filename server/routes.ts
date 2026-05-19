@@ -1562,7 +1562,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Update last login
       await storage.updateSpiralCustomerLastLogin(customer.id);
-      
+
+      // Evaluate soft-ban here so the widget gets the on-hold signal in the
+      // SAME response as the profile — no second round-trip needed before it
+      // can render the "Your discount is on hold" screen. Login itself still
+      // succeeds (authenticated: true); the widget decides whether to render
+      // the discount panel or the on-hold panel based on `softBanned`.
+      const ban = await evaluateSoftBanForCheckout(customer.id);
+
       res.json({
         authenticated: true,
         customerId: customer.id,
@@ -1573,6 +1580,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         instagramUserId: customer.instagramUserId,
         instagramGlobalUserId: customer.instagramGlobalUserId ?? null,
         followerCount: customer.followerCount || 0,
+        // Soft-ban surface (Task #62). When softBanned is true the widget
+        // should skip /api/checkout/calculate-discount entirely and render
+        // the on-hold screen using softBanMessage, with a "Check your Spiral
+        // app" CTA deep-linking to spiral://orders/{owedOrderId}.
+        softBanned: ban.softBanned,
+        softBannedReason: ban.softBannedReason,
+        pendingVerificationCount: ban.pendingVerificationCount,
+        brandName: ban.brandName,
+        owedOrderId: ban.owedOrderId,
+        softBanMessage: ban.message,
       });
     } catch (error) {
       console.error('Checkout authentication error:', error);
@@ -1609,70 +1626,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Soft-ban gate: persisted accountStatus is the source of truth at checkout.
-      // Self-heals in BOTH directions if state drifts vs actual owed orders.
-      // Owed includes (a) delivered+pending/awaiting_review and (b) any not_public/taken_down_early
-      // regardless of delivery status. We additionally check INHERITED debt anchored to the
-      // shopper's Instagram identity (across sibling accounts with the same global pk or
-      // page-scoped IG user ID), to close the "new email + same IG" Story-debt exploit.
-      const ownOwed = await getOwedOrdersForCustomer(customerId);
-      const inheritedOwed = await getOwedOrdersForInstagramIdentity({
-        instagramGlobalUserId: customer.instagramGlobalUserId,
-        instagramUserId: customer.instagramUserId,
-        excludeCustomerId: customerId,
-      });
-      const totalOwedCount = ownOwed.length + inheritedOwed.length;
-      const inheritedOnly = ownOwed.length === 0 && inheritedOwed.length > 0;
-
-      if (customer.accountStatus === "soft_banned") {
-        if (totalOwedCount === 0) {
-          // Stale soft-ban — no orders are actually owed (own or inherited). Auto-clear.
-          await storage.clearCustomerSoftBan(customerId);
-          console.log(`[soft-ban] Customer ${customerId} auto-cleared at checkout (stale state, no owed orders)`);
-        } else {
-          const effectiveReason = inheritedOnly
-            ? "inherited_from_instagram"
-            : (customer.softBannedReason ?? "story_owed");
-          // Keep the persisted reason aligned with the live owed-state so any
-          // surface that reads /api/customer/me directly (Home/Discounts banner)
-          // shows accurate copy in both directions:
-          //   - own debt cleared, only inherited remains -> "inherited_from_instagram"
-          //   - new own debt incurred while inherited-banned -> back to "story_owed"
-          if (customer.softBannedReason !== effectiveReason) {
-            try {
-              await storage.setCustomerSoftBanned(customerId, effectiveReason);
-            } catch (refreshErr) {
-              console.error('Failed to refresh soft-ban reason at checkout:', refreshErr);
-            }
-          }
-          return res.json({
-            eligible: false,
-            code: "soft_banned",
-            softBanned: true,
-            softBannedReason: effectiveReason,
-            reason: inheritedOnly
-              ? "Your Instagram account owes a Story from a previous Spiral order. Post that Story to unlock your next discount."
-              : (totalOwedCount <= 1
-                ? "Post a Story for your previous order to unlock your next discount"
-                : `Post a Story for your ${totalOwedCount} unverified orders to unlock your next discount`),
-            pendingVerificationCount: totalOwedCount,
-          });
-        }
-      } else if (totalOwedCount > 0) {
-        // Self-heal: state drifted (account active but orders owed). Re-soft-ban now.
-        const reason = inheritedOnly ? "inherited_from_instagram" : "story_owed";
-        await storage.setCustomerSoftBanned(customerId, reason);
+      // Soft-ban gate: pay-now safety net. The same evaluator is also called at
+      // /api/checkout/authenticate so the widget normally never reaches this
+      // path for a banned account. We keep it here for the edge case where
+      // debt was incurred between login and pay-now, and to self-heal stale
+      // state in both directions. See evaluateSoftBanForCheckout for details.
+      const ban = await evaluateSoftBanForCheckout(customerId);
+      if (ban.softBanned) {
         return res.json({
           eligible: false,
           code: "soft_banned",
           softBanned: true,
-          softBannedReason: reason,
-          reason: inheritedOnly
-            ? "Your Instagram account owes a Story from a previous Spiral order. Post that Story to unlock your next discount."
-            : (totalOwedCount === 1
-              ? "Post a Story for your previous order to unlock your next discount"
-              : `Post a Story for your ${totalOwedCount} unverified orders to unlock your next discount`),
-          pendingVerificationCount: totalOwedCount,
+          softBannedReason: ban.softBannedReason,
+          reason: ban.message,
+          pendingVerificationCount: ban.pendingVerificationCount,
+          brandName: ban.brandName,
+          owedOrderId: ban.owedOrderId,
         });
       }
 
@@ -3965,6 +3934,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
     }
+  }
+
+  // Shared soft-ban evaluator for the checkout surfaces (login + pay-now).
+  // Self-heals the persisted accountStatus / softBannedReason in BOTH directions:
+  //   - stale ban with zero owed orders -> clears
+  //   - active account with owed orders -> (re-)bans with the right reason
+  //   - reason drift (own debt cleared, only inherited remains, or vice-versa) -> refreshes reason
+  // Returns the structured fields the widget needs to render the "on hold" screen
+  // straight from the login response (no second round-trip): brand of the most
+  // recent owed order, that order's id (for the "Check your Spiral app" deep link),
+  // and the canonical user-facing message.
+  async function evaluateSoftBanForCheckout(customerId: string): Promise<{
+    softBanned: boolean;
+    softBannedReason: string | null;
+    pendingVerificationCount: number;
+    brandName: string | null;
+    owedOrderId: string | null;
+    message: string | null;
+  }> {
+    const customer = await storage.getSpiralCustomerById(customerId);
+    if (!customer) {
+      return { softBanned: false, softBannedReason: null, pendingVerificationCount: 0, brandName: null, owedOrderId: null, message: null };
+    }
+
+    const ownOwed = await getOwedOrdersForCustomer(customerId);
+    const inheritedOwed = await getOwedOrdersForInstagramIdentity({
+      instagramGlobalUserId: customer.instagramGlobalUserId,
+      instagramUserId: customer.instagramUserId,
+      excludeCustomerId: customerId,
+    });
+    const totalOwedCount = ownOwed.length + inheritedOwed.length;
+
+    if (totalOwedCount === 0) {
+      if (customer.accountStatus === "soft_banned") {
+        await storage.clearCustomerSoftBan(customerId);
+        console.log(`[soft-ban] Customer ${customerId} auto-cleared at checkout (stale state, no owed orders)`);
+      }
+      return { softBanned: false, softBannedReason: null, pendingVerificationCount: 0, brandName: null, owedOrderId: null, message: null };
+    }
+
+    const inheritedOnly = ownOwed.length === 0 && inheritedOwed.length > 0;
+    const effectiveReason = inheritedOnly
+      ? "inherited_from_instagram"
+      : (customer.softBannedReason ?? "story_owed");
+
+    // Persist/refresh so any surface that reads /api/customer/me directly
+    // (Home/Discounts banner) shows accurate state and copy.
+    if (customer.accountStatus !== "soft_banned" || customer.softBannedReason !== effectiveReason) {
+      try {
+        await storage.setCustomerSoftBanned(customerId, effectiveReason);
+      } catch (err) {
+        console.error('[soft-ban] Failed to set/refresh at checkout:', err);
+      }
+    }
+
+    // Most recent owed order across own + inherited drives the brand name and
+    // the deep-link target. The mobile app handles rendering an inherited order
+    // by resolving via IG identity.
+    const combined = [...ownOwed, ...inheritedOwed].sort((a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    const mostRecent = combined[0];
+    const brandName = mostRecent?.storeName ?? null;
+    const owedOrderId = mostRecent?.id ?? null;
+
+    // Neutral copy that works on both surfaces (login on-hold screen + pay-now
+    // fallback). Widget is responsible for any surface-specific prefix.
+    let message: string;
+    if (totalOwedCount > 1 && !inheritedOnly) {
+      message = `Post your Stories for your ${totalOwedCount} previous Spiral orders to unlock your next discount.`;
+    } else {
+      const brandPart = brandName ? `your ${brandName} order` : "your previous order";
+      message = `Post your Story for ${brandPart} to unlock your next discount.`;
+      if (inheritedOnly) {
+        message += " This debt is linked to your Instagram account.";
+      }
+    }
+
+    return {
+      softBanned: true,
+      softBannedReason: effectiveReason,
+      pendingVerificationCount: totalOwedCount,
+      brandName,
+      owedOrderId,
+      message,
+    };
   }
 
   // Mark an order delivered. Soft-bans the customer ONLY if this delivered order is still
