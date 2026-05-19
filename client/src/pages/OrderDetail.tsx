@@ -334,7 +334,7 @@ export default function OrderDetail() {
         )}
 
         {status === "awaiting" && (() => {
-          const rawHandle = ((order as Order & { merchantInstagramHandle?: string | null }).merchantInstagramHandle || "").replace(/^@/, "");
+          const rawHandle = (order.merchantInstagramHandle || "").replace(/^@/, "");
           return (
             <div className="p-5 rounded-2xl bg-gray-50 border border-gray-100" data-testid="card-post-story">
               <div className="flex items-start gap-4 mb-4">

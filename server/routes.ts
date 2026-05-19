@@ -1173,11 +1173,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }))
       );
 
-      // Build store logo URL from shop domain
-      const shopDomain = settings?.shopDomain || '';
-      const storeLogo = shopDomain
-        ? `https://www.google.com/s2/favicons?domain=${shopDomain}&sz=64`
+      // Prefer the per-request `X-Shopify-Shop-Domain` header (set by Shopify
+      // on every webhook) over the global single-tenant `store_settings` so
+      // we stay correct once this app is wired to multiple merchants.
+      const webhookShopDomain =
+        (req.headers['x-shopify-shop-domain'] as string | undefined) ||
+        settings?.shopDomain ||
+        '';
+      const storeLogo = webhookShopDomain
+        ? `https://www.google.com/s2/favicons?domain=${webhookShopDomain}&sz=64`
         : null;
+
+      // Snapshot the merchant's Instagram handle onto the order at creation
+      // time so the shopper always sees the exact handle to tag — no read-time
+      // lookups, no fuzzy storeName matching, and the order keeps its original
+      // handle even if the merchant later changes it.
+      const merchantInstagramHandle = await getBrandHandleForShopDomain(webhookShopDomain);
 
       // Create order record (always persist, even without complete Instagram data)
       const newOrder = await storage.createOrder({
@@ -1195,6 +1206,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         verificationStatus: initialVerificationStatus,
         storeName: settings?.storeName || null,
         storeLogo: storeLogo,
+        merchantInstagramHandle,
         lineItems: lineItemsSummary,
       });
       
@@ -1772,6 +1784,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         verificationStatus: 'pending',
         storeName: settings?.storeName || null,
         storeLogo: confirmStoreLogo,
+        merchantInstagramHandle: await getBrandHandleForShopDomain(confirmShopDomain),
         lineItems: confirmLineItems,
       });
       
@@ -2584,42 +2597,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied" });
       }
 
-      // Surface the merchant's IG handle so the shopper knows exactly who to
-      // tag in their Story. Source of truth is the marketplace brands feed
-      // (multi-merchant), matched to the order by storeName. We warm the
-      // brands cache on demand so a shopper opening an order before the
-      // marketplace page still gets a populated handle.
-      let merchantInstagramHandle: string | null = null;
-      if (order.storeName) {
-        try {
-          if (!brandsCache || Date.now() - brandsCache.fetchedAt >= BRANDS_CACHE_TTL_MS) {
-            const upstream = await fetch(MERCHANT_BRANDS_URL);
-            if (upstream.ok) {
-              const raw = await upstream.json();
-              const parsed = brandsResponseSchema.safeParse(raw);
-              if (parsed.success) {
-                brandsCache = { data: parsed.data, fetchedAt: Date.now() };
-              }
-            }
-          }
-          const target = order.storeName.trim().toLowerCase();
-          const brand = brandsCache?.data.find(
-            (b) => b.storeName.trim().toLowerCase() === target,
-          );
-          if (brand?.instagramUsername) {
-            merchantInstagramHandle = brand.instagramUsername.replace(/^@/, "");
-          }
-        } catch (e) {
-          console.warn("[order] Failed to look up brand IG handle:", e);
-        }
-      }
-      // Fallback for single-tenant / local dev where the order's store isn't
-      // in the brands feed yet.
-      if (!merchantInstagramHandle) {
-        const settings = await storage.getStoreSettings();
-        merchantInstagramHandle = settings?.instagramHandle?.replace(/^@/, "") || null;
-      }
-      res.json({ ...order, merchantInstagramHandle });
+      // merchantInstagramHandle is snapshotted onto the order row at creation
+      // time by getBrandHandleForShopDomain (see orders/create webhook), so we
+      // can return it directly here — no extra brands lookup at read time.
+      res.json(order);
     } catch (error) {
       console.error("Failed to fetch order:", error);
       res.status(500).json({ error: "Failed to fetch order" });
@@ -4403,6 +4384,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
   type UpstreamBrand = z.infer<typeof brandSchema>;
   type CachedBrands = UpstreamBrand[];
   let brandsCache: { data: CachedBrands; fetchedAt: number } | null = null;
+
+  // Normalize a Shopify-style domain or storefront URL down to a comparable
+  // host: lowercased, no scheme, no `www.`, no trailing slash or path.
+  function normalizeDomain(input: string | null | undefined): string | null {
+    if (!input) return null;
+    let host = input.trim().toLowerCase();
+    if (!host) return null;
+    try {
+      if (host.includes("://")) {
+        host = new URL(host).host;
+      }
+    } catch { /* fall through, treat as raw host */ }
+    host = host.replace(/^www\./, "").replace(/\/.*$/, "").replace(/:\d+$/, "");
+    return host || null;
+  }
+
+  // Look up the merchant's Instagram handle for a given Shopify shop domain
+  // by matching against the brands feed's `storefrontUrl`. Warms the brands
+  // cache on demand. Returns the handle stripped of any leading `@`, or null
+  // if the brand or its handle is missing. Used at order-creation time to
+  // snapshot the handle onto the order row.
+  async function getBrandHandleForShopDomain(
+    shopDomain: string | null | undefined,
+  ): Promise<string | null> {
+    const target = normalizeDomain(shopDomain);
+    if (!target) {
+      console.warn("[brands] handle lookup skipped — no shop domain provided");
+      return null;
+    }
+    try {
+      if (!brandsCache || Date.now() - brandsCache.fetchedAt >= BRANDS_CACHE_TTL_MS) {
+        const upstream = await fetch(MERCHANT_BRANDS_URL);
+        if (!upstream.ok) {
+          console.warn(
+            `[brands] handle lookup: upstream returned ${upstream.status} for ${target}, ` +
+              `using ${brandsCache ? 'stale cache' : 'no cache'}`,
+          );
+        } else {
+          const raw = await upstream.json();
+          const parsed = brandsResponseSchema.safeParse(raw);
+          if (!parsed.success) {
+            console.warn(
+              `[brands] handle lookup: upstream payload invalid for ${target}: ${parsed.error.message}`,
+            );
+          } else {
+            brandsCache = { data: parsed.data, fetchedAt: Date.now() };
+          }
+        }
+      }
+      const brand = brandsCache?.data.find(
+        (b) => normalizeDomain(b.storefrontUrl) === target,
+      );
+      if (!brand) {
+        console.warn(`[brands] handle lookup: no brand matched shop domain ${target}`);
+        return null;
+      }
+      const handle = brand.instagramUsername?.replace(/^@/, "").trim();
+      if (!handle) {
+        console.warn(`[brands] handle lookup: brand ${brand.id} (${target}) has no instagramUsername`);
+        return null;
+      }
+      return handle;
+    } catch (e) {
+      console.warn("[brands] handle lookup threw for", target, e);
+      return null;
+    }
+  }
 
   // Shape returned to the shopper UI. `category` is kept for backwards
   // compatibility with existing clients (it mirrors `primaryCategory`).

@@ -196,6 +196,11 @@ export const orders = pgTable("orders", {
   // Store & product info for customer display
   storeName: text("store_name"),
   storeLogo: text("store_logo"),
+  // Merchant's Instagram handle, snapshotted at order creation from the brands
+  // feed (keyed by shop domain). Stays correct for the lifetime of the order
+  // even if the merchant later changes their handle. May be null only if the
+  // brands feed was unreachable when the order was created.
+  merchantInstagramHandle: text("merchant_instagram_handle"),
   lineItems: text("line_items"), // JSON array of {title, quantity}
 }, (table) => ({
   // Indexes for IG-anchored owed-order lookups that survive customer deletion.
