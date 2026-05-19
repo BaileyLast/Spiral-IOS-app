@@ -21,6 +21,8 @@ import {
   parseLineItems,
   lineItemDisplayName,
   formatDiscountPercent,
+  MOCK_ACTIVE,
+  MOCK_HISTORY,
   type LineItem,
 } from "@/pages/Orders";
 
@@ -108,19 +110,43 @@ export default function OrderDetail() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: order, isLoading } = useQuery<Order>({
+  // Dev-only: mock previews on the Orders list use synthetic IDs like
+  // "mock-active-1" that don't exist in the backend. When tapped, short-circuit
+  // the API and render straight from the same mock data so the UX is fully
+  // navigable without real orders.
+  const isMock = !!orderId && orderId.startsWith("mock-") && import.meta.env.DEV;
+  const mockOrder = isMock
+    ? [...MOCK_ACTIVE, ...MOCK_HISTORY].find((m) => m.id === orderId)
+    : undefined;
+
+  const { data: queryOrder, isLoading: queryLoading } = useQuery<Order>({
     queryKey: ["/api/customer/orders", orderId],
-    enabled: !!orderId,
+    enabled: !!orderId && !isMock,
   });
+
+  const order = isMock ? mockOrder : queryOrder;
+  const isLoading = isMock ? false : queryLoading;
 
   const markReceivedMutation = useMutation({
     mutationFn: async () => {
+      if (isMock) {
+        // Pretend it worked so the toast still fires; no real state changes.
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        return;
+      }
       await apiRequest("POST", `/api/customer/orders/${orderId}/mark-received`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/customer/orders", orderId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/customer/orders"] });
-      toast({ title: "Thanks!", description: "We've marked your order as received." });
+      if (!isMock) {
+        queryClient.invalidateQueries({ queryKey: ["/api/customer/orders", orderId] });
+        queryClient.invalidateQueries({ queryKey: ["/api/customer/orders"] });
+      }
+      toast({
+        title: "Thanks!",
+        description: isMock
+          ? "Preview only — no real order was updated."
+          : "We've marked your order as received.",
+      });
     },
     onError: () => {
       toast({

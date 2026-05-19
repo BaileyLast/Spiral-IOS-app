@@ -132,7 +132,7 @@ function StoreLogo({ src, name }: { src?: string | null; name?: string | null })
   );
 }
 
-function OrderCard({ order, dimmed = false }: { order: Order; dimmed?: boolean }) {
+export function OrderCard({ order, dimmed = false }: { order: Order; dimmed?: boolean }) {
   const status = getStatusLabel(order);
   const lineItems = parseLineItems(order.lineItems);
   const summary = itemSummaryText(lineItems);
@@ -210,7 +210,7 @@ function OrderCard({ order, dimmed = false }: { order: Order; dimmed?: boolean }
   );
 }
 
-const MOCK_ACTIVE: Order[] = [
+export const MOCK_ACTIVE: Order[] = [
   {
     id: "mock-active-1",
     storeName: "Glossier",
@@ -289,7 +289,7 @@ const MOCK_ACTIVE: Order[] = [
   } as unknown as Order,
 ];
 
-const MOCK_HISTORY: Order[] = [
+export const MOCK_HISTORY: Order[] = [
   {
     id: "mock-history-1",
     storeName: "Allbirds",
@@ -442,45 +442,7 @@ export default function Orders() {
               </p>
               <div className="space-y-3">
                 {MOCK_ACTIVE.map((mock) => (
-                  <div
-                    key={mock.id}
-                    className="p-4 rounded-2xl bg-white border border-gray-100"
-                  >
-                    <div className="flex items-start gap-3">
-                      <StoreLogo src={mock.storeLogo} name={mock.storeName} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="font-semibold text-gray-900 text-sm">{mock.storeName}</p>
-                            <p className="text-xs text-gray-400">#{mock.shopifyOrderId}</p>
-                          </div>
-                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 ${getStatusBadge(getStatusLabel(mock))}`}>
-                            {getStatusLabel(mock)}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-500 mt-1.5 line-clamp-2 leading-snug">
-                          {itemSummaryText(parseLineItems(mock.lineItems))}
-                        </p>
-                        <div className="flex items-center justify-between mt-2">
-                          <div className="flex items-center gap-2">
-                            <p className="text-xs text-gray-400">
-                              {new Date(mock.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                            </p>
-                            {getStatusLabel(mock) === "Story Needed" && (
-                              <>
-                                <span className="text-gray-200">·</span>
-                                <div className="flex items-center gap-1">
-                                  <Clock className="w-3 h-3 text-amber-500" />
-                                  <p className="text-xs text-amber-600 font-medium">Unlocks your next discount</p>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                          <span className="text-sm font-bold text-green-700">-${mock.discountAmount}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <OrderCard key={mock.id} order={mock} />
                 ))}
               </div>
             </section>
@@ -491,41 +453,7 @@ export default function Orders() {
               </p>
               <div className="space-y-3">
                 {MOCK_HISTORY.map((mock) => (
-                  <div
-                    key={mock.id}
-                    className="p-4 rounded-2xl bg-gray-50 border border-gray-100 opacity-60"
-                  >
-                    <div className="flex items-start gap-3">
-                      <StoreLogo src={mock.storeLogo} name={mock.storeName} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="font-semibold text-gray-500 text-sm">{mock.storeName}</p>
-                            <p className="text-xs text-gray-400">#{mock.shopifyOrderId}</p>
-                          </div>
-                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 ${getStatusBadge(getStatusLabel(mock))}`}>
-                            {getStatusLabel(mock)}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-400 mt-1.5 line-clamp-2 leading-snug">
-                          {itemSummaryText(parseLineItems(mock.lineItems))}
-                        </p>
-                        <div className="flex items-center justify-between mt-2">
-                          <div className="flex items-center gap-2">
-                            <p className="text-xs text-gray-400">
-                              {new Date(mock.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                            </p>
-                            <span className="text-gray-200">·</span>
-                            <div className="flex items-center gap-1">
-                              <CheckCircle2 className="w-3 h-3 text-green-500" />
-                              <p className="text-xs text-green-600 font-medium">Confirmed</p>
-                            </div>
-                          </div>
-                          <span className="text-sm font-bold text-green-600/60">-${mock.discountAmount}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <OrderCard key={mock.id} order={mock} dimmed />
                 ))}
               </div>
             </section>
