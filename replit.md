@@ -117,7 +117,7 @@ Preferred communication style: Simple, everyday language.
 3. **Delivered** - Triggers "Post Your Story" prompt. Reached via, in order of preference:
    - `fulfillment_events/create` with `status=delivered` (carrier-tracked)
    - `fulfillments/update` with `shipment_status=delivered` (backup path some accounts use)
-   - Customer taps "I've collected it" in the app while `shopifyTrackingStatus=ready_for_pickup` → `POST /api/customer/orders/:id/mark-collected`
+   - Customer taps "I've received this order" (or "I've collected it" on the pickup card) in the app → `POST /api/customer/orders/:id/mark-received` (gate: order must be `fulfilled` and not yet `delivered`). Back-compat alias `/mark-collected` is still mounted.
    - Background fallback (`runDeliveryFallbackJob`, every 30 min):
      - 24h after first `ready_for_pickup` → auto-marked as collected (click-and-collect safety net)
      - 7d after `fulfilled` with no tracking event ever received → auto-marked delivered (manual/no-carrier-integration safety net)

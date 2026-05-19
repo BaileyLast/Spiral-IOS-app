@@ -2651,11 +2651,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Shopper-triggered "I've collected it" for click-and-collect orders that are
-  // sitting on ready_for_pickup. Shopify often won't progress these to
-  // `delivered` (small local merchants don't manually mark collection), so the
-  // shopper can confirm in-app and trigger the Story flow immediately.
-  app.post("/api/customer/orders/:id/mark-collected", async (req, res) => {
+  // Shopper-triggered "I've received this order" — the universal manual override
+  // that covers every case Shopify can't tell us about in real time:
+  //   - Click-and-collect: merchant rarely marks "Picked up" in Shopify
+  //   - Manual ship with no carrier integration: no tracking events ever fire
+  //   - Carrier scan lag: shopper has the parcel in hand before the carrier reports
+  // Gates: must be authenticated owner, order must be fulfilled and not yet
+  // delivered (can't receive what hasn't shipped; already-delivered is a no-op).
+  // Idempotent via transitionOrderToDelivered.
+  const handleMarkReceived = async (req: any, res: any) => {
     try {
       // Lightweight CSRF defence: require the request to originate from our
       // own host. Session cookie is sameSite=none for Replit cross-origin
@@ -2673,22 +2677,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (order.spiralCustomerId !== customerId) {
         return res.status(403).json({ error: "Access denied" });
       }
-      // Only allow the manual confirm when the order is genuinely sitting on
-      // ready_for_pickup. Don't let shoppers tap it on a shipped parcel before
-      // it has actually arrived.
-      if (order.shopifyTrackingStatus !== 'ready_for_pickup') {
-        return res.status(400).json({ error: "Order is not awaiting pickup" });
-      }
       if (order.status === 'delivered') {
         return res.json({ success: true, alreadyDelivered: true });
+      }
+      // Must at least be fulfilled — can't receive what hasn't shipped yet.
+      if (order.status !== 'fulfilled') {
+        return res.status(400).json({ error: "Order has not been fulfilled yet" });
       }
       await transitionOrderToDelivered(order.id);
       res.json({ success: true });
     } catch (err) {
-      console.error("[delivery] customer mark-collected failed:", err);
-      res.status(500).json({ error: "Failed to mark collected" });
+      console.error("[delivery] customer mark-received failed:", err);
+      res.status(500).json({ error: "Failed to mark received" });
     }
-  });
+  };
+  app.post("/api/customer/orders/:id/mark-received", handleMarkReceived);
+  // Back-compat alias: the original endpoint name used by the first cut of the
+  // click-and-collect button. Same semantics now.
+  app.post("/api/customer/orders/:id/mark-collected", handleMarkReceived);
 
   // Get customer stats (scoped to authenticated customer)
   app.get("/api/customer/stats", async (req, res) => {

@@ -1,4 +1,15 @@
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
@@ -102,18 +113,18 @@ export default function OrderDetail() {
     enabled: !!orderId,
   });
 
-  const markCollectedMutation = useMutation({
+  const markReceivedMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", `/api/customer/orders/${orderId}/mark-collected`);
+      await apiRequest("POST", `/api/customer/orders/${orderId}/mark-received`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/customer/orders", orderId] });
       queryClient.invalidateQueries({ queryKey: ["/api/customer/orders"] });
-      toast({ title: "Thanks!", description: "We've marked your order as collected." });
+      toast({ title: "Thanks!", description: "We've marked your order as received." });
     },
     onError: () => {
       toast({
-        title: "Couldn't confirm pickup",
+        title: "Couldn't confirm",
         description: "Please try again in a moment.",
         variant: "destructive",
       });
@@ -271,11 +282,11 @@ export default function OrderDetail() {
             </div>
             <Button
               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
-              onClick={() => markCollectedMutation.mutate()}
-              disabled={markCollectedMutation.isPending}
+              onClick={() => markReceivedMutation.mutate()}
+              disabled={markReceivedMutation.isPending}
               data-testid="button-mark-collected"
             >
-              {markCollectedMutation.isPending ? (
+              {markReceivedMutation.isPending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 "I've collected it"
@@ -362,6 +373,47 @@ export default function OrderDetail() {
                 </p>
               </div>
             </div>
+          </div>
+        )}
+
+        {status === "shipped" && !awaitingPickup && (
+          <div className="pt-2" data-testid="section-mark-received">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={markReceivedMutation.isPending}
+                  data-testid="button-mark-received"
+                >
+                  {markReceivedMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    "I've received this order"
+                  )}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Confirm you've received it?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Your Story window starts now. Post an Instagram Story tagging the brand to lock in your discount.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel data-testid="button-mark-received-cancel">Not yet</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => markReceivedMutation.mutate()}
+                    data-testid="button-mark-received-confirm"
+                  >
+                    Yes, I have it
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <p className="text-xs text-gray-400 text-center mt-2">
+              Only tap once the order is in your hands.
+            </p>
           </div>
         )}
 
