@@ -4340,6 +4340,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     id: z.string(),
     storeName: z.string(),
     storefrontUrl: httpUrl,
+    // Canonical Shopify `*.myshopify.com` domain, lowercased, no scheme/path.
+    // Provided by the merchant dashboard so we can match orders to brands by
+    // the exact value Shopify sends in the `X-Shopify-Shop-Domain` webhook
+    // header (which is always the myshopify domain, never the custom one).
+    // Optional during the rollout window — older brand records may still be
+    // missing it, in which case we fall back to `storefrontUrl` host matching.
+    shopDomain: z.string().nullable().optional(),
     instagramUsername: z.string().nullable().optional(),
     instagramProfilePictureUrl: httpUrl.nullable().optional(),
     primaryCategory: z.string().nullable().optional(),
@@ -4433,9 +4440,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
       }
-      const brand = brandsCache?.data.find(
-        (b) => normalizeDomain(b.storefrontUrl) === target,
-      );
+      // Prefer exact match on the brand's canonical `shopDomain` (the
+      // `*.myshopify.com` value Shopify itself sends in the webhook header).
+      // Fall back to `storefrontUrl` host matching for older brand records
+      // that haven't been re-saved with `shopDomain` populated yet.
+      const brand =
+        brandsCache?.data.find(
+          (b) => normalizeDomain(b.shopDomain) === target,
+        ) ??
+        brandsCache?.data.find(
+          (b) => normalizeDomain(b.storefrontUrl) === target,
+        );
       if (!brand) {
         console.warn(`[brands] handle lookup: no brand matched shop domain ${target}`);
         return null;
