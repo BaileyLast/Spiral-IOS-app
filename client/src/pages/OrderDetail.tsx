@@ -266,19 +266,15 @@ export default function OrderDetail() {
               const isLast = index === steps.length - 1;
               const Icon = step.icon;
               const isVerifiedStep = step.id === "verified";
-              const celebrate = isVerifiedStep && step.complete;
-              const teaseGoal = isVerifiedStep && !step.complete;
+              const deliveredComplete = steps[2]?.complete ?? false;
+              // Only pulse when "Story verified" is the immediate next step:
+              // delivered already happened, Story isn't verified yet.
+              const teaseGoal = isVerifiedStep && deliveredComplete && !step.complete;
 
               return (
                 <div key={step.id} className="flex gap-3">
                   <div className="flex flex-col items-center">
                     <div className="relative">
-                      {celebrate && (
-                        <span
-                          aria-hidden="true"
-                          className="absolute inset-0 rounded-full bg-[#4ECCA3]/40 animate-[ping_1.1s_cubic-bezier(0,0,0.2,1)_3]"
-                        />
-                      )}
                       {teaseGoal && (
                         <span
                           aria-hidden="true"
@@ -287,12 +283,8 @@ export default function OrderDetail() {
                       )}
                       <div
                         className={`relative w-8 h-8 rounded-full flex items-center justify-center ${
-                          step.complete
-                            ? "bg-[#4ECCA3]/10"
-                            : teaseGoal
-                              ? "bg-[#4ECCA3]/10"
-                              : "bg-gray-100"
-                        } ${celebrate ? "animate-[bounce_0.6s_ease-out_1]" : ""}`}
+                          step.complete || teaseGoal ? "bg-[#4ECCA3]/10" : "bg-gray-100"
+                        }`}
                       >
                         <Icon className={`w-4 h-4 ${step.complete ? "text-[#4ECCA3]" : "text-gray-300"}`} />
                       </div>
