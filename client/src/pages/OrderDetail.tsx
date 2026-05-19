@@ -342,7 +342,9 @@ export default function OrderDetail() {
                   <Instagram className="w-5 h-5 text-[#4ECCA3]" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-900">Post a Story of your order and mention @brandname!</h3>
+                  <h3 className="font-bold text-gray-900">
+                    Post a Story of your order and mention {rawHandle ? `@${rawHandle}` : "the brand"}!
+                  </h3>
                   <p className="text-sm text-gray-500 mt-1">Tag the brand in a public Story and you can unlock more discounts from your favourite stores.</p>
                 </div>
               </div>
