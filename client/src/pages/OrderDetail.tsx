@@ -343,7 +343,7 @@ export default function OrderDetail() {
                 </div>
                 <div>
                   <h3 className="font-bold text-gray-900">Post a Story of your order and mention @brandname!</h3>
-                  <p className="text-sm text-gray-500 mt-1">Tag the brand in a public Story — that's it.</p>
+                  <p className="text-sm text-gray-500 mt-1">Tag the brand in a public Story and you can unlock more discounts from your favourite stores.</p>
                 </div>
               </div>
               {rawHandle && (
