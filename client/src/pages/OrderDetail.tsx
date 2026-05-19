@@ -215,7 +215,6 @@ export default function OrderDetail() {
         </Link>
         <h1 className="ml-2 text-lg font-bold text-gray-900">Order Details</h1>
       </header>
-
       <main className="px-6 pb-8 pt-6 space-y-6">
         <div className="p-5 rounded-2xl bg-gray-50 border border-gray-100">
           <div className="flex items-start justify-between mb-4">
@@ -343,11 +342,10 @@ export default function OrderDetail() {
                   <Instagram className="w-5 h-5 text-[#4ECCA3]" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-900">Post your Story to unlock your next discount</h3>
+                  <h3 className="font-bold text-gray-900">Post a Story of your order and mention @brandname!</h3>
                   <p className="text-sm text-gray-500 mt-1">Tag the brand in a public Story — that's it.</p>
                 </div>
               </div>
-
               {rawHandle && (
                 <a
                   href={`https://instagram.com/${rawHandle}`}
@@ -368,7 +366,6 @@ export default function OrderDetail() {
                   <span className="text-xs text-[#4ECCA3] font-medium flex-shrink-0">Open</span>
                 </a>
               )}
-
               <p className="text-xs text-gray-400 mt-3">
                 Public Stories only — Close Friends won't count. We confirm within a few hours.
               </p>
