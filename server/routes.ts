@@ -2584,7 +2584,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied" });
       }
 
-      res.json(order);
+      // Surface the merchant's IG handle so the shopper knows exactly who to
+      // tag in their Story. Single-tenant store_settings for now; when this
+      // app goes multi-merchant we'll join on a merchantId column instead.
+      const settings = await storage.getStoreSettings();
+      res.json({
+        ...order,
+        merchantInstagramHandle: settings?.instagramHandle || null,
+      });
     } catch (error) {
       console.error("Failed to fetch order:", error);
       res.status(500).json({ error: "Failed to fetch order" });

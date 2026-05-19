@@ -342,38 +342,47 @@ export default function OrderDetail() {
           </div>
         )}
 
-        {status === "awaiting" && (
-          <div className="p-5 rounded-2xl bg-amber-50 border border-amber-200">
-            <div className="flex items-start gap-4 mb-5">
-              <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
-                <Camera className="w-5 h-5 text-amber-600" />
+        {status === "awaiting" && (() => {
+          const rawHandle = ((order as Order & { merchantInstagramHandle?: string | null }).merchantInstagramHandle || "").replace(/^@/, "");
+          return (
+            <div className="p-5 rounded-2xl bg-gray-50 border border-gray-100" data-testid="card-post-story">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-[#4ECCA3]/10 flex items-center justify-center flex-shrink-0">
+                  <Instagram className="w-5 h-5 text-[#4ECCA3]" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900">Post your Story to unlock your next discount</h3>
+                  <p className="text-sm text-gray-500 mt-1">Tag the brand in a public Story — that's it.</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-bold text-amber-900">
-                  Post your Story to unlock your next discount
-                </h3>
-                <p className="text-sm text-amber-700 mt-1">
-                  Until this is verified, you can't use Spiral on your next purchase.
-                </p>
-              </div>
-            </div>
-            
-            <div className="bg-amber-100/60 rounded-xl p-4 space-y-3">
-              <div className="flex items-center gap-2 text-sm text-amber-800">
-                <Instagram className="w-4 h-4" />
-                <span className="font-semibold">How to post:</span>
-              </div>
-              <ol className="text-sm text-amber-800 space-y-2 ml-6 list-decimal">
-                <li>Take a photo or video of your purchase</li>
-                <li>Add it to your Instagram Story</li>
-                <li>Tag the brand using the @ mention sticker</li>
-              </ol>
-              <p className="text-xs text-amber-600 mt-2">
-                We'll confirm your discount once your Story has been live for a few hours. Stories must be public — Close Friends posts won't count.
+
+              {rawHandle && (
+                <a
+                  href={`https://instagram.com/${rawHandle}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-white border border-gray-100 hover-elevate active-elevate-2"
+                  data-testid="link-merchant-handle"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Instagram className="w-4 h-4 text-[#4ECCA3] flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xs text-gray-400">Tag this account</p>
+                      <p className="text-sm font-semibold text-gray-900 truncate" data-testid="text-merchant-handle">
+                        @{rawHandle}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-[#4ECCA3] font-medium flex-shrink-0">Open</span>
+                </a>
+              )}
+
+              <p className="text-xs text-gray-400 mt-3">
+                Public Stories only — Close Friends won't count. We confirm within a few hours.
               </p>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {(status === "story_received" || status === "awaiting_review") && (
           <div className="p-5 rounded-2xl bg-blue-50 border border-blue-200">
