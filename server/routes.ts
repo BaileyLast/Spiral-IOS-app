@@ -2585,13 +2585,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Surface the merchant's IG handle so the shopper knows exactly who to
-      // tag in their Story. Single-tenant store_settings for now; when this
-      // app goes multi-merchant we'll join on a merchantId column instead.
-      const settings = await storage.getStoreSettings();
-      res.json({
-        ...order,
-        merchantInstagramHandle: settings?.instagramHandle || null,
-      });
+      // tag in their Story. Source of truth is the marketplace brands feed
+      // (multi-merchant), matched to the order by storeName. We warm the
+      // brands cache on demand so a shopper opening an order before the
+      // marketplace page still gets a populated handle.
+      let merchantInstagramHandle: string | null = null;
+      if (order.storeName) {
+        try {
+          if (!brandsCache || Date.now() - brandsCache.fetchedAt >= BRANDS_CACHE_TTL_MS) {
+            const upstream = await fetch(MERCHANT_BRANDS_URL);
+            if (upstream.ok) {
+              const raw = await upstream.json();
+              const parsed = brandsResponseSchema.safeParse(raw);
+              if (parsed.success) {
+                brandsCache = { data: parsed.data, fetchedAt: Date.now() };
+              }
+            }
+          }
+          const target = order.storeName.trim().toLowerCase();
+          const brand = brandsCache?.data.find(
+            (b) => b.storeName.trim().toLowerCase() === target,
+          );
+          if (brand?.instagramUsername) {
+            merchantInstagramHandle = brand.instagramUsername.replace(/^@/, "");
+          }
+        } catch (e) {
+          console.warn("[order] Failed to look up brand IG handle:", e);
+        }
+      }
+      // Fallback for single-tenant / local dev where the order's store isn't
+      // in the brands feed yet.
+      if (!merchantInstagramHandle) {
+        const settings = await storage.getStoreSettings();
+        merchantInstagramHandle = settings?.instagramHandle?.replace(/^@/, "") || null;
+      }
+      res.json({ ...order, merchantInstagramHandle });
     } catch (error) {
       console.error("Failed to fetch order:", error);
       res.status(500).json({ error: "Failed to fetch order" });
