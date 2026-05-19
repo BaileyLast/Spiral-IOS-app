@@ -423,7 +423,7 @@ export default function OrderDetail() {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Confirm you've received it?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Your Story window starts now. Post an Instagram Story tagging the brand to lock in your discount.
+                    Once you've got it, post an Instagram Story tagging the brand to unlock your next discount.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
