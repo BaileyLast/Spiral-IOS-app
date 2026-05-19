@@ -33,7 +33,6 @@ export const storeSettings = pgTable("store_settings", {
   instagramAccessToken: text("instagram_access_token"),
   spiralEnabled: boolean("spiral_enabled").notNull().default(false),
   productSelectionType: text("product_selection_type").notNull().default("all"),
-  postingWindowDays: integer("posting_window_days").notNull().default(7),
   webhookSubscriptionStatus: text("webhook_subscription_status").default("inactive"),
   lastWebhookReceivedAt: timestamp("last_webhook_received_at"),
 });
@@ -173,7 +172,6 @@ export const orders = pgTable("orders", {
   status: text("status").notNull().default("pending"),
   fulfilledAt: timestamp("fulfilled_at"),
   deliveredAt: timestamp("delivered_at"),
-  postDeadline: timestamp("post_deadline"),
   // Raw shipment_status from Shopify (label_printed, in_transit, out_for_delivery,
   // ready_for_pickup, delivered, attempted_delivery, failure, etc.). We mirror
   // whatever Shopify tells us so the shopper sees honest progress regardless of

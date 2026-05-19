@@ -364,7 +364,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         spiralEnabled: settings?.spiralEnabled ?? false,
         productSelectionType: settings?.productSelectionType ?? "all",
-        postingWindowDays: settings?.postingWindowDays ?? 7,
         minFollowers: settings?.minFollowers ?? 0,
         discountTiers: tiers,
         selectedProducts: selectedProducts.map(p => p.shopifyProductId),
@@ -381,7 +380,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { 
         spiralEnabled, 
         productSelectionType, 
-        postingWindowDays, 
         minFollowers,
         discountTiers: tiers,
         selectedProducts: productIds,
@@ -410,7 +408,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateSpiralSettings({
         spiralEnabled: spiralEnabled ?? false,
         productSelectionType: productSelectionType ?? "all",
-        postingWindowDays: postingWindowDays ?? 7,
         minFollowers: minFollowers ?? 0,
       });
 
@@ -431,7 +428,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         spiralEnabled: updatedSettings?.spiralEnabled ?? false,
         productSelectionType: updatedSettings?.productSelectionType ?? "all",
-        postingWindowDays: updatedSettings?.postingWindowDays ?? 7,
         minFollowers: updatedSettings?.minFollowers ?? 0,
         discountTiers: updatedTiers,
         selectedProducts: updatedProducts.map(p => p.shopifyProductId),
@@ -1163,15 +1159,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? (discountAmount / (orderTotal + discountAmount)) * 100 
         : 0;
       
-      // Get store settings for posting window
       const settings = await storage.getStoreSettings();
-      const postingWindowDays = settings?.postingWindowDays || 7;
-      
-      // Calculate post deadline (from estimated delivery or order date)
-      const orderDate = new Date(order.created_at);
-      const postDeadline = new Date(orderDate);
-      postDeadline.setDate(postDeadline.getDate() + postingWindowDays);
-      
+
       const initialVerificationStatus = 'pending';
       
       // Build line items summary for customer display
@@ -1203,7 +1192,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         orderTotal: String(orderTotal.toFixed(2)),
         discountAmount: String(discountAmount.toFixed(2)),
         status: 'pending',
-        postDeadline: postDeadline,
         verificationStatus: initialVerificationStatus,
         storeName: settings?.storeName || null,
         storeLogo: storeLogo,
@@ -1241,7 +1229,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Webhook for order fulfillment updates
-  // Updates order status and recalculates post deadline based on fulfillment date
+  // Marks the order as fulfilled and records the fulfillment timestamp.
   app.post("/webhooks/shopify/fulfillments-create", async (req, res) => {
     try {
       if (!verifyShopifyWebhook(req)) {
@@ -1258,18 +1246,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(200).json({ status: 'not_spiral_order' });
       }
       
-      // Get store settings for posting window
-      const settings = await storage.getStoreSettings();
-      const postingWindowDays = settings?.postingWindowDays || 7;
-      
       // Use fulfillment created date as the "shipped" date
       const fulfilledAt = new Date(fulfillment.created_at || new Date());
-      
-      // Calculate new post deadline from fulfillment date
-      // Customers get X days after shipment to post their story
-      const postDeadline = new Date(fulfilledAt);
-      postDeadline.setDate(postDeadline.getDate() + postingWindowDays);
-      
+
       // Guard: a late/retried fulfillments/create must NOT downgrade an order
       // that has already advanced to delivered. Without this, a delivered order
       // could be flipped back to "fulfilled", suppressing the Story prompt.
@@ -1279,14 +1258,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Update order with fulfillment info
-      const updatedOrder = await storage.updateOrderFulfillment(order.id, fulfilledAt, postDeadline);
-      
-      console.log(`Order ${order.id} fulfilled. Post deadline updated to: ${postDeadline.toISOString()}`);
-      
-      res.status(200).json({ 
-        status: 'processed', 
+      const updatedOrder = await storage.updateOrderFulfillment(order.id, fulfilledAt);
+
+      console.log(`Order ${order.id} fulfilled at: ${fulfilledAt.toISOString()}`);
+
+      res.status(200).json({
+        status: 'processed',
         orderId: updatedOrder.id,
-        postDeadline: postDeadline.toISOString(),
       });
     } catch (error) {
       console.error('Error processing fulfillment webhook:', error);
@@ -1688,7 +1666,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           to: matchingTier.toFollowers,
         },
         estimatedImpressions,
-        postingWindowDays: settings?.postingWindowDays || 7,
         instagramHandle: customer.instagramHandle,
       });
     } catch (error) {
@@ -1730,11 +1707,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const settings = await storage.getStoreSettings();
-      const postingWindowDays = settings?.postingWindowDays || 7;
-      
-      const now = new Date();
-      const postDeadline = new Date(now);
-      postDeadline.setDate(postDeadline.getDate() + postingWindowDays);
 
       // Calculate discount amount from percent and total if not provided directly
       const orderTotal = parseFloat(totalPrice || legacyOrderTotal || '0');
@@ -1797,7 +1769,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         orderTotal: orderTotal.toFixed(2),
         discountAmount: discountAmount.toFixed(2),
         status: 'pending',
-        postDeadline,
         verificationStatus: 'pending',
         storeName: settings?.storeName || null,
         storeLogo: confirmStoreLogo,

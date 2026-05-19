@@ -21,19 +21,11 @@ interface BracketFormData {
 interface SpiralSettingsData {
   spiralEnabled: boolean;
   productSelectionType: string;
-  postingWindowDays: number;
   minFollowers: number;
   discountTiers: DiscountTier[];
   selectedProducts: string[];
   selectedCollections: string[];
 }
-
-const POSTING_WINDOW_OPTIONS = [
-  { value: 3, label: "3 days" },
-  { value: 5, label: "5 days" },
-  { value: 7, label: "7 days" },
-  { value: 14, label: "14 days" },
-];
 
 // Smooth power-law reach rate formula
 // Starts at 30% for 500 followers, tapers to ~12% at 100k, floors at 6%
@@ -79,7 +71,6 @@ export default function SpiralSettings() {
 
   const [spiralEnabled, setSpiralEnabled] = useState(false);
   const [productSelectionType, setProductSelectionType] = useState("all");
-  const [postingWindowDays, setPostingWindowDays] = useState(7);
   const [minFollowers, setMinFollowers] = useState(0);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
@@ -108,7 +99,6 @@ export default function SpiralSettings() {
     if (!hasHydratedRef.current && spiralSettings) {
       setSpiralEnabled(spiralSettings.spiralEnabled);
       setProductSelectionType(spiralSettings.productSelectionType);
-      setPostingWindowDays(spiralSettings.postingWindowDays);
       setMinFollowers(spiralSettings.minFollowers);
       setSelectedProducts(spiralSettings.selectedProducts || []);
       setSelectedCollections(spiralSettings.selectedCollections || []);
@@ -133,7 +123,6 @@ export default function SpiralSettings() {
       return await apiRequest("POST", "/api/spiral-settings", {
         spiralEnabled,
         productSelectionType,
-        postingWindowDays,
         minFollowers,
         discountTiers: discountBrackets,
         selectedProducts,
@@ -572,35 +561,6 @@ export default function SpiralSettings() {
                 </tbody>
               </table>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Posting Window</CardTitle>
-            <CardDescription>
-              How many days customers have to post their Instagram story after delivery
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <RadioGroup
-              value={postingWindowDays.toString()}
-              onValueChange={(value) => setPostingWindowDays(parseInt(value))}
-              className="flex flex-wrap gap-4"
-            >
-              {POSTING_WINDOW_OPTIONS.map((option) => (
-                <div key={option.value} className="flex items-center space-x-2">
-                  <RadioGroupItem 
-                    value={option.value.toString()} 
-                    id={`window-${option.value}`}
-                    data-testid={`radio-window-${option.value}`}
-                  />
-                  <Label htmlFor={`window-${option.value}`} className="cursor-pointer">
-                    {option.label}
-                  </Label>
-                </div>
-              ))}
-            </RadioGroup>
           </CardContent>
         </Card>
 

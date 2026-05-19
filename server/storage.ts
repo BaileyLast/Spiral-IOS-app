@@ -66,7 +66,7 @@ export interface IStorage {
   getOrderByShopifyOrderId(shopifyOrderId: string): Promise<Order | undefined>;
   getOrderByInstagramUserId(instagramUserId: string): Promise<Order | undefined>;
   updateOrderVerificationStatus(orderId: string, status: string, verificationId?: string): Promise<void>;
-  updateOrderFulfillment(orderId: string, fulfilledAt: Date, postDeadline: Date): Promise<Order>;
+  updateOrderFulfillment(orderId: string, fulfilledAt: Date): Promise<Order>;
   updateOrderTrackingStatus(orderId: string, status: string): Promise<Order | undefined>;
   getOrdersAwaitingDeliveryFallback(): Promise<Order[]>;
   // Products and Collections
@@ -458,13 +458,12 @@ export class DatabaseStorage implements IStorage {
       .where(eq(orders.id, orderId));
   }
 
-  async updateOrderFulfillment(orderId: string, fulfilledAt: Date, postDeadline: Date): Promise<Order> {
+  async updateOrderFulfillment(orderId: string, fulfilledAt: Date): Promise<Order> {
     const [updated] = await db
       .update(orders)
       .set({
         status: 'fulfilled',
         fulfilledAt,
-        postDeadline,
       })
       .where(eq(orders.id, orderId))
       .returning();
