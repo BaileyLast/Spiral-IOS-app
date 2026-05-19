@@ -265,16 +265,25 @@ export default function OrderDetail() {
             {steps.map((step, index) => {
               const isLast = index === steps.length - 1;
               const Icon = step.icon;
-              
+              const celebrate = step.id === "verified" && step.complete;
+
               return (
                 <div key={step.id} className="flex gap-3">
                   <div className="flex flex-col items-center">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                      step.complete 
-                        ? "bg-[#4ECCA3]/10" 
-                        : "bg-gray-100"
-                    }`}>
-                      <Icon className={`w-4 h-4 ${step.complete ? "text-[#4ECCA3]" : "text-gray-300"}`} />
+                    <div className="relative">
+                      {celebrate && (
+                        <span
+                          aria-hidden="true"
+                          className="absolute inset-0 rounded-full bg-[#4ECCA3]/40 animate-[ping_1.1s_cubic-bezier(0,0,0.2,1)_3]"
+                        />
+                      )}
+                      <div
+                        className={`relative w-8 h-8 rounded-full flex items-center justify-center ${
+                          step.complete ? "bg-[#4ECCA3]/10" : "bg-gray-100"
+                        } ${celebrate ? "animate-[bounce_0.6s_ease-out_1]" : ""}`}
+                      >
+                        <Icon className={`w-4 h-4 ${step.complete ? "text-[#4ECCA3]" : "text-gray-300"}`} />
+                      </div>
                     </div>
                     {!isLast && (
                       <div className={`w-0.5 h-6 mt-1 ${step.complete ? "bg-[#4ECCA3]/20" : "bg-gray-100"}`} />
