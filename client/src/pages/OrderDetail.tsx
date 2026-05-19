@@ -402,7 +402,7 @@ export default function OrderDetail() {
           </div>
         )}
 
-        {status === "shipped" && !awaitingPickup && (
+        {(status === "ordered" || status === "shipped") && !awaitingPickup && (
           <div className="pt-2" data-testid="section-mark-received">
             <AlertDialog>
               <AlertDialogTrigger asChild>

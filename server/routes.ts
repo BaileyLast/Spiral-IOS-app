@@ -2680,10 +2680,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (order.status === 'delivered') {
         return res.json({ success: true, alreadyDelivered: true });
       }
-      // Must at least be fulfilled — can't receive what hasn't shipped yet.
-      if (order.status !== 'fulfilled') {
-        return res.status(400).json({ error: "Order has not been fulfilled yet" });
-      }
+      // Accept any non-delivered order. Many tiny indie merchants never click
+      // "Mark as fulfilled" in Shopify admin and never add tracking, so the
+      // order can sit in `pending` forever even though the shopper has it in
+      // their hands. We trust the shopper here — they have no incentive to
+      // lie since marking received only starts their own Story obligation.
       await transitionOrderToDelivered(order.id);
       res.json({ success: true });
     } catch (err) {
