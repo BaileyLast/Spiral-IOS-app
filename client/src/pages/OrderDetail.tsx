@@ -282,7 +282,7 @@ export default function OrderDetail() {
                       {teaseGoal && (
                         <span
                           aria-hidden="true"
-                          className="absolute inset-0 rounded-full bg-[#4ECCA3]/30 animate-ping"
+                          className="absolute inset-0 rounded-full bg-[#4ECCA3]/30 animate-[ping_2.4s_cubic-bezier(0,0,0.2,1)_infinite]"
                         />
                       )}
                       <div
