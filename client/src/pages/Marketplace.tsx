@@ -133,6 +133,14 @@ function formatProductPrice(price: string | null): string | null {
   return `£${n.toFixed(2)}`;
 }
 
+function discountedProductPrice(price: string | null, pct: number): string | null {
+  if (!price) return null;
+  const n = Number(price);
+  if (!Number.isFinite(n) || !Number.isFinite(pct) || pct <= 0) return null;
+  const discounted = n * (1 - pct / 100);
+  return `£${discounted.toFixed(2)}`;
+}
+
 const IMAGE_SLIDE_MS = 5000;
 const MAX_SLIDES = 4;
 
@@ -418,9 +426,10 @@ interface BrandCardProps {
   onOpenBrand: (brandId: string) => void;
   personalMode: boolean;
   personalDiscount: number;
+  shopperDiscount: number;
 }
 
-function BrandCard({ brand, onOpenBrand, personalMode, personalDiscount }: BrandCardProps) {
+function BrandCard({ brand, onOpenBrand, personalMode, personalDiscount, shopperDiscount }: BrandCardProps) {
   const displayName = cleanBrandName(brand.storeName, brand.instagramUsername);
   const initial = brandInitial(brand.instagramUsername || displayName);
   const gradient = gradientFor(brand.instagramUsername || displayName);
@@ -548,7 +557,7 @@ function BrandCard({ brand, onOpenBrand, personalMode, personalDiscount }: Brand
         )}
       </button>
 
-      {/* Product carousel */}
+      {/* Product carousel — 2-up with a peek of the 3rd to invite scroll */}
       {carouselProducts.length > 0 && (
         <div
           className="flex gap-3 overflow-x-auto px-4 py-3 snap-x snap-mandatory scrollbar-none"
@@ -557,6 +566,8 @@ function BrandCard({ brand, onOpenBrand, personalMode, personalDiscount }: Brand
         >
           {carouselProducts.map((p) => {
             const formatted = formatProductPrice(p.price);
+            const discounted = discountedProductPrice(p.price, shopperDiscount);
+            const showDiscount = !!discounted && !!formatted;
             const thumbKey = `thumb-${p.id}`;
             const showThumbImage = !!p.image && !imgErrors[thumbKey];
             return (
@@ -565,11 +576,11 @@ function BrandCard({ brand, onOpenBrand, personalMode, personalDiscount }: Brand
                 href={p.productUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-shrink-0 w-28 snap-start hover-elevate rounded-md p-1 -m-1"
+                className="flex-shrink-0 w-[44%] snap-start hover-elevate rounded-md p-1 -m-1"
                 data-testid={`link-product-${p.id}`}
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="w-28 h-28 bg-gray-100 rounded-md overflow-hidden">
+                <div className="w-full aspect-square bg-gray-100 rounded-md overflow-hidden">
                   {showThumbImage && p.image ? (
                     <img
                       src={p.image}
@@ -579,7 +590,7 @@ function BrandCard({ brand, onOpenBrand, personalMode, personalDiscount }: Brand
                     />
                   ) : (
                     <div
-                      className="w-full h-full flex items-center justify-center text-2xl font-black text-white"
+                      className="w-full h-full flex items-center justify-center text-3xl font-black text-white"
                       style={{ background: gradient }}
                     >
                       {initial}
@@ -592,13 +603,30 @@ function BrandCard({ brand, onOpenBrand, personalMode, personalDiscount }: Brand
                 >
                   {p.title}
                 </p>
-                {formatted && (
-                  <p
-                    className="text-xs text-gray-600 font-bold mt-0.5"
-                    data-testid={`text-product-price-${p.id}`}
-                  >
-                    {formatted}
-                  </p>
+                {showDiscount ? (
+                  <div className="mt-1 flex items-baseline gap-1.5">
+                    <span
+                      className="text-sm font-black text-[#1A996E]"
+                      data-testid={`text-product-discounted-price-${p.id}`}
+                    >
+                      {discounted}
+                    </span>
+                    <span
+                      className="text-[11px] text-gray-400 font-medium line-through"
+                      data-testid={`text-product-original-price-${p.id}`}
+                    >
+                      {formatted}
+                    </span>
+                  </div>
+                ) : (
+                  formatted && (
+                    <p
+                      className="text-xs text-gray-600 font-bold mt-0.5"
+                      data-testid={`text-product-price-${p.id}`}
+                    >
+                      {formatted}
+                    </p>
+                  )
                 )}
               </a>
             );
@@ -949,6 +977,9 @@ export default function Marketplace() {
                 personalMode={personalMode}
                 personalDiscount={
                   personalMode ? discountForFollowers(brand, followerCount) : 0
+                }
+                shopperDiscount={
+                  personalAvailable ? discountForFollowers(brand, followerCount) : 0
                 }
                 onOpenBrand={(id) =>
                   setLocation(`/marketplace/${encodeURIComponent(id)}`)
