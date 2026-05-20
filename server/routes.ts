@@ -4489,60 +4489,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
-  // Shape returned to the shopper UI. `category` is kept for backwards
-  // compatibility with existing clients (it mirrors `primaryCategory`).
-  function shapeForClient(brand: UpstreamBrand) {
-    return {
-      id: brand.id,
-      storeName: brand.storeName,
-      storefrontUrl: brand.storefrontUrl,
-      instagramUsername: brand.instagramUsername ?? null,
-      instagramProfilePictureUrl: brand.instagramProfilePictureUrl ?? null,
-      category: brand.primaryCategory ?? null,
-      secondaryCategories: brand.secondaryCategories ?? [],
-      country: brand.country ?? null,
-      shippingCountries: brand.shippingCountries ?? null,
-      selectedProductCount: brand.selectedProductCount ?? 0,
-      minFollowers: brand.minFollowers ?? 0,
-      discountTiers: brand.discountTiers ?? [],
-    };
-  }
-  // Defensive filter shared by the marketplace list and the per-brand
-  // products route. Hides brands that have explicitly disabled Spiral
-  // (`spiralEnabled === false`) OR have no curated products. The merchant
-  // dashboard is the source of truth and should already filter disabled
-  // stores out of `/api/brands`, but we re-check here so a stale or buggy
-  // upstream payload can't leak a disabled store to shoppers. A missing
-  // `spiralEnabled` is treated as enabled (truthy) during the rollout window.
-  function isBrandVisibleForMarketplace(b: UpstreamBrand): boolean {
-    if (b.spiralEnabled === false) return false;
-    return (b.selectedProductCount ?? 0) > 0;
-  }
-  function shapeListForClient(brands: CachedBrands) {
-    const missingCount = brands.filter(
-      (b) => b.spiralEnabled === undefined || b.spiralEnabled === null,
-    ).length;
-    if (missingCount > 0) {
-      console.warn(
-        `[brands] ${missingCount}/${brands.length} brand records missing spiralEnabled — upstream needs redeploy`,
-      );
-    }
-    return brands.filter(isBrandVisibleForMarketplace).map(shapeForClient);
-  }
-
-  // Per-brand curated product feed for the marketplace product browser.
-  // Proxies the merchant dashboard's `/api/brands/:brandId/products` endpoint,
-  // which returns only the products the merchant has explicitly opted into
-  // Spiral. The brandId MUST match a brand already in our brands cache —
-  // otherwise this endpoint becomes an open proxy that lets anyone fetch
-  // any brand id through the upstream.
-  //
-  // Caching policy: we deliberately do NOT cache the response here so that
-  // when a merchant toggles a product on/off it shows up in the customer app
-  // within seconds. The merchant dashboard already has its own short-lived
-  // cache (and busts it on selection writes), so this proxy stays thin.
-  // The `lastGoodProducts` map below is fallback-only — it's never served
-  // when the upstream is healthy, only when the upstream is down/erroring.
+  // ---------- Product card schema (hoisted: also used by /api/brands enrichment) ----------
   const productCardSchema = z.object({
     id: z.union([z.string(), z.number()]).transform((v) => String(v)),
     title: z.string(),
@@ -4571,11 +4518,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
     productUrl: string;
     available: boolean;
   };
-  // Fallback-only: holds the last successful upstream response per brand so
-  // we can keep serving shoppers if the merchant dashboard is briefly down
-  // or returns garbage. Never used as a serving cache when upstream is OK.
   const lastGoodProducts = new Map<string, ProductCardForClient[]>();
 
+  async function fetchUpstreamProducts(brandId: string): Promise<ProductCardForClient[] | null> {
+    const upstreamUrl = `https://spiral-merchant-dashboard.replit.app/api/brands/${encodeURIComponent(brandId)}/products`;
+    try {
+      const upstream = await fetch(upstreamUrl, { headers: { 'Accept': 'application/json' } });
+      if (!upstream.ok) return null;
+      let raw: unknown = null;
+      try { raw = await upstream.json(); } catch { raw = null; }
+      const parsed = productsResponseSchema.safeParse(raw);
+      if (!parsed.success) return null;
+      const shaped: ProductCardForClient[] = parsed.data.map((p) => ({
+        id: p.id,
+        title: p.title,
+        handle: p.handle ?? null,
+        image: p.image ?? null,
+        price: p.price ?? null,
+        available: p.available ?? true,
+        productUrl: p.productUrl,
+      }));
+      lastGoodProducts.set(brandId, shaped);
+      return shaped;
+    } catch (err) {
+      console.warn(`[brand-products] preview fetch failed for ${brandId}:`, err);
+      return null;
+    }
+  }
+
+  // Shape returned to the shopper UI. `category` is kept for backwards
+  // compatibility with existing clients (it mirrors `primaryCategory`).
+  function shapeForClient(brand: UpstreamBrand, products: ProductCardForClient[] = []) {
+    return {
+      id: brand.id,
+      storeName: brand.storeName,
+      storefrontUrl: brand.storefrontUrl,
+      instagramUsername: brand.instagramUsername ?? null,
+      instagramProfilePictureUrl: brand.instagramProfilePictureUrl ?? null,
+      category: brand.primaryCategory ?? null,
+      secondaryCategories: brand.secondaryCategories ?? [],
+      country: brand.country ?? null,
+      shippingCountries: brand.shippingCountries ?? null,
+      selectedProductCount: brand.selectedProductCount ?? 0,
+      minFollowers: brand.minFollowers ?? 0,
+      discountTiers: brand.discountTiers ?? [],
+      // Top N curated products inlined so the marketplace card can render a
+      // product hero + carousel without an N+1 fan-out from the client. See
+      // `fetchBrandPreviewProducts` for the fetch + cache strategy.
+      products,
+    };
+  }
+  // Defensive filter shared by the marketplace list and the per-brand
+  // products route. Hides brands that have explicitly disabled Spiral
+  // (`spiralEnabled === false`) OR have no curated products. The merchant
+  // dashboard is the source of truth and should already filter disabled
+  // stores out of `/api/brands`, but we re-check here so a stale or buggy
+  // upstream payload can't leak a disabled store to shoppers. A missing
+  // `spiralEnabled` is treated as enabled (truthy) during the rollout window.
+  function isBrandVisibleForMarketplace(b: UpstreamBrand): boolean {
+    if (b.spiralEnabled === false) return false;
+    return (b.selectedProductCount ?? 0) > 0;
+  }
+  // Number of products inlined per brand on the marketplace card (1 hero +
+  // ~5 carousel). Keep small to bound the parallel upstream fan-out.
+  const BRAND_PREVIEW_PRODUCT_COUNT = 6;
+  // Enriched (brand + preview products) cache, separate from the raw upstream
+  // cache so we don't re-fan-out on every shopper request. Same TTL as raw.
+  let enrichedBrandsCache: { data: ReturnType<typeof shapeForClient>[]; fetchedAt: number } | null = null;
+
+  async function shapeListForClient(brands: CachedBrands) {
+    const missingCount = brands.filter(
+      (b) => b.spiralEnabled === undefined || b.spiralEnabled === null,
+    ).length;
+    if (missingCount > 0) {
+      console.warn(
+        `[brands] ${missingCount}/${brands.length} brand records missing spiralEnabled — upstream needs redeploy`,
+      );
+    }
+    const visible = brands.filter(isBrandVisibleForMarketplace);
+    // Parallel fan-out for preview products. Cap concurrency implicitly via
+    // brand-count (~tens of brands). Each call falls back to `lastGoodProducts`
+    // on failure so an upstream blip doesn't blank the carousel.
+    const productLists = await Promise.all(
+      visible.map(async (b) => {
+        const fresh = await fetchUpstreamProducts(b.id);
+        const list = fresh ?? lastGoodProducts.get(b.id) ?? [];
+        return list.slice(0, BRAND_PREVIEW_PRODUCT_COUNT);
+      }),
+    );
+    return visible.map((b, i) => shapeForClient(b, productLists[i]));
+  }
+
+  // Per-brand curated product feed for the marketplace product browser.
+  // Proxies the merchant dashboard's `/api/brands/:brandId/products` endpoint,
+  // which returns only the products the merchant has explicitly opted into
+  // Spiral. The brandId MUST match a brand already in our brands cache —
+  // otherwise this endpoint becomes an open proxy that lets anyone fetch
+  // any brand id through the upstream.
+  //
+  // Caching policy: we deliberately do NOT cache the response here so that
+  // when a merchant toggles a product on/off it shows up in the customer app
+  // within seconds. The merchant dashboard already has its own short-lived
+  // cache (and busts it on selection writes), so this proxy stays thin.
+  // The `lastGoodProducts` map (defined above) is fallback-only.
   async function getKnownBrandIds(): Promise<Set<string>> {
     // Refresh the brands cache if cold so a first-load shopper hitting a
     // product page directly (e.g. via shared link) doesn't get a 404.
@@ -4615,82 +4660,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       // Always pass through to upstream so product (un)selection by the
       // merchant is reflected in the customer app within seconds. The
-      // `lastGoodProducts` map below is fallback-only — only consulted when
-      // the upstream fails. The merchant dashboard owns its own cache.
+      // `lastGoodProducts` map (populated by fetchUpstreamProducts) is
+      // fallback-only — only consulted when the upstream fails.
+      const fresh = await fetchUpstreamProducts(brandId);
+      if (fresh !== null) {
+        return res.json(fresh);
+      }
       const fallback = lastGoodProducts.get(brandId);
-      const upstreamUrl = `https://spiral-merchant-dashboard.replit.app/api/brands/${encodeURIComponent(brandId)}/products`;
-      let upstream: Response;
-      try {
-        upstream = await fetch(upstreamUrl, { headers: { 'Accept': 'application/json' } });
-      } catch (err) {
-        if (fallback) {
-          console.warn(`[brand-products] ${brandId} fetch threw, serving last-good fallback:`, err);
-          return res.json(fallback);
-        }
-        throw err;
+      if (fallback) {
+        console.warn(`[brand-products] ${brandId} upstream failed, serving last-good fallback`);
+        return res.json(fallback);
       }
-      if (!upstream.ok) {
-        if (fallback) {
-          console.warn(`[brand-products] ${brandId} returned ${upstream.status}, serving last-good fallback`);
-          return res.json(fallback);
-        }
-        return res.status(502).json({ error: "Failed to load products" });
-      }
-      let raw: unknown = null;
-      try { raw = await upstream.json(); } catch { raw = null; }
-      const parsed = productsResponseSchema.safeParse(raw);
-      if (!parsed.success) {
-        if (fallback) {
-          console.warn(`[brand-products] ${brandId} returned malformed payload, serving last-good fallback`);
-          return res.json(fallback);
-        }
-        return res.status(502).json({ error: "Invalid upstream response" });
-      }
-      const shaped: ProductCardForClient[] = parsed.data.map((p) => ({
-        id: p.id,
-        title: p.title,
-        handle: p.handle ?? null,
-        image: p.image ?? null,
-        price: p.price ?? null,
-        available: p.available ?? true,
-        productUrl: p.productUrl,
-      }));
-      lastGoodProducts.set(brandId, shaped);
-      res.json(shaped);
+      return res.status(502).json({ error: "Failed to load products" });
     } catch (error) {
       console.error("[brand-products] Failed to fetch products:", error);
       res.status(502).json({ error: "Failed to load products" });
     }
   });
 
+  async function getEnrichedBrandList(): Promise<ReturnType<typeof shapeForClient>[]> {
+    if (enrichedBrandsCache && Date.now() - enrichedBrandsCache.fetchedAt < BRANDS_CACHE_TTL_MS) {
+      return enrichedBrandsCache.data;
+    }
+    if (!brandsCache || Date.now() - brandsCache.fetchedAt >= BRANDS_CACHE_TTL_MS) {
+      try {
+        const upstream = await fetch(MERCHANT_BRANDS_URL);
+        if (upstream.ok) {
+          const raw = await upstream.json();
+          const parsed = brandsResponseSchema.safeParse(raw);
+          if (parsed.success) {
+            brandsCache = { data: parsed.data, fetchedAt: Date.now() };
+          } else {
+            console.error("[brands] Upstream returned invalid payload:", parsed.error.message);
+          }
+        } else if (brandsCache) {
+          console.warn(`[brands] Upstream returned ${upstream.status}, using stale cache`);
+        }
+      } catch (err) {
+        console.error("[brands] Failed to fetch brands:", err);
+      }
+    }
+    if (!brandsCache) {
+      return [];
+    }
+    const enriched = await shapeListForClient(brandsCache.data);
+    enrichedBrandsCache = { data: enriched, fetchedAt: Date.now() };
+    return enriched;
+  }
+
   app.get("/api/brands", async (_req, res) => {
     try {
-      if (brandsCache && Date.now() - brandsCache.fetchedAt < BRANDS_CACHE_TTL_MS) {
-        return res.json(shapeListForClient(brandsCache.data));
-      }
-      const upstream = await fetch(MERCHANT_BRANDS_URL);
-      if (!upstream.ok) {
-        if (brandsCache) {
-          console.warn(`[brands] Upstream returned ${upstream.status}, serving stale cache`);
-          return res.json(shapeListForClient(brandsCache.data));
-        }
+      const enriched = await getEnrichedBrandList();
+      if (enriched.length === 0 && !brandsCache) {
         return res.status(502).json({ error: "Failed to load brands" });
       }
-      const raw = await upstream.json();
-      const parsed = brandsResponseSchema.safeParse(raw);
-      if (!parsed.success) {
-        console.error("[brands] Upstream returned invalid payload:", parsed.error.message);
-        if (brandsCache) {
-          return res.json(shapeListForClient(brandsCache.data));
-        }
-        return res.status(502).json({ error: "Invalid upstream response" });
-      }
-      brandsCache = { data: parsed.data, fetchedAt: Date.now() };
-      res.json(shapeListForClient(parsed.data));
+      res.json(enriched);
     } catch (error) {
-      console.error("[brands] Failed to fetch brands:", error);
-      if (brandsCache) {
-        return res.json(shapeListForClient(brandsCache.data));
+      console.error("[brands] Failed to serve brands:", error);
+      if (enrichedBrandsCache) {
+        return res.json(enrichedBrandsCache.data);
       }
       res.status(502).json({ error: "Failed to load brands" });
     }

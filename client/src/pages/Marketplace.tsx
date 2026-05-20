@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Store, Sparkles, X, Instagram } from "lucide-react";
+import { Store, Sparkles, X, Instagram, ChevronRight } from "lucide-react";
 import { getCountryByCode, detectCountryFromLocale } from "@/lib/countries";
 import { normalizeCategoryForDisplay } from "@shared/categories";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 const FALLBACK_GRADIENTS = [
   "linear-gradient(135deg, #A8F5E0 0%, #4ECCA3 100%)",
@@ -39,6 +40,16 @@ function gradientFor(seed: string): string {
   return FALLBACK_GRADIENTS[h % FALLBACK_GRADIENTS.length];
 }
 
+interface ProductCard {
+  id: string;
+  title: string;
+  handle: string | null;
+  image: string | null;
+  price: string | null;
+  productUrl: string;
+  available: boolean;
+}
+
 interface Brand {
   id: string;
   storeName: string;
@@ -50,6 +61,7 @@ interface Brand {
   country: string | null;
   shippingCountries: string[] | null;
   selectedProductCount: number;
+  products?: ProductCard[];
 }
 
 interface CustomerProfile {
@@ -67,17 +79,213 @@ function isSafeHttpUrl(url: string | null | undefined): boolean {
 }
 
 function brandShipsToCountry(brand: Brand, country: string | null): boolean {
-  // Unsynced brands (shippingCountries === null/undefined) → show to everyone
-  // as a safe fallback. An empty array means the merchant ships nowhere, so
-  // we hide them.
   if (brand.shippingCountries == null) return true;
   if (brand.shippingCountries.length === 0) return false;
-  // Worldwide shippers → show to everyone
   if (brand.shippingCountries.includes("*")) return true;
-  // Without a country we can't filter — be permissive
   if (!country) return true;
   const target = country.toUpperCase();
   return brand.shippingCountries.some((c) => c?.toUpperCase() === target);
+}
+
+function formatProductPrice(price: string | null): string | null {
+  if (!price) return null;
+  const n = Number(price);
+  if (!Number.isFinite(n)) return null;
+  return `£${n.toFixed(2)}`;
+}
+
+interface BrandCardProps {
+  brand: Brand;
+  onOpenBrand: (brandId: string) => void;
+}
+
+function BrandCard({ brand, onOpenBrand }: BrandCardProps) {
+  const displayName = cleanBrandName(brand.storeName, brand.instagramUsername);
+  const initial = brandInitial(brand.instagramUsername || displayName);
+  const gradient = gradientFor(brand.instagramUsername || displayName);
+  const primary = normalizeCategoryForDisplay(brand.category);
+  const secondary = (brand.secondaryCategories ?? [])
+    .map((c) => normalizeCategoryForDisplay(c))
+    .filter((c): c is NonNullable<typeof c> => c !== null && c !== primary)
+    .slice(0, 2);
+  const testKey = brand.instagramUsername || brand.storeName;
+
+  const products = (brand.products ?? []).filter((p) => isSafeHttpUrl(p.productUrl));
+  const heroProduct = products.find((p) => p.image) ?? null;
+  const carouselProducts = products.filter((p) => p.id !== heroProduct?.id);
+
+  // Track which images failed to load so we can show a deterministic
+  // fallback instead of a blank gray box. Keyed by a stable id per slot.
+  const [imgErrors, setImgErrors] = useState<Record<string, boolean>>({});
+  const markImgError = useCallback((key: string) => {
+    setImgErrors((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
+  }, []);
+
+  const heroImageUrl = heroProduct?.image ?? brand.instagramProfilePictureUrl ?? null;
+  const heroImageKey = heroProduct?.image
+    ? `hero-product-${heroProduct.id}`
+    : "hero-profile";
+  const showHeroImage = !!heroImageUrl && !imgErrors[heroImageKey];
+
+  return (
+    <div
+      className="creator-card overflow-hidden"
+      data-testid={`card-brand-${testKey}`}
+    >
+      {/* Header strip */}
+      <button
+        type="button"
+        onClick={() => onOpenBrand(brand.id)}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover-elevate"
+        data-testid={`button-brand-header-${testKey}`}
+      >
+        <Avatar className="w-9 h-9">
+          {brand.instagramProfilePictureUrl ? (
+            <AvatarImage src={brand.instagramProfilePictureUrl} alt={displayName} />
+          ) : null}
+          <AvatarFallback
+            className="text-sm font-black text-white"
+            style={{ background: gradient }}
+          >
+            {initial}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <p
+            className="text-sm font-black text-gray-900 truncate"
+            data-testid={`text-brand-name-${testKey}`}
+          >
+            {displayName}
+          </p>
+          {brand.instagramUsername && (
+            <p
+              className="text-xs text-gray-500 font-medium flex items-center gap-1 truncate"
+              data-testid={`text-brand-handle-${testKey}`}
+            >
+              <Instagram className="w-3 h-3 flex-shrink-0" />
+              <span className="truncate">@{brand.instagramUsername}</span>
+            </p>
+          )}
+        </div>
+        <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+      </button>
+
+      {/* Hero — first product image (or fallback) */}
+      <button
+        type="button"
+        onClick={() => onOpenBrand(brand.id)}
+        className="block w-full relative h-44 overflow-hidden bg-gray-100 text-left"
+        data-testid={`button-brand-hero-${testKey}`}
+      >
+        {showHeroImage && heroImageUrl ? (
+          <img
+            src={heroImageUrl}
+            alt={heroProduct?.title ?? displayName}
+            className="w-full h-full object-cover"
+            onError={() => markImgError(heroImageKey)}
+          />
+        ) : (
+          <div
+            className="w-full h-full flex items-center justify-center"
+            style={{ background: gradient }}
+            data-testid={`fallback-brand-${testKey}`}
+          >
+            <span className="text-7xl font-black text-white drop-shadow-md">{initial}</span>
+          </div>
+        )}
+
+        <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/55 to-transparent pointer-events-none" />
+
+        {(primary || secondary.length > 0) && (
+          <div className="absolute bottom-3 left-3 right-3 text-white">
+            <p
+              className="text-[10px] uppercase tracking-widest font-black"
+              data-testid={`text-brand-category-${testKey}`}
+            >
+              {primary && <span className="text-[#A8F0D1]">{primary}</span>}
+              {primary && secondary.length > 0 && (
+                <span className="text-white/70 font-bold ml-2">
+                  · {secondary.join(" · ")}
+                </span>
+              )}
+              {!primary && secondary.length > 0 && (
+                <span className="text-white/80 font-bold">{secondary.join(" · ")}</span>
+              )}
+            </p>
+          </div>
+        )}
+      </button>
+
+      {/* Product carousel */}
+      {carouselProducts.length > 0 && (
+        <div
+          className="flex gap-3 overflow-x-auto px-4 py-3 snap-x snap-mandatory scrollbar-none"
+          style={{ scrollbarWidth: "none" }}
+          data-testid={`carousel-products-${testKey}`}
+        >
+          {carouselProducts.map((p) => {
+            const formatted = formatProductPrice(p.price);
+            const thumbKey = `thumb-${p.id}`;
+            const showThumbImage = !!p.image && !imgErrors[thumbKey];
+            return (
+              <a
+                key={p.id}
+                href={p.productUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-shrink-0 w-28 snap-start hover-elevate rounded-md p-1 -m-1"
+                data-testid={`link-product-${p.id}`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="w-28 h-28 bg-gray-100 rounded-md overflow-hidden">
+                  {showThumbImage && p.image ? (
+                    <img
+                      src={p.image}
+                      alt={p.title}
+                      className="w-full h-full object-cover"
+                      onError={() => markImgError(thumbKey)}
+                    />
+                  ) : (
+                    <div
+                      className="w-full h-full flex items-center justify-center text-2xl font-black text-white"
+                      style={{ background: gradient }}
+                    >
+                      {initial}
+                    </div>
+                  )}
+                </div>
+                <p
+                  className="mt-2 text-xs font-bold text-gray-900 line-clamp-2 leading-tight"
+                  data-testid={`text-product-title-${p.id}`}
+                >
+                  {p.title}
+                </p>
+                {formatted && (
+                  <p
+                    className="text-xs text-gray-600 font-bold mt-0.5"
+                    data-testid={`text-product-price-${p.id}`}
+                  >
+                    {formatted}
+                  </p>
+                )}
+              </a>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Shop all footer */}
+      <button
+        type="button"
+        onClick={() => onOpenBrand(brand.id)}
+        className="w-full px-4 py-3 flex items-center justify-between hover-elevate border-t border-gray-100 text-left"
+        data-testid={`button-brand-shop-all-${testKey}`}
+      >
+        <span className="text-sm font-black text-gray-900">Shop {displayName}</span>
+        <ChevronRight className="w-4 h-4 text-gray-400" />
+      </button>
+    </div>
+  );
 }
 
 export default function Marketplace() {
@@ -100,8 +308,6 @@ export default function Marketplace() {
 
   const filteredBrands = useMemo(() => {
     if (!brands) return [];
-    // Defensive: server already filters out brands with no curated products,
-    // but guard here too in case an older server build is still running.
     return brands
       .filter((b) => (b.selectedProductCount ?? 0) > 0)
       .filter((b) => brandShipsToCountry(b, effectiveCountry));
@@ -164,7 +370,19 @@ export default function Marketplace() {
                 className="creator-card overflow-hidden animate-pulse"
                 data-testid={`skeleton-brand-${i}`}
               >
-                <div className="h-56 w-full bg-gray-100" />
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <div className="w-9 h-9 rounded-full bg-gray-100" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3 w-32 bg-gray-100 rounded" />
+                    <div className="h-2 w-20 bg-gray-100 rounded" />
+                  </div>
+                </div>
+                <div className="h-44 w-full bg-gray-100" />
+                <div className="flex gap-3 px-4 py-3">
+                  {Array.from({ length: 3 }).map((_, j) => (
+                    <div key={j} className="w-28 h-28 bg-gray-100 rounded-md flex-shrink-0" />
+                  ))}
+                </div>
               </div>
             ))}
           </div>
@@ -189,104 +407,15 @@ export default function Marketplace() {
           </div>
         ) : (
           <div className="space-y-4" data-testid="grid-brands">
-            {visibleBrands.map((brand) => {
-              const displayName = cleanBrandName(brand.storeName, brand.instagramUsername);
-              const initial = brandInitial(brand.instagramUsername || displayName);
-              const gradient = gradientFor(brand.instagramUsername || displayName);
-              const primary = normalizeCategoryForDisplay(brand.category);
-              const secondary = (brand.secondaryCategories ?? [])
-                .map((c) => normalizeCategoryForDisplay(c))
-                .filter((c): c is NonNullable<typeof c> => c !== null && c !== primary)
-                .slice(0, 2);
-              const testKey = brand.instagramUsername || brand.storeName;
-
-              return (
-                <button
-                  key={brand.id}
-                  type="button"
-                  onClick={() => setLocation(`/marketplace/${encodeURIComponent(brand.id)}`)}
-                  className="creator-card overflow-hidden block w-full text-left"
-                  data-testid={`card-brand-${testKey}`}
-                >
-                  <div className="relative h-56 w-full overflow-hidden bg-gray-100">
-                    {brand.instagramProfilePictureUrl ? (
-                      <img
-                        src={brand.instagramProfilePictureUrl}
-                        alt={displayName}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = "none";
-                        }}
-                      />
-                    ) : (
-                      <div
-                        className="w-full h-full flex items-center justify-center"
-                        style={{ background: gradient }}
-                        data-testid={`fallback-brand-${testKey}`}
-                      >
-                        <span className="text-7xl font-black text-white drop-shadow-md">
-                          {initial}
-                        </span>
-                      </div>
-                    )}
-
-                    <div className="absolute top-4 left-4 flex gap-2">
-                      <div className="glass-pill rounded-full px-3 py-1.5 flex items-center gap-2 shadow-sm">
-                        <span
-                          className="text-xs font-bold text-gray-900"
-                          data-testid={`text-brand-name-${testKey}`}
-                        >
-                          {displayName}
-                        </span>
-                      </div>
-                    </div>
-
-                    {brand.instagramUsername && (
-                      <div className="absolute top-4 right-4">
-                        <div className="glass-pill rounded-full px-3 py-1.5 flex items-center gap-1.5 shadow-sm">
-                          <Instagram className="w-3 h-3 text-[#4ECCA3]" />
-                          <span className="text-xs font-bold text-gray-900">
-                            @{brand.instagramUsername}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/70 to-transparent" />
-
-                    <div className="absolute bottom-4 left-4 right-4 text-white">
-                      {primary && (
-                        <p
-                          className="text-[10px] uppercase tracking-widest text-[#A8F0D1] font-black mb-1"
-                          data-testid={`text-brand-category-${testKey}`}
-                        >
-                          {primary}
-                          {secondary.length > 0 && (
-                            <span
-                              className="text-white/70 font-bold ml-2"
-                              data-testid={`text-brand-secondary-${testKey}`}
-                            >
-                              · {secondary.join(" · ")}
-                            </span>
-                          )}
-                        </p>
-                      )}
-                      {!primary && secondary.length > 0 && (
-                        <p
-                          className="text-[10px] uppercase tracking-widest text-white/80 font-bold mb-1"
-                          data-testid={`text-brand-secondary-${testKey}`}
-                        >
-                          {secondary.join(" · ")}
-                        </p>
-                      )}
-                      <p className="text-base font-black leading-tight">
-                        Shop {displayName}
-                      </p>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
+            {visibleBrands.map((brand) => (
+              <BrandCard
+                key={brand.id}
+                brand={brand}
+                onOpenBrand={(id) =>
+                  setLocation(`/marketplace/${encodeURIComponent(id)}`)
+                }
+              />
+            ))}
           </div>
         )}
       </main>
