@@ -23,9 +23,7 @@ export function ConnectInstagramHeaderCTA() {
       >
         <div className="flex items-center gap-2 text-[#155843]">
           <Instagram className="w-4 h-4 shrink-0" />
-          <span className="text-sm font-semibold flex-1">
-            Connect Instagram to unlock discounts
-          </span>
+          <span className="text-sm font-semibold flex-1">Connect Instagram to use Spiral</span>
           <ChevronRight className="w-4 h-4 shrink-0 opacity-70" />
         </div>
       </a>
