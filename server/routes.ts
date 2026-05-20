@@ -4533,6 +4533,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       })
       .filter((p): p is z.infer<typeof productCardSchema> => p !== null),
   );
+
+  // Defensive filter for products that aren't valid Spiral items.
+  // The merchant dashboard is supposed to filter these at the source, but
+  // we keep a safety net here so a stale or buggy upstream payload can't
+  // leak them to shoppers. Conservative on purpose — extend as new
+  // heuristics are needed.
+  const GIFT_CARD_TITLE_RE = /\bgift\s*card(s)?\b/i;
+  function excludeNonSpiralProducts<T extends { title: string }>(
+    products: T[],
+  ): { kept: T[]; droppedCount: number } {
+    const kept: T[] = [];
+    let droppedCount = 0;
+    for (const p of products) {
+      if (GIFT_CARD_TITLE_RE.test(p.title)) {
+        droppedCount += 1;
+        continue;
+      }
+      kept.push(p);
+    }
+    return { kept, droppedCount };
+  }
   type ProductCardForClient = {
     id: string;
     title: string;
@@ -4553,7 +4574,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try { raw = await upstream.json(); } catch { raw = null; }
       const parsed = productsResponseSchema.safeParse(raw);
       if (!parsed.success) return null;
-      const shaped: ProductCardForClient[] = parsed.data.map((p) => ({
+      const shapedRaw: ProductCardForClient[] = parsed.data.map((p) => ({
         id: p.id,
         title: p.title,
         handle: p.handle ?? null,
@@ -4562,6 +4583,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         available: p.available ?? true,
         productUrl: p.productUrl,
       }));
+      const { kept: shaped, droppedCount } = excludeNonSpiralProducts(shapedRaw);
+      if (droppedCount > 0) {
+        console.warn(
+          `[brand-products] ${brandId} dropped ${droppedCount} non-Spiral product(s) (e.g. gift cards) from upstream payload`,
+        );
+      }
       lastGoodProducts.set(brandId, shaped);
       return shaped;
     } catch (err) {
