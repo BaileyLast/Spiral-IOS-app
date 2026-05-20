@@ -158,7 +158,7 @@ export function OrderCard({ order, dimmed = false }: { order: Order; dimmed?: bo
             </div>
             <div className="text-right flex-shrink-0">
               <p className="text-sm font-bold text-[#A8F0D1]">
-                -${Number(order.discountAmount).toFixed(2)}
+                You saved ${Number(order.discountAmount).toFixed(2)}
               </p>
             </div>
           </div>
