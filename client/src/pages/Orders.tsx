@@ -370,10 +370,10 @@ export default function Orders() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-black text-[#0F4F3C] text-base">
-                    Connect Instagram
+                    Verify your Instagram
                   </p>
                   <p className="text-sm text-[#155843] mt-0.5">
-                    Connect your Instagram to verify your Stories and keep earning Spiral discounts.
+                    To start earning discounts we need to verify your Instagram account. Just follow the simple instructions here.
                   </p>
                 </div>
                 <ChevronRight className="w-5 h-5 text-[#2BAE88] flex-shrink-0 mt-1" />
