@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle, Loader2, Copy, ExternalLink, RefreshCw, Lock, Instagram } from "lucide-react";
+import { CheckCircle, Loader2, Copy, RefreshCw, Lock, Instagram } from "lucide-react";
 
 interface SpiralCodeResponse {
   code: string;
@@ -127,23 +127,6 @@ export default function HomeInstagramConnect() {
                 <span className="truncate">Message @joinspiral</span>
               </>
             )}
-          </Button>
-
-          <Button
-            asChild
-            variant="outline"
-            className="w-full h-12 text-sm font-medium rounded-xl border-emerald-200 text-emerald-800 mb-3"
-            data-testid="button-open-spiral-instagram"
-          >
-            <a
-              href="https://instagram.com/joinspiral"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Instagram className="w-4 h-4 mr-2 shrink-0" />
-              <span className="truncate">Visit @joinspiral</span>
-              <ExternalLink className="w-3.5 h-3.5 ml-2 shrink-0" />
-            </a>
           </Button>
 
           <div className="flex items-center justify-center gap-2 text-sm text-gray-400 mb-3">
