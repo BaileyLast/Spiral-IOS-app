@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation, useRoute } from "wouter";
 import { ChevronLeft, Store, ExternalLink, Instagram } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import spiralLogoUrl from "@assets/Spiral_logo_1779298156773.png";
+import spiralLogoUrl from "@assets/Spiral_logo_transparent_1779298156773.png";
 
 interface DiscountTier {
   fromFollowers: number;
