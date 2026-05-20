@@ -257,10 +257,6 @@ export default function Login() {
             )}
           </button>
         </div>
-
-        <p className="text-xs text-gray-400 text-center font-medium pt-4">
-          By continuing, you agree to our Terms of Service and Privacy Policy
-        </p>
       </main>
     </div>
   );
