@@ -1,6 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import crypto from "crypto";
+import { lookup as dnsLookup } from "node:dns/promises";
+import net from "node:net";
 import { Resend } from "resend";
 import { storage } from "./storage";
 import { z } from "zod";
@@ -4668,14 +4670,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
   function isBrandReachable(brandId: string): boolean {
     return !(brandReachability.get(brandId)?.unreachable ?? false);
   }
+  // SSRF guard: reject any IP that points at our own infra or any
+  // RFC1918 / loopback / link-local / unique-local range. We probe
+  // upstream-provided URLs, so even though those URLs come from a
+  // service we control we still validate them before fetching so a
+  // compromised or buggy upstream record can't be used to probe
+  // arbitrary internal targets.
+  function isPrivateOrLocalIp(ip: string): boolean {
+    const v = net.isIP(ip);
+    if (v === 4) {
+      const [a, b] = ip.split(".").map(Number);
+      if (a === 10) return true;
+      if (a === 127) return true;
+      if (a === 0) return true;
+      if (a === 169 && b === 254) return true;
+      if (a === 172 && b >= 16 && b <= 31) return true;
+      if (a === 192 && b === 168) return true;
+      if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
+      if (a >= 224) return true; // multicast + reserved
+      return false;
+    }
+    if (v === 6) {
+      const lower = ip.toLowerCase();
+      if (lower === "::1" || lower === "::") return true;
+      if (lower.startsWith("fc") || lower.startsWith("fd")) return true; // ULA
+      if (lower.startsWith("fe80")) return true; // link-local
+      if (lower.startsWith("ff")) return true;   // multicast
+      // IPv4-mapped IPv6 like ::ffff:10.0.0.1
+      if (lower.startsWith("::ffff:")) {
+        const mapped = lower.slice(7);
+        if (net.isIP(mapped) === 4) return isPrivateOrLocalIp(mapped);
+      }
+      return false;
+    }
+    return false;
+  }
+  async function isSafeProbeUrl(url: string): Promise<boolean> {
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return false;
+    }
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+    const host = parsed.hostname.toLowerCase();
+    if (!host) return false;
+    // Reject hostname forms that would obviously target our own infra.
+    if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) return false;
+    // If the URL embeds a literal IP, validate it directly.
+    const literal = host.startsWith("[") && host.endsWith("]") ? host.slice(1, -1) : host;
+    if (net.isIP(literal)) {
+      return !isPrivateOrLocalIp(literal);
+    }
+    // Otherwise DNS-resolve and reject if any resolved address is
+    // private/loopback/link-local. Tight timeout via Promise.race
+    // because dns.lookup has no native abort signal.
+    try {
+      const lookupPromise = dnsLookup(host, { all: true });
+      const timeout = new Promise<never>((_, rej) =>
+        setTimeout(() => rej(new Error("dns-timeout")), 2000),
+      );
+      const addrs = await Promise.race([lookupPromise, timeout]);
+      if (!Array.isArray(addrs) || addrs.length === 0) return false;
+      for (const a of addrs) {
+        if (isPrivateOrLocalIp(a.address)) return false;
+      }
+      return true;
+    } catch {
+      // DNS lookup failed entirely → let the caller treat it as a hard
+      // failure (it IS unreachable), but don't fetch.
+      return false;
+    }
+  }
   async function probeStorefront(url: string): Promise<"ok" | "dead" | "unknown"> {
+    // Pre-flight SSRF check. If the URL doesn't validate (bad parse,
+    // private IP, DNS resolves to private) we treat it as DEAD — a brand
+    // configured with such a URL is broken from a shopper's perspective
+    // anyway, and we explicitly don't want to issue the fetch.
+    if (!(await isSafeProbeUrl(url))) return "dead";
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REACHABILITY_PROBE_TIMEOUT_MS);
     try {
-      let res = await fetch(url, { method: "HEAD", signal: controller.signal, redirect: "follow" });
+      // `redirect: "manual"` so we don't blindly chase a 30x to a host
+      // we haven't re-validated. A 30x from the storefront itself counts
+      // as "ok" (the store is alive enough to respond with a redirect).
+      let res = await fetch(url, { method: "HEAD", signal: controller.signal, redirect: "manual" });
       // Some Shopify themes / CDNs reject HEAD with 405/501. Retry as GET.
       if (res.status === 405 || res.status === 501) {
-        res = await fetch(url, { method: "GET", signal: controller.signal, redirect: "follow" });
+        res = await fetch(url, { method: "GET", signal: controller.signal, redirect: "manual" });
       }
       if (res.status === 404 || res.status === 410) return "dead";
       if (res.status >= 200 && res.status < 400) return "ok";
