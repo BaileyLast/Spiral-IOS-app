@@ -446,7 +446,7 @@ export default function OrderDetail() {
         )}
 
         {/* SAVINGS SUMMARY */}
-        <div className="creator-card p-5 bg-gray-900 text-white">
+        <div className="creator-card p-5 !bg-gray-900 text-white">
           <h3 className="font-black text-lg mb-4">The Math</h3>
 
           <div className="space-y-3 mb-5 border-b border-gray-800 pb-5">
