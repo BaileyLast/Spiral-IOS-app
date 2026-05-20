@@ -43,7 +43,7 @@ function BottomNav() {
   };
 
   return (
-    <nav className="fixed left-0 right-0 z-50 px-4 bottom-4" style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+    <nav className="fixed left-0 right-0 z-50 px-4 bottom-4 md:absolute md:left-0 md:right-0" style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
       <div className="max-w-md mx-auto bg-white/90 backdrop-blur-md rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.08),0_2px_8px_rgba(0,0,0,0.04)] border border-white/60 flex items-center justify-around h-16 px-2">
         {navItems.map((item) => {
           const active = isActive(item.path);
@@ -127,13 +127,15 @@ function AppContent() {
   const hideBottomNav = location === "/" || location === "/login" || location === "/verify-email" || location === "/instagram-help" || location === "/privacy" || location === "/data-deletion" || location === "/manage-account" || location.startsWith("/admin/");
   
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen md:bg-[#F4F1EC] md:py-8">
       <ScrollToTop />
-      {!hideBottomNav && location !== "/discounts" && location !== "/home" && <ConnectInstagramHeaderCTA />}
-      <main className={hideBottomNav ? "" : "pb-20"}>
-        <Router />
-      </main>
-      {!hideBottomNav && <BottomNav />}
+      <div className="min-h-screen bg-white md:min-h-[calc(100vh-4rem)] md:max-w-md md:mx-auto md:rounded-[2.5rem] md:shadow-[0_30px_80px_-20px_rgba(0,0,0,0.25)] md:overflow-hidden md:relative">
+        {!hideBottomNav && location !== "/discounts" && location !== "/home" && <ConnectInstagramHeaderCTA />}
+        <main className={hideBottomNav ? "" : "pb-20"}>
+          <Router />
+        </main>
+        {!hideBottomNav && <BottomNav />}
+      </div>
     </div>
   );
 }
