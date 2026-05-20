@@ -104,12 +104,9 @@ export default function HomeInstagramConnect() {
           <h1 className="text-2xl font-black mb-2 leading-tight" data-testid="text-connect-heading">
             Connect Instagram
           </h1>
-          <p className="text-[#E6F8F0] font-medium text-sm max-w-[280px]" data-testid="text-connect-body">
-            Verify your Instagram to unlock bigger discounts based on your follower count.
-          </p>
+          <p className="text-[#E6F8F0] font-medium text-sm max-w-[280px]" data-testid="text-connect-body">Verify your Instagram and start earning discounts today!</p>
         </div>
       </div>
-
       {/* VERIFIED STATE */}
       {verificationStatus?.status === "verified" && (
         <div className="creator-card p-5 bg-[#E6F8F0] border border-[#A8F0D1]">
@@ -131,7 +128,6 @@ export default function HomeInstagramConnect() {
           </div>
         </div>
       )}
-
       {/* CODE FLOW */}
       {spiralCode?.status === "pending" && (
         <>
