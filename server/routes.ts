@@ -5,7 +5,7 @@ import { Resend } from "resend";
 import { storage } from "./storage";
 import { z } from "zod";
 import { insertStoreSettingsSchema, insertDiscountTierSchema, insertVerificationSchema, isOrderOwed, OWED_VERIFICATION_ANYDELIVERY, OWED_VERIFICATION_DELIVERED_ONLY } from "@shared/schema";
-import { fetchShopifyProducts, fetchShopifyCollections } from "./shopify";
+import { fetchShopifyProducts, fetchShopifyCollections, fetchProductImages } from "./shopify";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -1163,13 +1163,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const initialVerificationStatus = 'pending';
       
-      // Build line items summary for customer display
-      const rawLineItems = order.line_items || [];
+      // Build line items summary for customer display.
+      // We also enrich each item with its product image by calling the Shopify
+      // Admin API (read_products scope, already granted at install) so the
+      // shopper sees real product photos on the Orders + OrderDetail screens.
+      // Failures are non-fatal — items just fall back to the placeholder icon.
+      const rawLineItems = (order.line_items || []).slice(0, 5);
+      const productIds = rawLineItems
+        .map((item: any) => item.product_id)
+        .filter((id: any) => id != null);
+
+      let productImageMap: Record<string, string> = {};
+      const webhookShopDomainForImages =
+        (req.headers['x-shopify-shop-domain'] as string | undefined) ||
+        settings?.shopDomain ||
+        '';
+      if (productIds.length > 0 && webhookShopDomainForImages && settings?.accessToken) {
+        productImageMap = await fetchProductImages({
+          shopDomain: webhookShopDomainForImages,
+          accessToken: settings.accessToken,
+          productIds,
+        });
+      }
+
       const lineItemsSummary = JSON.stringify(
-        rawLineItems.slice(0, 5).map((item: any) => ({
+        rawLineItems.map((item: any) => ({
           title: item.title,
           variantTitle: item.variant_title || null,
           quantity: item.quantity,
+          imageUrl: item.product_id ? productImageMap[String(item.product_id)] || null : null,
         }))
       );
 

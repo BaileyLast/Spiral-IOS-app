@@ -81,6 +81,39 @@ export async function fetchShopifyCollections(options: ShopifyApiOptions): Promi
   return customCollections;
 }
 
+export async function fetchProductImages(
+  options: ShopifyApiOptions & { productIds: Array<string | number> },
+): Promise<Record<string, string>> {
+  const { shopDomain, accessToken, productIds } = options;
+  const unique = Array.from(new Set(productIds.map((id) => String(id)).filter(Boolean)));
+  if (unique.length === 0) return {};
+
+  const url = `https://${shopDomain}/admin/api/2024-01/products.json?ids=${unique.join(",")}&fields=id,image`;
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'X-Shopify-Access-Token': accessToken,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!response.ok) {
+      console.warn(`[shopify] fetchProductImages failed: ${response.status} ${response.statusText}`);
+      return {};
+    }
+    const data = (await response.json()) as { products?: Array<{ id: number; image?: { src?: string } }> };
+    const map: Record<string, string> = {};
+    for (const p of data.products || []) {
+      const src = p.image?.src;
+      if (src) map[String(p.id)] = src;
+    }
+    return map;
+  } catch (err) {
+    console.warn('[shopify] fetchProductImages error:', err);
+    return {};
+  }
+}
+
 export async function registerWebhook(options: ShopifyApiOptions & { topic: string; address: string }): Promise<void> {
   const { shopDomain, accessToken, topic, address } = options;
   const url = `https://${shopDomain}/admin/api/2024-01/webhooks.json`;
