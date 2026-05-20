@@ -4625,15 +4625,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       })),
     };
   }
-  // Defensive filter shared by the marketplace list and the per-brand
-  // products route. Hides brands that have explicitly disabled Spiral
-  // (`spiralEnabled === false`) OR have no curated products. The merchant
-  // dashboard is the source of truth and should already filter disabled
-  // stores out of `/api/brands`, but we re-check here so a stale or buggy
-  // upstream payload can't leak a disabled store to shoppers. A missing
-  // `spiralEnabled` is treated as enabled (truthy) during the rollout window.
+  // Shared filter for the marketplace list and the per-brand products route.
+  // A brand is visible only when the merchant has clicked "Go Live" on the
+  // dashboard (`spiralEnabled === true`) AND has curated at least one
+  // product. Anything else — explicitly disabled, never enabled, or
+  // missing the field entirely — is hidden so merchants who are still
+  // setting up Spiral don't leak into the shopper marketplace.
   function isBrandVisibleForMarketplace(b: UpstreamBrand): boolean {
-    if (b.spiralEnabled === false) return false;
+    if (b.spiralEnabled !== true) return false;
     return (b.selectedProductCount ?? 0) > 0;
   }
   // Number of products inlined per brand on the marketplace card (1 hero +
@@ -4648,8 +4647,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       (b) => b.spiralEnabled === undefined || b.spiralEnabled === null,
     ).length;
     if (missingCount > 0) {
-      console.warn(
-        `[brands] ${missingCount}/${brands.length} brand records missing spiralEnabled — upstream needs redeploy`,
+      // Info-level: these brands are now silently hidden (they haven't
+      // clicked Go Live, or the upstream omitted the field). Surfaced for
+      // visibility in case an upstream regression starts dropping the field.
+      console.info(
+        `[brands] ${missingCount}/${brands.length} brand records missing spiralEnabled — hidden from marketplace`,
       );
     }
     const visible = brands.filter(isBrandVisibleForMarketplace);
