@@ -517,121 +517,131 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
         <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
       </button>
 
-      {/* Hero — first product image (or fallback) */}
-      <button
-        type="button"
-        onClick={() => onOpenBrand(brand.id)}
-        className="block w-full relative h-44 overflow-hidden bg-gray-100 text-left"
-        data-testid={`button-brand-hero-${testKey}`}
+      {/* Hero backdrop with carousel floating on top */}
+      <div
+        className="relative w-full h-80 overflow-hidden bg-gray-100"
+        data-testid={`region-brand-hero-${testKey}`}
       >
-        <HeroSlideshow
-          media={igMedia}
-          fallbackImageUrl={heroFallbackImageUrl}
-          fallbackImageAlt={heroProduct?.title ?? displayName}
-          fallbackInitial={initial}
-          fallbackGradient={gradient}
-          alt={displayName}
-          testKey={testKey}
-        />
+        {/* Tap-to-open-brand backdrop (sits behind the carousel) */}
+        <button
+          type="button"
+          onClick={() => onOpenBrand(brand.id)}
+          className="absolute inset-0 w-full h-full text-left"
+          aria-label={`Open ${displayName}`}
+          data-testid={`button-brand-hero-${testKey}`}
+        >
+          <HeroSlideshow
+            media={igMedia}
+            fallbackImageUrl={heroFallbackImageUrl}
+            fallbackImageAlt={heroProduct?.title ?? displayName}
+            fallbackInitial={initial}
+            fallbackGradient={gradient}
+            alt={displayName}
+            testKey={testKey}
+          />
+          {/* Soft wash so light card text/UI stays legible regardless of image */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/35 to-black/45 pointer-events-none" />
+        </button>
 
-        <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/55 to-transparent pointer-events-none" />
-
+        {/* Category strip — top-left, sits above carousel */}
         {(primary || secondary.length > 0) && (
-          <div className="absolute bottom-3 left-3 right-3 text-white">
+          <div className="absolute top-3 left-3 right-3 text-white pointer-events-none">
             <p
-              className="text-[10px] uppercase tracking-widest font-black"
+              className="text-[10px] uppercase tracking-widest font-black drop-shadow"
               data-testid={`text-brand-category-${testKey}`}
             >
               {primary && <span className="text-[#A8F0D1]">{primary}</span>}
               {primary && secondary.length > 0 && (
-                <span className="text-white/70 font-bold ml-2">
+                <span className="text-white/80 font-bold ml-2">
                   · {secondary.join(" · ")}
                 </span>
               )}
               {!primary && secondary.length > 0 && (
-                <span className="text-white/80 font-bold">{secondary.join(" · ")}</span>
+                <span className="text-white/85 font-bold">{secondary.join(" · ")}</span>
               )}
             </p>
           </div>
         )}
-      </button>
 
-      {/* Product carousel — 2-up with a peek of the 3rd to invite scroll */}
-      {carouselProducts.length > 0 && (
-        <div
-          className="flex gap-4 overflow-x-auto px-4 py-3 snap-x snap-mandatory scrollbar-none"
-          style={{ scrollbarWidth: "none" }}
-          data-testid={`carousel-products-${testKey}`}
-        >
-          {carouselProducts.map((p) => {
-            const formatted = formatProductPrice(p.price);
-            const discounted = discountedProductPrice(p.price, shopperDiscount);
-            const showDiscount = !!discounted && !!formatted;
-            const thumbKey = `thumb-${p.id}`;
-            const showThumbImage = !!p.image && !imgErrors[thumbKey];
-            return (
-              <a
-                key={p.id}
-                href={p.productUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-shrink-0 w-[44%] snap-start hover-elevate rounded-md px-2 py-1 -mx-2 -my-1"
-                data-testid={`link-product-${p.id}`}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="w-full aspect-square bg-gray-100 rounded-md overflow-hidden">
-                  {showThumbImage && p.image ? (
-                    <img
-                      src={p.image}
-                      alt={p.title}
-                      className="w-full h-full object-cover"
-                      onError={() => markImgError(thumbKey)}
-                    />
-                  ) : (
-                    <div
-                      className="w-full h-full flex items-center justify-center text-3xl font-black text-white"
-                      style={{ background: gradient }}
-                    >
-                      {initial}
+        {/* Product carousel — vertically centered, floats on the backdrop */}
+        {carouselProducts.length > 0 && (
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2">
+            <div
+              className="flex gap-4 overflow-x-auto px-4 snap-x snap-mandatory scrollbar-none"
+              style={{ scrollbarWidth: "none" }}
+              data-testid={`carousel-products-${testKey}`}
+            >
+              {carouselProducts.map((p) => {
+                const formatted = formatProductPrice(p.price);
+                const discounted = discountedProductPrice(p.price, shopperDiscount);
+                const showDiscount = !!discounted && !!formatted;
+                const thumbKey = `thumb-${p.id}`;
+                const showThumbImage = !!p.image && !imgErrors[thumbKey];
+                return (
+                  <a
+                    key={p.id}
+                    href={p.productUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-shrink-0 w-[44%] snap-start rounded-lg bg-white shadow-lg p-2 hover-elevate active-elevate-2"
+                    data-testid={`link-product-${p.id}`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="w-full aspect-square bg-gray-100 rounded-md overflow-hidden">
+                      {showThumbImage && p.image ? (
+                        <img
+                          src={p.image}
+                          alt={p.title}
+                          className="w-full h-full object-cover"
+                          onError={() => markImgError(thumbKey)}
+                        />
+                      ) : (
+                        <div
+                          className="w-full h-full flex items-center justify-center text-3xl font-black text-white"
+                          style={{ background: gradient }}
+                        >
+                          {initial}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                <p
-                  className="mt-2 text-xs font-bold text-gray-900 line-clamp-2 leading-tight"
-                  data-testid={`text-product-title-${p.id}`}
-                >
-                  {p.title}
-                </p>
-                {showDiscount ? (
-                  <div className="mt-1 flex items-baseline gap-1.5">
-                    <span
-                      className="text-sm font-black text-[#1A996E]"
-                      data-testid={`text-product-discounted-price-${p.id}`}
-                    >
-                      {discounted}
-                    </span>
-                    <span
-                      className="text-[11px] text-gray-400 font-medium line-through"
-                      data-testid={`text-product-original-price-${p.id}`}
-                    >
-                      {formatted}
-                    </span>
-                  </div>
-                ) : (
-                  formatted && (
                     <p
-                      className="text-xs text-gray-600 font-bold mt-0.5"
-                      data-testid={`text-product-price-${p.id}`}
+                      className="mt-2 text-xs font-bold text-gray-900 line-clamp-2 leading-tight"
+                      data-testid={`text-product-title-${p.id}`}
                     >
-                      {formatted}
+                      {p.title}
                     </p>
-                  )
-                )}
-              </a>
-            );
-          })}
-        </div>
-      )}
+                    {showDiscount ? (
+                      <div className="mt-1 flex items-baseline gap-1.5">
+                        <span
+                          className="text-sm font-black text-[#1A996E]"
+                          data-testid={`text-product-discounted-price-${p.id}`}
+                        >
+                          {discounted}
+                        </span>
+                        <span
+                          className="text-[11px] text-gray-400 font-medium line-through"
+                          data-testid={`text-product-original-price-${p.id}`}
+                        >
+                          {formatted}
+                        </span>
+                      </div>
+                    ) : (
+                      formatted && (
+                        <p
+                          className="text-xs text-gray-600 font-bold mt-0.5"
+                          data-testid={`text-product-price-${p.id}`}
+                        >
+                          {formatted}
+                        </p>
+                      )
+                    )}
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Shop all footer */}
       <button
