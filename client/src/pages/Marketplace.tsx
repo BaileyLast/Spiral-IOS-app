@@ -508,7 +508,7 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
         </div>
         {badgePercent > 0 && (
           <span
-            className="flex-shrink-0 inline-flex items-center px-3 py-1.5 rounded-full bg-[#E6F8F0] text-[#1A996E] text-xs font-bold tracking-wide uppercase"
+            className="flex-shrink-0 inline-flex items-center px-3 py-1.5 rounded-full bg-[#4ECCA3] text-white shadow-[0_2px_8px_rgba(78,204,163,0.3)] text-xs font-bold tracking-wide uppercase"
             data-testid={`badge-brand-discount-${testKey}`}
           >
             {badgeLabel} {badgePercent}% off
