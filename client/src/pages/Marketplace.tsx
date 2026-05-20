@@ -575,7 +575,7 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
                 href={p.productUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-shrink-0 w-[28%] snap-start hover-elevate rounded-md px-2 py-1 -mx-2 -my-1"
+                className="flex-shrink-0 w-[44%] snap-start hover-elevate rounded-md px-2 py-1 -mx-2 -my-1"
                 data-testid={`link-product-${p.id}`}
                 onClick={(e) => e.stopPropagation()}
               >
