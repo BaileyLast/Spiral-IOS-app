@@ -1,16 +1,15 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Store, Sparkles, X } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Store, Sparkles, X, Instagram } from "lucide-react";
 import { getCountryByCode, detectCountryFromLocale } from "@/lib/countries";
 import { normalizeCategoryForDisplay } from "@shared/categories";
 
-const FALLBACK_PALETTE = [
-  "bg-[#A8F5E0] text-[#155843]",
-  "bg-[#4ECCA3] text-white",
-  "bg-[#2BAE88] text-white",
-  "bg-[#EBF9F5] text-[#2BAE88]",
+const FALLBACK_GRADIENTS = [
+  "linear-gradient(135deg, #A8F5E0 0%, #4ECCA3 100%)",
+  "linear-gradient(135deg, #4ECCA3 0%, #2BAE88 100%)",
+  "linear-gradient(135deg, #E6F8F0 0%, #A8F0D1 100%)",
+  "linear-gradient(135deg, #2BAE88 0%, #1A996E 100%)",
 ];
 
 function cleanBrandName(storeName: string, instagramUsername: string | null): string {
@@ -34,10 +33,10 @@ function brandInitial(name: string): string {
   return trimmed ? trimmed[0].toUpperCase() : "?";
 }
 
-function paletteFor(seed: string): string {
+function gradientFor(seed: string): string {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
-  return FALLBACK_PALETTE[h % FALLBACK_PALETTE.length];
+  return FALLBACK_GRADIENTS[h % FALLBACK_GRADIENTS.length];
 }
 
 interface Brand {
@@ -108,138 +107,182 @@ export default function Marketplace() {
       .filter((b) => brandShipsToCountry(b, effectiveCountry));
   }, [brands, effectiveCountry]);
 
+  const visibleBrands = filteredBrands.filter((b) => isSafeHttpUrl(b.storefrontUrl));
+
   return (
-    <div className="min-h-screen safe-top bg-white">
-      <header className="px-6 pt-8 pb-4">
-        <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Marketplace</h1>
-        <p className="text-gray-400 mt-1">Discover brands with Spiral discounts</p>
+    <div className="min-h-screen bg-warm safe-top pb-12">
+      <header className="px-6 pt-10 pb-6">
+        <h1
+          className="text-3xl font-black tracking-tight text-gray-900 mb-2"
+          data-testid="text-page-title"
+        >
+          Discover
+        </h1>
+        {visibleBrands.length > 0 && (
+          <div className="glass-pill inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white shadow-sm border border-gray-100">
+            <div className="w-2 h-2 rounded-full bg-[#4ECCA3] animate-pulse" />
+            <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">
+              {visibleBrands.length} brand{visibleBrands.length === 1 ? "" : "s"}
+            </span>
+          </div>
+        )}
       </header>
 
-      {usingLocaleFallback && !bannerDismissed && country && (
-        <div
-          className="mx-6 mb-4 flex items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100"
-          data-testid="banner-locale-fallback"
-        >
-          <p className="text-xs text-gray-500 flex-1">
-            Showing brands shipping to <span className="font-semibold text-gray-700">{country.name}</span>.{" "}
-            <button
-              onClick={() => setLocation("/manage-account")}
-              className="text-[#4ECCA3] font-semibold hover-elevate rounded px-1"
-              data-testid="link-set-country"
-            >
-              Change
-            </button>
-          </p>
-          <button
-            onClick={() => setBannerDismissed(true)}
-            className="w-7 h-7 rounded-full flex items-center justify-center hover-elevate"
-            aria-label="Dismiss"
-            data-testid="button-dismiss-banner"
+      <main className="px-6 space-y-6">
+        {usingLocaleFallback && !bannerDismissed && country && (
+          <div
+            className="creator-card p-4 flex items-center gap-3"
+            data-testid="banner-locale-fallback"
           >
-            <X className="w-4 h-4 text-gray-400" />
-          </button>
-        </div>
-      )}
+            <p className="text-xs text-gray-500 flex-1 font-medium">
+              Showing brands shipping to{" "}
+              <span className="font-bold text-gray-900">{country.name}</span>.{" "}
+              <button
+                onClick={() => setLocation("/manage-account")}
+                className="text-[#4ECCA3] font-bold hover-elevate rounded px-1"
+                data-testid="link-set-country"
+              >
+                Change
+              </button>
+            </p>
+            <button
+              onClick={() => setBannerDismissed(true)}
+              className="w-7 h-7 rounded-full flex items-center justify-center hover-elevate"
+              aria-label="Dismiss"
+              data-testid="button-dismiss-banner"
+            >
+              <X className="w-4 h-4 text-gray-400" />
+            </button>
+          </div>
+        )}
 
-      <main className="px-6 pb-8">
         {isLoading ? (
-          <div className="grid grid-cols-2 gap-3" data-testid="grid-brands-loading">
-            {Array.from({ length: 6 }).map((_, i) => (
+          <div className="space-y-4" data-testid="grid-brands-loading">
+            {Array.from({ length: 4 }).map((_, i) => (
               <div
                 key={i}
-                className="aspect-[3/4] rounded-2xl bg-gray-100 animate-pulse"
+                className="creator-card overflow-hidden animate-pulse"
                 data-testid={`skeleton-brand-${i}`}
-              />
+              >
+                <div className="h-56 w-full bg-gray-100" />
+              </div>
             ))}
           </div>
-        ) : filteredBrands.length === 0 ? (
+        ) : visibleBrands.length === 0 ? (
           <div
-            className="p-8 rounded-2xl bg-gray-50 border border-gray-100 text-center"
+            className="creator-card p-8 text-center"
             data-testid="card-empty-marketplace"
           >
-            <div className="w-16 h-16 rounded-2xl bg-white border border-gray-100 flex items-center justify-center mx-auto mb-4">
-              <Store className="w-8 h-8 text-gray-300" />
+            <div className="w-16 h-16 rounded-2xl bg-[#E6F8F0] flex items-center justify-center mx-auto mb-4">
+              <Store className="w-8 h-8 text-[#4ECCA3]" />
             </div>
-            <h3 className="font-bold text-gray-900 mb-2">
+            <h3 className="font-black text-gray-900 mb-2 text-lg">
               {country ? `No brands shipping to ${country.name} yet` : "No brands available yet"}
             </h3>
-            <p className="text-sm text-gray-400 mb-4">
+            <p className="text-sm text-gray-500 mb-4">
               We're adding new partner brands every week — check back soon.
             </p>
-            <div className="flex items-center justify-center gap-2 text-xs text-[#4ECCA3] font-semibold">
+            <div className="inline-flex items-center justify-center gap-2 text-xs text-[#1A996E] font-bold bg-[#E6F8F0] px-3 py-1.5 rounded-full">
               <Sparkles className="w-4 h-4" />
               <span>New brands added weekly</span>
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3" data-testid="grid-brands">
-            {filteredBrands.filter((b) => isSafeHttpUrl(b.storefrontUrl)).map((brand) => {
+          <div className="space-y-4" data-testid="grid-brands">
+            {visibleBrands.map((brand) => {
               const displayName = cleanBrandName(brand.storeName, brand.instagramUsername);
               const initial = brandInitial(brand.instagramUsername || displayName);
-              const palette = paletteFor(brand.instagramUsername || displayName);
+              const gradient = gradientFor(brand.instagramUsername || displayName);
+              const primary = normalizeCategoryForDisplay(brand.category);
+              const secondary = (brand.secondaryCategories ?? [])
+                .map((c) => normalizeCategoryForDisplay(c))
+                .filter((c): c is NonNullable<typeof c> => c !== null && c !== primary)
+                .slice(0, 2);
+              const testKey = brand.instagramUsername || brand.storeName;
+
               return (
                 <button
                   key={brand.id}
                   type="button"
                   onClick={() => setLocation(`/marketplace/${encodeURIComponent(brand.id)}`)}
-                  className="block w-full text-left rounded-2xl bg-gray-50 border border-gray-100 p-4 hover-elevate active-elevate-2"
-                  data-testid={`card-brand-${brand.instagramUsername || brand.storeName}`}
+                  className="creator-card overflow-hidden block w-full text-left"
+                  data-testid={`card-brand-${testKey}`}
                 >
-                  <div className="flex flex-col items-center text-center">
-                    <Avatar className="w-16 h-16 mb-3">
-                      {brand.instagramProfilePictureUrl && (
-                        <AvatarImage
-                          src={brand.instagramProfilePictureUrl}
-                          alt={displayName}
-                          className="object-cover"
-                        />
-                      )}
-                      <AvatarFallback
-                        className={`text-2xl font-bold ${palette}`}
-                        data-testid={`fallback-brand-${brand.instagramUsername || brand.storeName}`}
+                  <div className="relative h-56 w-full overflow-hidden bg-gray-100">
+                    {brand.instagramProfilePictureUrl ? (
+                      <img
+                        src={brand.instagramProfilePictureUrl}
+                        alt={displayName}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                    ) : (
+                      <div
+                        className="w-full h-full flex items-center justify-center"
+                        style={{ background: gradient }}
+                        data-testid={`fallback-brand-${testKey}`}
                       >
-                        {initial}
-                      </AvatarFallback>
-                    </Avatar>
-                    <p
-                      className="font-bold text-gray-900 text-sm truncate w-full"
-                      data-testid={`text-brand-name-${brand.instagramUsername || brand.storeName}`}
-                    >
-                      {displayName}
-                    </p>
-                    {brand.instagramUsername && (
-                      <p className="text-xs text-gray-400 truncate w-full mt-0.5">
-                        @{brand.instagramUsername}
-                      </p>
+                        <span className="text-7xl font-black text-white drop-shadow-md">
+                          {initial}
+                        </span>
+                      </div>
                     )}
-                    {(() => {
-                      const primary = normalizeCategoryForDisplay(brand.category);
-                      const secondary = (brand.secondaryCategories ?? [])
-                        .map((c) => normalizeCategoryForDisplay(c))
-                        .filter((c): c is NonNullable<typeof c> => c !== null && c !== primary)
-                        .slice(0, 2);
-                      if (!primary && secondary.length === 0) return null;
-                      return (
-                        <div className="mt-2 flex flex-col items-center gap-0.5 w-full">
-                          {primary && (
-                            <p
-                              className="text-[10px] uppercase tracking-wider text-[#4ECCA3] font-semibold truncate max-w-full"
-                              data-testid={`text-brand-category-${brand.instagramUsername || brand.storeName}`}
-                            >
-                              {primary}
-                            </p>
-                          )}
-                          {secondary.length > 0 && (
-                            <p
-                              className="text-[9px] uppercase tracking-wider text-gray-400 font-medium truncate max-w-full"
-                              data-testid={`text-brand-secondary-${brand.instagramUsername || brand.storeName}`}
-                            >
-                              {secondary.join(" · ")}
-                            </p>
-                          )}
+
+                    <div className="absolute top-4 left-4 flex gap-2">
+                      <div className="glass-pill rounded-full px-3 py-1.5 flex items-center gap-2 shadow-sm">
+                        <span
+                          className="text-xs font-bold text-gray-900"
+                          data-testid={`text-brand-name-${testKey}`}
+                        >
+                          {displayName}
+                        </span>
+                      </div>
+                    </div>
+
+                    {brand.instagramUsername && (
+                      <div className="absolute top-4 right-4">
+                        <div className="glass-pill rounded-full px-3 py-1.5 flex items-center gap-1.5 shadow-sm">
+                          <Instagram className="w-3 h-3 text-[#4ECCA3]" />
+                          <span className="text-xs font-bold text-gray-900">
+                            @{brand.instagramUsername}
+                          </span>
                         </div>
-                      );
-                    })()}
+                      </div>
+                    )}
+
+                    <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/70 to-transparent" />
+
+                    <div className="absolute bottom-4 left-4 right-4 text-white">
+                      {primary && (
+                        <p
+                          className="text-[10px] uppercase tracking-widest text-[#A8F0D1] font-black mb-1"
+                          data-testid={`text-brand-category-${testKey}`}
+                        >
+                          {primary}
+                          {secondary.length > 0 && (
+                            <span
+                              className="text-white/70 font-bold ml-2"
+                              data-testid={`text-brand-secondary-${testKey}`}
+                            >
+                              · {secondary.join(" · ")}
+                            </span>
+                          )}
+                        </p>
+                      )}
+                      {!primary && secondary.length > 0 && (
+                        <p
+                          className="text-[10px] uppercase tracking-widest text-white/80 font-bold mb-1"
+                          data-testid={`text-brand-secondary-${testKey}`}
+                        >
+                          {secondary.join(" · ")}
+                        </p>
+                      )}
+                      <p className="text-base font-black leading-tight">
+                        Shop {displayName}
+                      </p>
+                    </div>
                   </div>
                 </button>
               );

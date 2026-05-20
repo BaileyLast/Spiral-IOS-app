@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { COUNTRIES, getCountryByCode, detectCountryFromLocale } from "@/lib/countries";
@@ -120,7 +120,7 @@ export default function ManageAccount() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="min-h-screen flex items-center justify-center bg-warm">
         <Loader2 className="w-8 h-8 animate-spin text-[#4ECCA3]" />
       </div>
     );
@@ -139,195 +139,226 @@ export default function ManageAccount() {
   ];
 
   return (
-    <div className="min-h-screen safe-top bg-white">
-      <header className="px-6 pt-8 pb-6 flex items-center gap-3">
-        <button
-          onClick={() => setLocation("/profile")}
-          className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover-elevate"
-          data-testid="button-back"
-        >
-          <ArrowLeft className="w-5 h-5 text-gray-600" />
-        </button>
-        <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Manage account</h1>
+    <div className="min-h-screen bg-warm safe-top pb-12">
+      <header className="px-4 py-4 flex items-center justify-between sticky top-0 bg-[#FCFCFB]/80 backdrop-blur-md z-10">
+        <Link href="/profile">
+          <button
+            className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center hover-elevate"
+            data-testid="button-back"
+            aria-label="Back"
+          >
+            <ArrowLeft className="w-5 h-5 text-gray-900" />
+          </button>
+        </Link>
+        <div className="flex items-center gap-2 bg-white px-4 py-1.5 rounded-full shadow-sm">
+          <span className="text-sm font-bold text-gray-900">Manage account</span>
+        </div>
+        <div className="w-10" />
       </header>
 
-      <main className="px-6 pb-8 space-y-6">
+      <main className="px-5 mt-4 space-y-6">
+        {/* Instagram card */}
         {isInstagramConnected ? (
-          <div
-            className="p-5 rounded-2xl bg-gray-50 border border-gray-100"
-            data-testid="card-instagram-connected"
-          >
+          <div className="creator-card p-5" data-testid="card-instagram-connected">
             <div className="flex items-center gap-4">
-              <Avatar className="w-14 h-14 border-2 border-gray-100">
+              <Avatar className="w-14 h-14 border-2 border-white shadow-sm">
                 {profile?.instagramProfilePicture ? (
                   <AvatarImage
                     src="/api/customer/instagram-avatar"
                     alt={profile.instagramHandle || "Instagram"}
                   />
                 ) : null}
-                <AvatarFallback className="text-white text-xl font-bold" style={{ background: 'linear-gradient(135deg, #A8F5E0, #4ECCA3, #2BAE88)' }}>
+                <AvatarFallback className="bg-[#4ECCA3] text-white">
                   <Instagram className="w-6 h-6" />
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="font-bold text-gray-900 truncate" data-testid="text-instagram-handle">
+                <p className="font-black text-gray-900 truncate" data-testid="text-instagram-handle">
                   @{profile?.instagramHandle}
                 </p>
                 {profile?.followerCount != null && (
-                  <p className="text-sm text-gray-400 mt-0.5 flex items-center gap-1">
+                  <p className="text-sm font-bold text-gray-500 mt-0.5 flex items-center gap-1">
                     <Instagram className="w-3 h-3" />
                     {formatFollowerCount(profile.followerCount)} followers
                   </p>
                 )}
               </div>
             </div>
-            <button
+            <Button
+              variant="destructive"
               onClick={() => disconnectMutation.mutate()}
               disabled={disconnectMutation.isPending}
-              className="w-full mt-4 py-2.5 rounded-xl bg-gray-100 text-gray-500 text-sm font-medium hover-elevate transition-colors"
+              className="w-full mt-4 rounded-full h-12 font-bold"
               data-testid="button-disconnect-instagram"
             >
               {disconnectMutation.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 "Disconnect Instagram"
               )}
-            </button>
+            </Button>
           </div>
         ) : (
           <div
-            className="p-5 rounded-2xl bg-gray-50 border border-gray-100 cursor-pointer hover-elevate"
+            className="creator-card p-5 hover-elevate cursor-pointer"
             onClick={() => setLocation("/connect-instagram")}
             data-testid="card-connect-instagram"
           >
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #A8F5E0, #4ECCA3, #2BAE88)' }}>
+              <div
+                className="w-14 h-14 rounded-full flex items-center justify-center"
+                style={{ background: "linear-gradient(135deg, #A8F5E0, #4ECCA3, #2BAE88)" }}
+              >
                 <Instagram className="w-7 h-7 text-white" />
               </div>
               <div className="flex-1">
-                <p className="font-semibold text-gray-900">Connect Instagram</p>
-                <p className="text-sm text-gray-400">Link your account to unlock discounts</p>
+                <p className="font-black text-gray-900">Connect Instagram</p>
+                <p className="text-sm font-medium text-gray-500">Link your account to unlock discounts</p>
               </div>
               <Plus className="w-5 h-5 text-gray-300" />
             </div>
           </div>
         )}
 
+        {/* Account info card */}
         <div>
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-1" data-testid="text-section-label">
+          <h2
+            className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3 px-2"
+            data-testid="text-section-label"
+          >
             Spiral account info
           </h2>
-          <div className="rounded-2xl bg-gray-50 border border-gray-100 overflow-hidden">
-            <div className="divide-y divide-gray-100">
-              {accountFields.map((field) => {
-                const isEditing = editingField === field.key;
-                const Icon = field.icon;
+          <div className="creator-card p-2">
+            {accountFields.map((field) => {
+              const isEditing = editingField === field.key;
+              const Icon = field.icon;
 
-                return (
-                  <div key={field.key} className="p-4" data-testid={`field-${field.key}`}>
-                    {isEditing ? (
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <Icon className="w-4 h-4 text-gray-400" />
-                          <span className="text-xs text-gray-400 uppercase tracking-wider">{field.label}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            className="flex-1 bg-white border-gray-200 text-gray-900 placeholder:text-gray-300 focus-visible:ring-[#4ECCA3]/20 focus-visible:border-[#4ECCA3]"
-                            placeholder={`Enter ${field.label.toLowerCase()}`}
-                            autoFocus
-                            data-testid={`input-${field.key}`}
-                          />
-                          <Button size="icon" variant="ghost" onClick={saveField} disabled={updateMutation.isPending} data-testid={`button-save-${field.key}`}>
-                            {updateMutation.isPending ? (
-                              <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-                            ) : (
-                              <Check className="w-4 h-4 text-green-600" />
-                            )}
-                          </Button>
-                          <Button size="icon" variant="ghost" onClick={cancelEditing} data-testid={`button-cancel-${field.key}`}>
-                            <X className="w-4 h-4 text-gray-400" />
-                          </Button>
-                        </div>
+              return (
+                <div key={field.key} className="p-3" data-testid={`field-${field.key}`}>
+                  {isEditing ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Icon className="w-4 h-4 text-[#1A996E]" />
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                          {field.label}
+                        </span>
                       </div>
-                    ) : (
-                      <button
-                        className={`w-full flex items-center gap-3 ${field.editable ? "hover-elevate" : ""}`}
-                        onClick={() => {
-                          if (field.editable) {
-                            startEditing(field.key as Exclude<EditingField, null>, field.value);
-                          }
-                        }}
-                        disabled={!field.editable}
-                        data-testid={`button-edit-${field.key}`}
-                      >
-                        <Icon className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                        <div className="flex-1 min-w-0 text-left">
-                          <p className="text-xs text-gray-400 mb-0.5">{field.label}</p>
-                          <p className={`text-sm truncate ${field.value ? "text-gray-900" : "text-gray-300"}`}>
-                            {field.value || "Not set"}
-                          </p>
-                        </div>
-                        {field.editable && (
-                          <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
-                        )}
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-
-              {/* Country picker */}
-              <div className="p-4" data-testid="field-country">
-                <Popover open={countryPickerOpen} onOpenChange={setCountryPickerOpen}>
-                  <PopoverTrigger asChild>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          className="flex-1 rounded-2xl bg-gray-50 border-gray-100 text-gray-900 font-medium placeholder:text-gray-300 focus-visible:ring-[#4ECCA3]/20 focus-visible:border-[#4ECCA3] h-12"
+                          placeholder={`Enter ${field.label.toLowerCase()}`}
+                          autoFocus
+                          data-testid={`input-${field.key}`}
+                        />
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={saveField}
+                          disabled={updateMutation.isPending}
+                          data-testid={`button-save-${field.key}`}
+                        >
+                          {updateMutation.isPending ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                          ) : (
+                            <Check className="w-4 h-4 text-[#1A996E]" />
+                          )}
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={cancelEditing}
+                          data-testid={`button-cancel-${field.key}`}
+                        >
+                          <X className="w-4 h-4 text-gray-400" />
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
                     <button
-                      className="w-full flex items-center gap-3 hover-elevate"
-                      data-testid="button-edit-country"
+                      className={`w-full flex items-center gap-3 p-2 rounded-2xl text-left ${field.editable ? "hover-elevate" : ""}`}
+                      onClick={() => {
+                        if (field.editable) {
+                          startEditing(field.key as Exclude<EditingField, null>, field.value);
+                        }
+                      }}
+                      disabled={!field.editable}
+                      data-testid={`button-edit-${field.key}`}
                     >
-                      <Globe className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                      <div className="flex-1 min-w-0 text-left">
-                        <p className="text-xs text-gray-400 mb-0.5">Country</p>
-                        {currentCountry ? (
-                          <p className="text-sm truncate text-gray-900">{currentCountry.name}</p>
-                        ) : suggestedCountry ? (
-                          <p className="text-sm truncate text-gray-400" data-testid="text-country-suggested">
-                            Tap to confirm <span className="text-gray-700 font-medium">{suggestedCountry.name}</span>
-                          </p>
-                        ) : (
-                          <p className="text-sm truncate text-gray-300">Not set</p>
-                        )}
+                      <div className="w-10 h-10 rounded-2xl bg-[#E6F8F0] flex items-center justify-center flex-shrink-0">
+                        <Icon className="w-5 h-5 text-[#1A996E]" />
                       </div>
-                      <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-0.5">
+                          {field.label}
+                        </p>
+                        <p className={`text-sm font-bold truncate ${field.value ? "text-gray-900" : "text-gray-300"}`}>
+                          {field.value || "Not set"}
+                        </p>
+                      </div>
+                      {field.editable && (
+                        <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                      )}
                     </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[280px] p-0" align="end">
-                    <Command>
-                      <CommandInput placeholder="Search country..." data-testid="input-country-search" />
-                      <CommandList>
-                        <CommandEmpty>No country found.</CommandEmpty>
-                        <CommandGroup>
-                          {COUNTRIES.map((c) => (
-                            <CommandItem
-                              key={c.code}
-                              value={c.name}
-                              onSelect={() => saveCountry(c.code)}
-                              data-testid={`option-country-${c.code}`}
-                            >
-                              <span className="flex-1">{c.name}</span>
-                              {profile?.country === c.code && (
-                                <Check className="w-4 h-4 text-[#4ECCA3]" />
-                              )}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Country picker */}
+            <div className="p-3" data-testid="field-country">
+              <Popover open={countryPickerOpen} onOpenChange={setCountryPickerOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    className="w-full flex items-center gap-3 p-2 rounded-2xl hover-elevate text-left"
+                    data-testid="button-edit-country"
+                  >
+                    <div className="w-10 h-10 rounded-2xl bg-[#E6F8F0] flex items-center justify-center flex-shrink-0">
+                      <Globe className="w-5 h-5 text-[#1A996E]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-0.5">
+                        Country
+                      </p>
+                      {currentCountry ? (
+                        <p className="text-sm font-bold truncate text-gray-900">{currentCountry.name}</p>
+                      ) : suggestedCountry ? (
+                        <p className="text-sm font-bold truncate text-gray-400" data-testid="text-country-suggested">
+                          Tap to confirm{" "}
+                          <span className="text-gray-900 font-black">{suggestedCountry.name}</span>
+                        </p>
+                      ) : (
+                        <p className="text-sm font-bold truncate text-gray-300">Not set</p>
+                      )}
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[280px] p-0" align="end">
+                  <Command>
+                    <CommandInput placeholder="Search country..." data-testid="input-country-search" />
+                    <CommandList>
+                      <CommandEmpty>No country found.</CommandEmpty>
+                      <CommandGroup>
+                        {COUNTRIES.map((c) => (
+                          <CommandItem
+                            key={c.code}
+                            value={c.name}
+                            onSelect={() => saveCountry(c.code)}
+                            data-testid={`option-country-${c.code}`}
+                          >
+                            <span className="flex-1">{c.name}</span>
+                            {profile?.country === c.code && (
+                              <Check className="w-4 h-4 text-[#4ECCA3]" />
+                            )}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
         </div>

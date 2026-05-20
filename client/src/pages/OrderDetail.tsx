@@ -13,7 +13,18 @@ import {
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
-import { ArrowLeft, CheckCircle, Clock, Package, Instagram, Camera, Loader2, ShoppingBag, Store } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle,
+  Clock,
+  Package,
+  Instagram,
+  Camera,
+  Loader2,
+  ShoppingBag,
+  Store,
+  ShieldCheck,
+} from "lucide-react";
 import type { Order } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -25,72 +36,6 @@ import {
   MOCK_HISTORY,
   type LineItem,
 } from "@/pages/Orders";
-
-function LineItemThumb({ src, alt }: { src: string | null | undefined; alt: string }) {
-  const [errored, setErrored] = useState(false);
-  if (!src || errored) {
-    return (
-      <div
-        className="w-12 h-12 rounded-md bg-gray-100 flex items-center justify-center flex-shrink-0"
-        aria-label={`${alt} placeholder`}
-      >
-        <ShoppingBag className="w-5 h-5 text-gray-300" />
-      </div>
-    );
-  }
-  return (
-    <img
-      src={src}
-      alt={alt}
-      className="w-12 h-12 rounded-md object-cover bg-gray-100 flex-shrink-0"
-      onError={() => setErrored(true)}
-    />
-  );
-}
-
-function LineItemRow({ item }: { item: LineItem }) {
-  const name = lineItemDisplayName(item);
-  const productUrl =
-    typeof item.productUrl === "string" && /^https?:\/\//i.test(item.productUrl)
-      ? item.productUrl
-      : null;
-
-  const inner = (
-    <>
-      <LineItemThumb src={item.imageUrl} alt={name} />
-      <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-        <p className="text-sm text-gray-900 truncate" data-testid={`text-line-item-name-${name}`}>
-          {name}
-        </p>
-        {item.quantity > 1 && (
-          <span className="text-sm text-gray-400 flex-shrink-0" data-testid={`text-line-item-qty-${name}`}>
-            ×{item.quantity}
-          </span>
-        )}
-      </div>
-    </>
-  );
-
-  if (productUrl) {
-    return (
-      <a
-        href={productUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-3 -mx-2 px-2 py-1 rounded-md hover-elevate active-elevate-2"
-        data-testid={`link-line-item-${name}`}
-      >
-        {inner}
-      </a>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-3" data-testid={`row-line-item-${name}`}>
-      {inner}
-    </div>
-  );
-}
 
 function getStatusLabel(order: Order) {
   if (order.verificationStatus === "verified") return "verified";
@@ -110,10 +55,6 @@ export default function OrderDetail() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // Dev-only: mock previews on the Orders list use synthetic IDs like
-  // "mock-active-1" that don't exist in the backend. When tapped, short-circuit
-  // the API and render straight from the same mock data so the UX is fully
-  // navigable without real orders.
   const isMock = !!orderId && orderId.startsWith("mock-") && import.meta.env.DEV;
   const mockOrder = isMock
     ? [...MOCK_ACTIVE, ...MOCK_HISTORY].find((m) => m.id === orderId)
@@ -130,7 +71,6 @@ export default function OrderDetail() {
   const markReceivedMutation = useMutation({
     mutationFn: async () => {
       if (isMock) {
-        // Pretend it worked so the toast still fires; no real state changes.
         await new Promise((resolve) => setTimeout(resolve, 400));
         return;
       }
@@ -159,7 +99,7 @@ export default function OrderDetail() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="min-h-screen flex items-center justify-center bg-warm">
         <Loader2 className="w-8 h-8 animate-spin text-[#4ECCA3]" />
       </div>
     );
@@ -167,7 +107,7 @@ export default function OrderDetail() {
 
   if (!order) {
     return (
-      <div className="min-h-screen safe-top bg-white">
+      <div className="min-h-screen safe-top bg-warm">
         <header className="flex items-center px-4 h-14">
           <Link href="/discounts">
             <Button variant="ghost" size="icon" className="text-gray-500" data-testid="button-back">
@@ -187,8 +127,8 @@ export default function OrderDetail() {
   const percentLabel = formatDiscountPercent(order.discountPercent);
   const isPickup = !!order.readyForPickupAt || order.shopifyTrackingStatus === "ready_for_pickup";
   const awaitingPickup = order.shopifyTrackingStatus === "ready_for_pickup" && order.status !== "delivered";
+  const rawHandle = (order.merchantInstagramHandle || "").replace(/^@/, "");
 
-  // Friendly label for the in-transit step depending on shipping method.
   const shippedLabel = (() => {
     if (isPickup) return "Ready for pickup";
     switch (order.shopifyTrackingStatus) {
@@ -206,30 +146,48 @@ export default function OrderDetail() {
   ];
 
   return (
-    <div className="min-h-screen safe-top bg-white">
-      <header className="flex items-center px-4 h-14 border-b border-gray-100">
+    <div className="min-h-screen safe-top bg-warm pb-12">
+      <header className="px-4 py-4 flex items-center justify-between sticky top-0 bg-[#FCFCFB]/80 backdrop-blur-md z-10">
         <Link href="/discounts">
-          <Button variant="ghost" size="icon" className="text-gray-500" data-testid="button-back">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
+          <button
+            className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center hover-elevate"
+            data-testid="button-back"
+            aria-label="Back"
+          >
+            <ArrowLeft className="w-5 h-5 text-gray-900" />
+          </button>
         </Link>
-        <h1 className="ml-2 text-lg font-bold text-gray-900">Order Details</h1>
+        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm max-w-[60%]">
+          {order.storeLogo && (
+            <img
+              src={order.storeLogo}
+              alt={order.storeName || "Store"}
+              className="w-5 h-5 rounded-full object-contain"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
+          )}
+          <span
+            className="text-sm font-bold text-gray-900 truncate"
+            data-testid="text-order-id"
+          >
+            Order #{order.shopifyOrderId.slice(-4)}
+          </span>
+        </div>
+        <div className="w-10" />
       </header>
-      <main className="px-6 pb-8 pt-6 space-y-6">
-        {/* Status hero — whatever the customer needs to see / do RIGHT NOW
-            sits at the top of the page. Action-needed states (awaiting,
-            awaitingPickup, not_public, taken_down_early) and result states
-            (awaiting_review, quick_verified, verified) all render here so
-            the page is always status-first, details-second. */}
 
+      <main className="px-5 mt-4 space-y-6">
+        {/* Status hero — what to do right now */}
         {awaitingPickup && (
-          <div className="p-5 rounded-2xl bg-indigo-50 border border-indigo-200" data-testid="card-ready-for-pickup">
+          <div className="creator-card p-5 bg-indigo-50 border border-indigo-200" data-testid="card-ready-for-pickup">
             <div className="flex items-start gap-4 mb-4">
               <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
                 <Store className="w-5 h-5 text-indigo-600" />
               </div>
               <div>
-                <h3 className="font-bold text-indigo-900">
+                <h3 className="font-black text-indigo-900 text-base">
                   Your order is ready to pick up
                 </h3>
                 <p className="text-sm text-indigo-700 mt-1">
@@ -237,76 +195,70 @@ export default function OrderDetail() {
                 </p>
               </div>
             </div>
-            <Button
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+            <button
+              className="tactile-btn w-full py-4 text-base bg-indigo-600 shadow-[0_4px_12px_rgba(79,70,229,0.3),inset_0_-4px_0_rgba(0,0,0,0.1)]"
               onClick={() => markReceivedMutation.mutate()}
               disabled={markReceivedMutation.isPending}
               data-testid="button-mark-collected"
             >
               {markReceivedMutation.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin mx-auto" />
               ) : (
                 "I've collected it"
               )}
-            </Button>
+            </button>
           </div>
         )}
 
-        {status === "awaiting" && (() => {
-          const rawHandle = (order.merchantInstagramHandle || "").replace(/^@/, "");
-          return (
-            <div
-              className="p-5 rounded-2xl bg-[#4ECCA3]/5 border border-[#4ECCA3]/30"
-              data-testid="card-post-story"
-            >
-              <div className="flex items-start gap-4 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-[#4ECCA3]/15 flex items-center justify-center flex-shrink-0">
-                  <Instagram className="w-5 h-5 text-[#4ECCA3]" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-gray-900">
-                    Post a Story to unlock your next discount
-                  </h3>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Tag {rawHandle ? `@${rawHandle}` : "the brand"} in a public Story to unlock more discounts from your favourite stores.
-                  </p>
-                </div>
+        {status === "awaiting" && (
+          <div className="creator-card story-bg-gradient p-6 text-white text-center relative overflow-hidden" data-testid="card-post-story">
+            <div className="absolute top-0 right-0 p-4 opacity-20 transform translate-x-4 -translate-y-4 pointer-events-none">
+              <Instagram className="w-32 h-32" />
+            </div>
+
+            <div className="relative z-10 flex flex-col items-center">
+              <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-[#4ECCA3] shadow-lg mb-4">
+                <Instagram className="w-8 h-8" />
               </div>
-              {rawHandle && (
+              <h2 className="text-2xl font-black mb-2 leading-tight">
+                Post your Story,<br />keep your discount.
+              </h2>
+              <p className="text-[#E6F8F0] font-medium text-sm mb-6 max-w-[260px]">
+                Tag {rawHandle ? `@${rawHandle}` : "the brand"} in a public Story to unlock more discounts from your favourite stores.
+              </p>
+
+              {rawHandle ? (
                 <a
                   href={`https://instagram.com/${rawHandle}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-white border border-gray-100 hover-elevate active-elevate-2"
+                  className="tactile-btn bg-white text-[#4ECCA3] w-full py-4 text-lg shadow-[0_4px_12px_rgba(0,0,0,0.1),inset_0_-4px_0_rgba(240,240,240,1)] text-center"
                   data-testid="link-merchant-handle"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Instagram className="w-4 h-4 text-[#4ECCA3] flex-shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-xs text-gray-400">Tag this account</p>
-                      <p className="text-sm font-semibold text-gray-900 truncate" data-testid="text-merchant-handle">
-                        @{rawHandle}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-xs text-[#4ECCA3] font-medium flex-shrink-0">Open</span>
+                  Open Instagram
                 </a>
+              ) : (
+                <span className="tactile-btn bg-white text-[#4ECCA3] w-full py-4 text-lg shadow-[0_4px_12px_rgba(0,0,0,0.1),inset_0_-4px_0_rgba(240,240,240,1)] text-center">
+                  Post Story Now
+                </span>
               )}
-              <p className="text-xs text-gray-400 mt-3">
-                Public Stories only — Close Friends won't count. We confirm within a few hours.
-              </p>
+
+              <div className="mt-4 flex items-center gap-1.5 text-[#E6F8F0] text-xs font-medium bg-black/10 px-3 py-1.5 rounded-full">
+                <ShieldCheck className="w-4 h-4" />
+                <span>Public Stories only — Close Friends won't count</span>
+              </div>
             </div>
-          );
-        })()}
+          </div>
+        )}
 
         {(status === "story_received" || status === "awaiting_review") && (
-          <div className="p-5 rounded-2xl bg-blue-50 border border-blue-200">
+          <div className="creator-card p-5 bg-blue-50 border border-blue-200">
             <div className="flex items-start gap-4">
               <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
                 <Clock className="w-5 h-5 text-blue-600" />
               </div>
               <div>
-                <h3 className="font-bold text-blue-900" data-testid="text-awaiting-review-heading">
+                <h3 className="font-black text-blue-900 text-base" data-testid="text-awaiting-review-heading">
                   Story received — confirming shortly
                 </h3>
                 <p className="text-sm text-blue-700 mt-1" data-testid="text-awaiting-review-body">
@@ -318,10 +270,7 @@ export default function OrderDetail() {
         )}
 
         {status === "quick_verified" && (
-          <div
-            className="flex items-center gap-2 px-1"
-            data-testid="card-quick-verified"
-          >
+          <div className="flex items-center gap-2 px-1" data-testid="card-quick-verified">
             <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
             <p className="text-sm text-gray-600" data-testid="text-quick-verified-heading">
               Story confirmed
@@ -330,17 +279,17 @@ export default function OrderDetail() {
         )}
 
         {status === "verified" && (
-          <div className="p-5 rounded-2xl bg-green-50 border border-green-200">
+          <div className="creator-card p-5 bg-[#E6F8F0] border border-[#A8F0D1]">
             <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
-                <CheckCircle className="w-5 h-5 text-green-600" />
+              <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center flex-shrink-0">
+                <CheckCircle className="w-5 h-5 text-[#1A996E]" />
               </div>
               <div>
-                <h3 className="font-bold text-green-900">
+                <h3 className="font-black text-[#0E5C42] text-base">
                   You saved ${Number(order.discountAmount).toFixed(2)}!
                 </h3>
-                <p className="text-sm text-green-700 mt-1">
-                  Your story was verified and your discount is confirmed
+                <p className="text-sm text-[#1A996E] mt-1">
+                  Your Story was verified and your discount is confirmed
                 </p>
               </div>
             </div>
@@ -348,13 +297,13 @@ export default function OrderDetail() {
         )}
 
         {(status === "not_public" || status === "taken_down_early") && (
-          <div className="p-5 rounded-2xl bg-orange-50 border border-orange-200" data-testid={`card-${status}`}>
+          <div className="creator-card p-5 bg-orange-50 border border-orange-200" data-testid={`card-${status}`}>
             <div className="flex items-start gap-4 mb-4">
               <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
                 <Camera className="w-5 h-5 text-orange-600" />
               </div>
               <div>
-                <h3 className="font-bold text-orange-900" data-testid={`text-${status}-heading`}>
+                <h3 className="font-black text-orange-900 text-base" data-testid={`text-${status}-heading`}>
                   {status === "not_public"
                     ? "We couldn't see your Story"
                     : "Your Story came down too early"}
@@ -366,10 +315,10 @@ export default function OrderDetail() {
                 </p>
               </div>
             </div>
-            <div className="bg-orange-100/60 rounded-xl p-4 space-y-2">
+            <div className="bg-orange-100/60 rounded-2xl p-4 space-y-2">
               <div className="flex items-center gap-2 text-sm text-orange-800">
                 <Instagram className="w-4 h-4" />
-                <span className="font-semibold">How to repost:</span>
+                <span className="font-bold">How to repost:</span>
               </div>
               <ol className="text-sm text-orange-800 space-y-1.5 ml-6 list-decimal">
                 <li>Open Instagram and create a new Story (public, not Close Friends)</li>
@@ -386,7 +335,7 @@ export default function OrderDetail() {
               <AlertDialogTrigger asChild>
                 <Button
                   variant="outline"
-                  className="w-full"
+                  className="w-full rounded-full h-12 text-sm font-bold"
                   disabled={markReceivedMutation.isPending}
                   data-testid="button-mark-received"
                 >
@@ -421,41 +370,74 @@ export default function OrderDetail() {
           </div>
         )}
 
-        <div className="p-5 rounded-2xl bg-gray-50 border border-gray-100">
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <p className="text-sm text-gray-400">Order</p>
-              <p className="text-lg font-bold text-gray-900" data-testid="text-order-id">
-                #{order.shopifyOrderId.slice(-6)}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-400">Your discount</p>
-              <p className="text-lg font-bold text-green-700" data-testid="text-discount">
-                -${Number(order.discountAmount).toFixed(2)}
-              </p>
-              {percentLabel && (
-                <p className="text-xs text-green-700/80 mt-0.5" data-testid="text-discount-percent">
-                  {percentLabel}
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-400">Order total</span>
-            <span className="font-semibold text-gray-900" data-testid="text-order-total">
-              ${Number(order.orderTotal).toFixed(2)}
-            </span>
-          </div>
-        </div>
-
+        {/* PRODUCTS */}
         {lineItems.length > 0 && (
-          <div className="p-5 rounded-2xl bg-gray-50 border border-gray-100" data-testid="card-items">
-            <h2 className="font-bold text-gray-900 mb-4">Items</h2>
-            <div className="space-y-3">
-              {lineItems.map((item, index) => (
-                <LineItemRow key={`${lineItemDisplayName(item)}-${index}`} item={item} />
-              ))}
+          <div className="creator-card p-5" data-testid="card-items">
+            <div className="flex justify-between items-end mb-4">
+              <h3 className="font-black text-lg text-gray-900">The Goods</h3>
+              <span className="text-sm font-bold text-gray-400">{lineItems.length} item{lineItems.length === 1 ? "" : "s"}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {lineItems.map((item, i) => {
+                const name = lineItemDisplayName(item);
+                const productUrl =
+                  typeof item.productUrl === "string" && /^https?:\/\//i.test(item.productUrl)
+                    ? item.productUrl
+                    : null;
+                const card = (
+                  <div className="relative rounded-2xl overflow-hidden bg-gray-100 aspect-[4/5]">
+                    {item.imageUrl ? (
+                      <img
+                        src={item.imageUrl}
+                        alt={name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+                        <ShoppingBag className="w-8 h-8 text-gray-300" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                    <div className="absolute bottom-3 left-3 right-3">
+                      <p
+                        className="text-white font-bold text-sm leading-tight line-clamp-2 mb-1"
+                        data-testid={`text-line-item-name-${name}`}
+                      >
+                        {name}
+                      </p>
+                      {item.quantity > 1 && (
+                        <p
+                          className="text-white/80 text-xs font-medium"
+                          data-testid={`text-line-item-qty-${name}`}
+                        >
+                          Qty: {item.quantity}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+                if (productUrl) {
+                  return (
+                    <a
+                      key={`${name}-${i}`}
+                      href={productUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-testid={`link-line-item-${name}`}
+                    >
+                      {card}
+                    </a>
+                  );
+                }
+                return (
+                  <div key={`${name}-${i}`} data-testid={`row-line-item-${name}`}>
+                    {card}
+                  </div>
+                );
+              })}
             </div>
             <p className="text-xs text-gray-400 mt-4">
               Quantity shown reflects items discounted under your tier.
@@ -463,51 +445,78 @@ export default function OrderDetail() {
           </div>
         )}
 
-        <div className="p-5 rounded-2xl bg-gray-50 border border-gray-100">
-          <h2 className="font-bold text-gray-900 mb-4">Order Progress</h2>
-          <div className="space-y-4">
+        {/* SAVINGS SUMMARY */}
+        <div className="creator-card p-5 bg-gray-900 text-white">
+          <h3 className="font-black text-lg mb-4">The Math</h3>
+
+          <div className="space-y-3 mb-5 border-b border-gray-800 pb-5">
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-400 font-medium">Subtotal</span>
+              <span className="font-bold" data-testid="text-order-total">
+                ${Number(order.orderTotal).toFixed(2)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center text-sm gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-[#A8F0D1] font-bold">Spiral Discount</span>
+                {percentLabel && (
+                  <span
+                    className="bg-[#4ECCA3]/20 text-[#A8F0D1] text-[10px] px-2 py-0.5 rounded-full font-black uppercase whitespace-nowrap"
+                    data-testid="text-discount-percent"
+                  >
+                    {percentLabel}
+                  </span>
+                )}
+              </div>
+              <span className="font-bold text-[#A8F0D1]" data-testid="text-discount">
+                -${Number(order.discountAmount).toFixed(2)}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-gray-400 font-medium">Total Paid</span>
+            <span className="text-2xl font-black">
+              ${(Number(order.orderTotal) - Number(order.discountAmount)).toFixed(2)}
+            </span>
+          </div>
+        </div>
+
+        {/* JOURNEY */}
+        <div className="px-2">
+          <h3 className="font-black text-gray-900 mb-4 ml-1 text-lg">Journey</h3>
+          <div className="space-y-0 relative before:absolute before:inset-y-2 before:left-[15px] before:w-[2px] before:bg-gray-200">
             {steps.map((step, index) => {
               const isLast = index === steps.length - 1;
               const Icon = step.icon;
               const isVerifiedStep = step.id === "verified";
               const deliveredComplete = steps[2]?.complete ?? false;
-              // Only pulse when "Story verified" is the immediate next step:
-              // delivered already happened, Story isn't verified yet.
               const teaseGoal = isVerifiedStep && deliveredComplete && !step.complete;
-
               return (
-                <div key={step.id} className="flex gap-3">
-                  <div className="flex flex-col items-center">
-                    <div className="relative">
-                      {teaseGoal && (
-                        <span
-                          aria-hidden="true"
-                          className="absolute inset-0 rounded-full bg-[#4ECCA3]/30 animate-[ping_2.4s_cubic-bezier(0,0,0.2,1)_infinite]"
-                        />
-                      )}
-                      <div
-                        className={`relative w-8 h-8 rounded-full flex items-center justify-center ${
-                          step.complete || teaseGoal ? "bg-[#4ECCA3]/10" : "bg-gray-100"
-                        }`}
-                      >
-                        <Icon className={`w-4 h-4 ${step.complete ? "text-[#4ECCA3]" : "text-gray-300"}`} />
-                      </div>
-                    </div>
-                    {!isLast && (
-                      <div className={`w-0.5 h-6 mt-1 ${step.complete ? "bg-[#4ECCA3]/20" : "bg-gray-100"}`} />
+                <div key={step.id} className={`flex gap-4 relative z-10 ${isLast ? "" : "pb-6"}`}>
+                  <div className="relative shrink-0">
+                    {teaseGoal && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute inset-0 rounded-full bg-[#4ECCA3]/30 animate-[ping_2.4s_cubic-bezier(0,0,0.2,1)_infinite]"
+                      />
                     )}
+                    <div
+                      className={`relative w-8 h-8 rounded-full border-4 border-[#FCFCFB] flex items-center justify-center ${
+                        step.complete ? "bg-[#4ECCA3] text-white" : teaseGoal ? "bg-[#4ECCA3]/30 text-white" : "bg-gray-200 text-transparent"
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </div>
                   </div>
-                  <div className="flex-1 pb-2">
-                    <p className={`font-medium ${step.complete ? "text-gray-900" : "text-gray-300"}`}>
-                      {step.label}
-                    </p>
+                  <div className={`pt-1 ${step.complete ? "" : "opacity-50"}`}>
+                    <p className="font-bold text-gray-900 text-sm">{step.label}</p>
                   </div>
                 </div>
               );
             })}
           </div>
         </div>
-
       </main>
     </div>
   );

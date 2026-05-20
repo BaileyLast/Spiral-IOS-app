@@ -42,25 +42,24 @@ function BottomNav() {
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 safe-bottom z-50">
-      <div className="flex items-center justify-around h-16 max-w-md mx-auto">
+    <nav className="fixed bottom-0 left-0 right-0 safe-bottom z-50 px-4 pb-3">
+      <div className="max-w-md mx-auto bg-white/90 backdrop-blur-md rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.08),0_2px_8px_rgba(0,0,0,0.04)] border border-white/60 flex items-center justify-around h-16 px-2">
         {navItems.map((item) => {
           const active = isActive(item.path);
           return (
             <Link key={item.path} href={item.path}>
               <button
-                className={`relative flex flex-col items-center justify-center w-20 h-full gap-1 transition-colors ${
-                  active 
-                    ? "text-[#4ECCA3]" 
+                className={`relative flex items-center gap-2 px-4 h-11 rounded-full transition-all ${
+                  active
+                    ? "bg-[#4ECCA3] text-white shadow-[0_4px_12px_rgba(78,204,163,0.3)]"
                     : "text-gray-400"
                 }`}
                 data-testid={`nav-${item.label.toLowerCase()}`}
               >
+                <item.icon className={`w-5 h-5 ${active ? "stroke-[2.5]" : "stroke-[2]"}`} />
                 {active && (
-                  <div className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-full bg-[#4ECCA3]" />
+                  <span className="text-sm font-bold">{item.label}</span>
                 )}
-                <item.icon className={`w-5 h-5 ${active ? "stroke-[2.5]" : "stroke-[1.5]"}`} />
-                <span className="text-xs font-medium">{item.label}</span>
               </button>
             </Link>
           );

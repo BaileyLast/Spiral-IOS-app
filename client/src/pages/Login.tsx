@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -8,7 +7,7 @@ import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, Loader2, ChevronDown, Check } from "lucide-react";
+import { Eye, EyeOff, Loader2, ChevronDown, Check, Sparkles } from "lucide-react";
 import { COUNTRIES, getCountryByCode, detectCountryFromLocale } from "@/lib/countries";
 const spiralLogoUrl = "/spiral-gradient-logo.png";
 
@@ -46,7 +45,7 @@ export default function Login() {
     },
     onSuccess: (data: AuthResponse) => {
       localStorage.setItem("spiral_customer", JSON.stringify(data));
-      
+
       if (mode === "signup") {
         setLocation("/verify-email");
       } else if (!data.emailVerified) {
@@ -76,8 +75,8 @@ export default function Login() {
       });
       return;
     }
-    authMutation.mutate({ 
-      email, 
+    authMutation.mutate({
+      email,
       password,
       ...(mode === "signup" && firstName.trim() && { firstName: firstName.trim() }),
       ...(mode === "signup" && lastName.trim() && { lastName: lastName.trim() }),
@@ -86,31 +85,40 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
-      <div className="flex-1 flex flex-col px-6 py-12 safe-top safe-bottom">
-        <div className="w-full max-w-sm mx-auto flex-1 flex flex-col justify-center">
-          <div className="text-center mb-10">
-            <img 
-              src={spiralLogoUrl} 
-              alt="Spiral" 
-              className="h-36 mx-auto mb-6 object-contain"
-              data-testid="img-spiral-logo"
-            />
-            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight mb-2">
-              {mode === "login" ? "Welcome back" : "Get started"}
+    <div className="min-h-screen bg-warm safe-top pb-12">
+      <main className="px-6 pt-8 space-y-6">
+        {/* HERO */}
+        <div className="creator-card story-bg-gradient p-8 text-white text-center relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-20 transform translate-x-4 -translate-y-4 pointer-events-none">
+            <Sparkles className="w-32 h-32" />
+          </div>
+          <div className="relative z-10 flex flex-col items-center">
+            <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-lg mb-5">
+              <img
+                src={spiralLogoUrl}
+                alt="Spiral"
+                className="h-14 w-14 object-contain"
+                data-testid="img-spiral-logo"
+              />
+            </div>
+            <h1 className="text-3xl font-black mb-2 leading-tight tracking-tight">
+              {mode === "login" ? "Welcome back" : "Earn instant discounts"}
             </h1>
-            <p className="text-gray-500">
-              {mode === "login" 
-                ? "Sign in to view your discounts" 
-                : "Create an account to start saving"}
+            <p className="text-[#E6F8F0] font-medium text-sm max-w-[260px]">
+              {mode === "login"
+                ? "Sign in to keep saving on every order"
+                : "Post a Story, tag the brand, save on every order"}
             </p>
           </div>
+        </div>
 
+        {/* FORM */}
+        <div className="creator-card p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === "signup" && (
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label htmlFor="firstName" className="text-gray-700 text-sm font-medium">
+                  <Label htmlFor="firstName" className="text-gray-700 text-sm font-bold">
                     First name
                   </Label>
                   <Input
@@ -119,12 +127,12 @@ export default function Login() {
                     placeholder="First"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
-                    className="h-14 rounded-2xl bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-[#4ECCA3] focus:ring-[#4ECCA3]/20"
+                    className="h-14 rounded-2xl bg-gray-50 border-0 text-gray-900 placeholder:text-gray-400 focus-visible:ring-2 focus-visible:ring-[#4ECCA3] focus-visible:ring-offset-0"
                     data-testid="input-firstname"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="lastName" className="text-gray-700 text-sm font-medium">
+                  <Label htmlFor="lastName" className="text-gray-700 text-sm font-bold">
                     Last name
                   </Label>
                   <Input
@@ -133,7 +141,7 @@ export default function Login() {
                     placeholder="Last"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
-                    className="h-14 rounded-2xl bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-[#4ECCA3] focus:ring-[#4ECCA3]/20"
+                    className="h-14 rounded-2xl bg-gray-50 border-0 text-gray-900 placeholder:text-gray-400 focus-visible:ring-2 focus-visible:ring-[#4ECCA3] focus-visible:ring-offset-0"
                     data-testid="input-lastname"
                   />
                 </div>
@@ -142,15 +150,15 @@ export default function Login() {
 
             {mode === "signup" && (
               <div className="space-y-2">
-                <Label className="text-gray-700 text-sm font-medium">Country</Label>
+                <Label className="text-gray-700 text-sm font-bold">Country</Label>
                 <Popover open={countryPickerOpen} onOpenChange={setCountryPickerOpen}>
                   <PopoverTrigger asChild>
                     <button
                       type="button"
-                      className="w-full h-14 px-4 rounded-2xl bg-gray-50 border border-gray-200 text-left flex items-center justify-between hover-elevate"
+                      className="w-full h-14 px-4 rounded-2xl bg-gray-50 border-0 text-left flex items-center justify-between hover-elevate"
                       data-testid="button-signup-country"
                     >
-                      <span className={selectedCountry ? "text-gray-900" : "text-gray-400"}>
+                      <span className={selectedCountry ? "text-gray-900 font-medium" : "text-gray-400"}>
                         {selectedCountry?.name || "Select country"}
                       </span>
                       <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
@@ -185,7 +193,7 @@ export default function Login() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-gray-700 text-sm font-medium">
+              <Label htmlFor="email" className="text-gray-700 text-sm font-bold">
                 Email
               </Label>
               <Input
@@ -194,13 +202,13 @@ export default function Login() {
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-14 rounded-2xl bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-[#4ECCA3] focus:ring-[#4ECCA3]/20"
+                className="h-14 rounded-2xl bg-gray-50 border-0 text-gray-900 placeholder:text-gray-400 focus-visible:ring-2 focus-visible:ring-[#4ECCA3] focus-visible:ring-offset-0"
                 data-testid="input-email"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-gray-700 text-sm font-medium">
+              <Label htmlFor="password" className="text-gray-700 text-sm font-bold">
                 Password
               </Label>
               <div className="relative">
@@ -210,7 +218,7 @@ export default function Login() {
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="h-14 rounded-2xl bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-[#4ECCA3] focus:ring-[#4ECCA3]/20 pr-14"
+                  className="h-14 rounded-2xl bg-gray-50 border-0 text-gray-900 placeholder:text-gray-400 focus-visible:ring-2 focus-visible:ring-[#4ECCA3] focus-visible:ring-offset-0 pr-14"
                   data-testid="input-password"
                 />
                 <button
@@ -224,43 +232,43 @@ export default function Login() {
               </div>
             </div>
 
-            <Button 
+            <button
               type="submit"
-              className="w-full h-14 text-base font-semibold rounded-2xl mt-6 text-white border-0"
-              style={{ background: 'linear-gradient(135deg, #A8F5E0, #4ECCA3, #2BAE88)' }}
+              className="tactile-btn w-full py-4 text-base mt-6"
               disabled={authMutation.isPending}
               data-testid="button-submit"
             >
               {authMutation.isPending ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-5 h-5 animate-spin mx-auto" />
               ) : mode === "login" ? (
                 "Sign In"
               ) : (
                 "Create Account"
               )}
-            </Button>
-          </form>
-
-          <div className="mt-8 text-center">
-            <button
-              type="button"
-              onClick={() => setMode(mode === "login" ? "signup" : "login")}
-              className="text-sm text-gray-500"
-              data-testid="button-toggle-mode"
-            >
-              {mode === "login" ? (
-                <>Don't have an account? <span className="text-[#4ECCA3] font-semibold">Sign up</span></>
-              ) : (
-                <>Already have an account? <span className="text-[#4ECCA3] font-semibold">Sign in</span></>
-              )}
             </button>
-          </div>
+          </form>
         </div>
 
-        <p className="text-xs text-gray-400 text-center mt-auto pt-8">
+        {/* MODE TOGGLE */}
+        <div className="text-center">
+          <button
+            type="button"
+            onClick={() => setMode(mode === "login" ? "signup" : "login")}
+            className="text-sm text-gray-500 font-medium"
+            data-testid="button-toggle-mode"
+          >
+            {mode === "login" ? (
+              <>Don't have an account? <span className="text-[#4ECCA3] font-bold">Sign up</span></>
+            ) : (
+              <>Already have an account? <span className="text-[#4ECCA3] font-bold">Sign in</span></>
+            )}
+          </button>
+        </div>
+
+        <p className="text-xs text-gray-400 text-center font-medium pt-4">
           By continuing, you agree to our Terms of Service and Privacy Policy
         </p>
-      </div>
+      </main>
     </div>
   );
 }

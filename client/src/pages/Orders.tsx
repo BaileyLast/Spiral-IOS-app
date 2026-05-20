@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { ShoppingBag, ChevronRight, Store, Lock } from "lucide-react";
+import { ShoppingBag, ChevronRight, Store, Lock, Instagram, CheckCircle2 } from "lucide-react";
 import type { Order } from "@shared/schema";
 
 export interface LineItem {
@@ -42,8 +42,6 @@ function getStatusLabel(order: Order) {
   if (order.verificationStatus === "awaiting_review") return "Confirming";
   if (order.verificationStatus === "story_detected") return "Story Received";
   if (order.status === "delivered") return "Story Needed";
-  // Use the raw Shopify shipment_status when present so the shopper sees
-  // honest progress regardless of how this merchant ships.
   if (order.status === "fulfilled") {
     switch (order.shopifyTrackingStatus) {
       case "ready_for_pickup":
@@ -70,134 +68,131 @@ function isCompleted(order: Order) {
   return status === "Verified" || status === "Confirmed";
 }
 
-// Visual treatment per status. Two design rules:
-// 1. Only "action-needed" states get a tinted pill (Story Needed = primary
-//    mint, Repost Story = orange). Everything else uses a neutral grey pill
-//    so colour noise stays low and the action-needed cards visually win.
-// 2. Every state still gets a coloured dot so the eye can scan state at a
-//    glance without reading text. Klarna/Apple-style.
-function getStatusBadgeStyle(status: string): { pill: string; dot: string } {
+// Tactile Creator status pill (image-card overlay). The "Story Needed" state
+// gets the loud mint pill so it visually wins; everything else stays calm.
+function statusPillClasses(status: string) {
   switch (status) {
     case "Verified":
     case "Confirmed":
-      return { pill: "bg-gray-50 text-gray-700", dot: "bg-emerald-500" };
-    case "Confirming":
+      return "bg-[#E6F8F0] text-[#1A996E]";
     case "Story Received":
-      return { pill: "bg-gray-50 text-gray-700", dot: "bg-blue-500" };
+    case "Confirming":
+      return "bg-blue-50 text-blue-600";
     case "Story Needed":
-      return { pill: "bg-primary/10 text-primary", dot: "bg-primary" };
+      return "bg-[#4ECCA3] text-white shadow-[0_2px_8px_rgba(78,204,163,0.3)]";
     case "Repost Story":
-      return { pill: "bg-orange-50 text-orange-700", dot: "bg-orange-500" };
-    case "Ready for pickup":
-      return { pill: "bg-gray-50 text-gray-700", dot: "bg-indigo-500" };
-    case "Out for delivery":
-    case "On the way":
-      return { pill: "bg-gray-50 text-gray-700", dot: "bg-sky-500" };
-    case "Delivery attempted":
-    case "Delivery issue":
-      return { pill: "bg-gray-50 text-gray-700", dot: "bg-orange-500" };
+      return "bg-orange-100 text-orange-700";
     default:
-      return { pill: "bg-gray-50 text-gray-600", dot: "bg-gray-400" };
+      return "bg-white/90 text-gray-700";
   }
 }
 
-function itemSummaryText(lineItems: LineItem[]) {
-  return lineItems
-    .map((item) => {
-      const name = lineItemDisplayName(item);
-      if (!name) return "";
-      const variant =
-        item.variantTitle && item.variantTitle !== "Default Title"
-          ? ` · ${item.variantTitle}`
-          : "";
-      const qty = item.quantity > 1 ? ` ×${item.quantity}` : "";
-      return `${name}${variant}${qty}`;
-    })
-    .filter((entry) => entry.length > 0)
-    .join(", ");
-}
-
-function StoreLogo({ src, name }: { src?: string | null; name?: string | null }) {
-  if (src) {
+function StoreBadgeImg({ src, name }: { src?: string | null; name?: string | null }) {
+  if (!src) {
     return (
-      <img
-        src={src}
-        alt={name || "Store"}
-        className="w-10 h-10 rounded-xl object-contain bg-gray-50 border border-gray-100 p-1 flex-shrink-0"
-        onError={(e) => {
-          (e.target as HTMLImageElement).style.display = "none";
-        }}
-      />
+      <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center">
+        <Store className="w-3 h-3 text-gray-400" />
+      </div>
     );
   }
   return (
-    <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
-      <Store className="w-5 h-5 text-gray-400" />
-    </div>
+    <img
+      src={src}
+      alt={name || "Store"}
+      className="w-6 h-6 rounded-full bg-white object-contain"
+      onError={(e) => {
+        (e.target as HTMLImageElement).style.display = "none";
+      }}
+    />
   );
 }
 
 export function OrderCard({ order, dimmed = false }: { order: Order; dimmed?: boolean }) {
   const status = getStatusLabel(order);
   const lineItems = parseLineItems(order.lineItems);
-  const summary = itemSummaryText(lineItems);
+  const firstItem = lineItems[0];
+  const itemName = firstItem ? lineItemDisplayName(firstItem) : "";
+  const heroImage = firstItem?.imageUrl || null;
 
   return (
     <Link href={`/orders/${order.id}`}>
       <div
-        className={`p-4 rounded-2xl border cursor-pointer hover-elevate transition-opacity ${dimmed ? "bg-gray-50 border-gray-100 opacity-60" : "bg-white border-gray-100"}`}
+        className={`creator-card overflow-hidden cursor-pointer ${dimmed ? "opacity-70 grayscale-[0.2]" : ""}`}
         data-testid={`card-order-${order.id}`}
       >
-        <div className="flex items-start gap-3">
-          <StoreLogo src={order.storeLogo} name={order.storeName} />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className={`font-semibold text-sm truncate ${dimmed ? "text-gray-400" : "text-gray-900"}`}>
-                  {order.storeName || `Order #${order.shopifyOrderId.slice(-6)}`}
-                </p>
-                {order.storeName && (
-                  <p className="text-xs text-gray-400">#{order.shopifyOrderId.slice(-6)}</p>
-                )}
-              </div>
-              {(() => {
-                const { pill, dot } = getStatusBadgeStyle(status);
-                return (
-                  <span
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 ${pill}`}
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
-                    {status}
-                  </span>
-                );
-              })()}
+        <div className="relative h-40 w-full overflow-hidden bg-gray-100">
+          {heroImage ? (
+            <img src={heroImage} className="w-full h-full object-cover" alt={itemName || "Order"} />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+              <ShoppingBag className="w-12 h-12 text-gray-300" />
             </div>
+          )}
 
-            {summary ? (
-              <p className={`text-sm mt-1.5 line-clamp-2 leading-snug ${dimmed ? "text-gray-300" : "text-gray-500"}`}>
-                {summary}
+          <div className="absolute top-4 left-4 flex gap-2">
+            <div className="glass-pill rounded-full p-1 pr-3 flex items-center gap-2 shadow-sm">
+              <StoreBadgeImg src={order.storeLogo} name={order.storeName} />
+              <span className="text-xs font-bold text-gray-900" data-testid={`text-store-name-${order.id}`}>
+                {order.storeName || `Order #${order.shopifyOrderId.slice(-6)}`}
+              </span>
+            </div>
+          </div>
+
+          <div className="absolute top-4 right-4">
+            <span
+              className={`px-3 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase ${statusPillClasses(status)}`}
+              data-testid={`status-order-${order.id}`}
+            >
+              {status}
+            </span>
+          </div>
+
+          <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 to-transparent" />
+
+          <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end text-white">
+            <div className="min-w-0">
+              {itemName && (
+                <p className="text-sm font-medium line-clamp-1 opacity-90">{itemName}</p>
+              )}
+              <p className="text-xs opacity-75 mt-0.5">#{order.shopifyOrderId.slice(-6)}</p>
+            </div>
+            <div className="text-right flex-shrink-0">
+              <p className="text-sm font-bold text-[#A8F0D1]">
+                -${Number(order.discountAmount).toFixed(2)}
               </p>
-            ) : null}
-
-            <div className="flex items-center justify-between mt-2">
-              <div className="flex items-center gap-2">
-                <p className="text-xs text-gray-400">
-                  {new Date(order.createdAt).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
-                </p>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className={`text-sm font-bold ${dimmed ? "text-green-600/60" : "text-green-700"}`}>
-                  -${Number(order.discountAmount).toFixed(2)}
-                </span>
-                <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
-              </div>
             </div>
           </div>
         </div>
+
+        {status === "Story Needed" && (
+          <div className="p-4 bg-white flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-full bg-[#E6F8F0] flex items-center justify-center text-[#4ECCA3] flex-shrink-0">
+                <Instagram className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-gray-900">Post a Story</p>
+                <p className="text-xs text-gray-500">to unlock your discount</p>
+              </div>
+            </div>
+            <span className="tactile-btn px-5 py-2.5 text-sm">Open</span>
+          </div>
+        )}
+
+        {(status === "Verified" || status === "Confirmed") && (
+          <div className="p-4 bg-white flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-[#1A996E] flex-shrink-0">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-gray-900">{status}</p>
+                <p className="text-xs text-gray-500">Discount unlocked</p>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-gray-300 flex-shrink-0" />
+          </div>
+        )}
       </div>
     </Link>
   );
@@ -210,7 +205,7 @@ export const MOCK_ACTIVE: Order[] = [
     storeLogo: "https://www.google.com/s2/favicons?domain=glossier.com&sz=64",
     shopifyOrderId: "479301",
     lineItems: JSON.stringify([
-      { name: "Cloud Paint", imageUrl: "https://images.unsplash.com/photo-1631730486572-226d1f595b68?w=120&h=120&fit=crop", quantity: 2 },
+      { name: "Cloud Paint", imageUrl: "https://images.unsplash.com/photo-1631730486572-226d1f595b68?w=400&h=400&fit=crop", quantity: 2 },
       { name: "Boy Brow", imageUrl: null, quantity: 1 },
     ]),
     discountAmount: "8.50",
@@ -235,7 +230,7 @@ export const MOCK_ACTIVE: Order[] = [
     storeLogo: "https://www.google.com/s2/favicons?domain=allbirds.com&sz=64",
     shopifyOrderId: "477842",
     lineItems: JSON.stringify([
-      { name: "Tree Dasher 2 — Blizzard / Size 9", imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=120&h=120&fit=crop", quantity: 1 },
+      { name: "Tree Dasher 2 — Blizzard / Size 9", imageUrl: "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=400&h=400&fit=crop", quantity: 1 },
     ]),
     discountAmount: "14.00",
     orderTotal: "110.00",
@@ -259,7 +254,7 @@ export const MOCK_ACTIVE: Order[] = [
     storeLogo: "https://www.google.com/s2/favicons?domain=skims.com&sz=64",
     shopifyOrderId: "475610",
     lineItems: JSON.stringify([
-      { name: "Soft Lounge Long Slip Dress — Cocoa / XS", imageUrl: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=120&h=120&fit=crop", quantity: 1 },
+      { name: "Soft Lounge Long Slip Dress — Cocoa / XS", imageUrl: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400&h=400&fit=crop", quantity: 1 },
     ]),
     discountAmount: "15.00",
     orderTotal: "98.00",
@@ -286,7 +281,7 @@ export const MOCK_HISTORY: Order[] = [
     storeLogo: "https://www.google.com/s2/favicons?domain=allbirds.com&sz=64",
     shopifyOrderId: "481923",
     lineItems: JSON.stringify([
-      { name: "Tree Runner Go — Natural White / Size 10", imageUrl: "https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?w=120&h=120&fit=crop", quantity: 1 },
+      { name: "Tree Runner Go — Natural White / Size 10", imageUrl: "https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?w=400&h=400&fit=crop", quantity: 1 },
     ]),
     discountAmount: "12.00",
     orderTotal: "95.00",
@@ -308,15 +303,8 @@ export const MOCK_HISTORY: Order[] = [
 
 function SkeletonCard() {
   return (
-    <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100 animate-pulse">
-      <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gray-200 flex-shrink-0" />
-        <div className="flex-1">
-          <div className="h-4 bg-gray-200 rounded w-28 mb-2" />
-          <div className="h-3 bg-gray-200 rounded w-48 mb-3" />
-          <div className="h-3 bg-gray-200 rounded w-20" />
-        </div>
-      </div>
+    <div className="creator-card overflow-hidden animate-pulse">
+      <div className="h-40 w-full bg-gray-100" />
     </div>
   );
 }
@@ -340,9 +328,6 @@ export default function Orders() {
   const historyOrders = orders.filter((o) => isCompleted(o));
   const hasRealOrders = orders.length > 0;
   const isSoftBanned = me?.accountStatus === "soft_banned";
-  // Mirrors server-side getOwedOrdersForCustomer exactly so banner count never disagrees
-  // with checkout: taken_down_early (final-fail debt) is owed regardless of delivery; quick
-  // states (pending / awaiting_review / not_public) only count once delivered.
   const owedCount = orders.filter((o) => {
     const v = o.verificationStatus;
     if (v === "taken_down_early") return true;
@@ -350,16 +335,28 @@ export default function Orders() {
     return false;
   }).length;
 
+  const inProgressCount = activeOrders.length;
+
   return (
-    <div className="min-h-screen safe-top bg-white">
-      <header className="px-6 pt-8 pb-6">
-        <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight" data-testid="text-page-title">
+    <div className="min-h-screen bg-warm safe-top pb-12">
+      <header className="px-6 pt-10 pb-6">
+        <h1
+          className="text-3xl font-black tracking-tight text-gray-900 mb-2"
+          data-testid="text-page-title"
+        >
           Your Discounts
         </h1>
-        <p className="text-gray-400 mt-1">Track your purchases and savings</p>
+        {hasRealOrders && inProgressCount > 0 && (
+          <div className="glass-pill inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white shadow-sm border border-gray-100">
+            <div className="w-2 h-2 rounded-full bg-[#4ECCA3] animate-pulse" />
+            <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">
+              {inProgressCount} in progress
+            </span>
+          </div>
+        )}
       </header>
 
-      <main className="px-6 pb-8 space-y-6">
+      <main className="px-6 space-y-8">
         {isSoftBanned && (
           <div
             className="p-4 rounded-2xl bg-orange-50 border border-orange-200 flex items-start gap-3"
@@ -382,59 +379,54 @@ export default function Orders() {
             </div>
           </div>
         )}
+
         {isLoading ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {[1, 2, 3].map((i) => <SkeletonCard key={i} />)}
           </div>
         ) : hasRealOrders ? (
           <>
             {activeOrders.length > 0 && (() => {
-              // When any active order is awaiting a Story, dim the rest so the
-              // action-needed cards visually win. If everything is in flight,
-              // every card stays full-strength.
               const hasStoryNeeded = activeOrders.some(
                 (o) => getStatusLabel(o) === "Story Needed",
               );
               return (
-                <section>
-                  <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider px-1 mb-3">Active</p>
-                  <div className="space-y-3">
-                    {activeOrders.map((order) => {
-                      const isStoryNeeded = getStatusLabel(order) === "Story Needed";
-                      return (
-                        <OrderCard
-                          key={order.id}
-                          order={order}
-                          dimmed={hasStoryNeeded && !isStoryNeeded}
-                        />
-                      );
-                    })}
-                  </div>
+                <section className="space-y-4">
+                  {activeOrders.map((order) => {
+                    const isStoryNeeded = getStatusLabel(order) === "Story Needed";
+                    return (
+                      <OrderCard
+                        key={order.id}
+                        order={order}
+                        dimmed={hasStoryNeeded && !isStoryNeeded}
+                      />
+                    );
+                  })}
                 </section>
               );
             })()}
 
             {activeOrders.length === 0 && historyOrders.length > 0 && (
               <section>
-                <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider px-1 mb-3">Active</p>
-                <div className="p-6 rounded-2xl bg-gray-50 border border-gray-100 text-center">
-                  <div className="w-12 h-12 rounded-2xl bg-white border border-gray-100 flex items-center justify-center mx-auto mb-3">
-                    <ShoppingBag className="w-6 h-6 text-gray-300" />
+                <div className="creator-card p-6 text-center">
+                  <div className="w-12 h-12 rounded-2xl bg-[#E6F8F0] flex items-center justify-center mx-auto mb-3">
+                    <ShoppingBag className="w-6 h-6 text-[#4ECCA3]" />
                   </div>
-                  <p className="text-sm font-semibold text-gray-500">No active orders</p>
-                  <p className="text-xs text-gray-400 mt-0.5">All your discounts have been confirmed</p>
+                  <p className="text-sm font-bold text-gray-900">All caught up</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Every discount is confirmed</p>
                 </div>
               </section>
             )}
 
             {historyOrders.length > 0 && (
-              <section>
-                <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider px-1 mb-3">History</p>
-                <div className="space-y-3">
-                  {historyOrders.map((order) => (
-                    <OrderCard key={order.id} order={order} dimmed />
-                  ))}
+              <section className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Past</h2>
+                  <div className="h-px bg-gray-200 flex-1" />
                 </div>
+                {historyOrders.map((order) => (
+                  <OrderCard key={order.id} order={order} dimmed />
+                ))}
               </section>
             )}
           </>
@@ -445,44 +437,41 @@ export default function Orders() {
                 (o) => getStatusLabel(o) === "Story Needed",
               );
               return (
-                <section>
-                  <p className="text-xs text-gray-300 font-semibold uppercase tracking-wider px-1 mb-3">
+                <section className="space-y-4">
+                  <p className="text-xs text-gray-300 font-bold uppercase tracking-widest px-1">
                     Active — preview
                   </p>
-                  <div className="space-y-3">
-                    {MOCK_ACTIVE.map((mock) => {
-                      const isStoryNeeded = getStatusLabel(mock) === "Story Needed";
-                      return (
-                        <OrderCard
-                          key={mock.id}
-                          order={mock}
-                          dimmed={mockHasStoryNeeded && !isStoryNeeded}
-                        />
-                      );
-                    })}
-                  </div>
+                  {MOCK_ACTIVE.map((mock) => {
+                    const isStoryNeeded = getStatusLabel(mock) === "Story Needed";
+                    return (
+                      <OrderCard
+                        key={mock.id}
+                        order={mock}
+                        dimmed={mockHasStoryNeeded && !isStoryNeeded}
+                      />
+                    );
+                  })}
                 </section>
               );
             })()}
 
-            <section>
-              <p className="text-xs text-gray-300 font-semibold uppercase tracking-wider px-1 mb-3">
-                History — preview
-              </p>
-              <div className="space-y-3">
-                {MOCK_HISTORY.map((mock) => (
-                  <OrderCard key={mock.id} order={mock} dimmed />
-                ))}
+            <section className="space-y-4">
+              <div className="flex items-center gap-4">
+                <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Past — preview</h2>
+                <div className="h-px bg-gray-200 flex-1" />
               </div>
+              {MOCK_HISTORY.map((mock) => (
+                <OrderCard key={mock.id} order={mock} dimmed />
+              ))}
             </section>
           </>
         ) : (
-          <div className="p-8 rounded-2xl bg-gray-50 border border-gray-100 text-center" data-testid="empty-orders">
-            <div className="w-16 h-16 rounded-2xl bg-white border border-gray-100 flex items-center justify-center mx-auto mb-4">
-              <ShoppingBag className="w-8 h-8 text-gray-300" />
+          <div className="creator-card p-8 text-center" data-testid="empty-orders">
+            <div className="w-16 h-16 rounded-2xl bg-[#E6F8F0] flex items-center justify-center mx-auto mb-4">
+              <ShoppingBag className="w-8 h-8 text-[#4ECCA3]" />
             </div>
-            <h3 className="font-bold text-gray-900 mb-2">No orders yet</h3>
-            <p className="text-sm text-gray-400">
+            <h3 className="font-black text-gray-900 mb-2 text-lg">No orders yet</h3>
+            <p className="text-sm text-gray-500">
               When you make a purchase with Spiral, it will appear here
             </p>
           </div>

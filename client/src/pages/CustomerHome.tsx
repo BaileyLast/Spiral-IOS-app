@@ -1,41 +1,9 @@
-import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { ChevronRight, Instagram, Lock, CheckCircle, Tag } from "lucide-react";
+import { ChevronRight, Instagram, Lock, CheckCircle2 } from "lucide-react";
 import type { Order } from "@shared/schema";
 import HomeInstagramConnect from "@/components/HomeInstagramConnect";
-
-function getStatusLabel(order: Order) {
-  if (order.verificationStatus === "verified") return "Verified";
-  if (order.verificationStatus === "quick_verified") return "Confirmed";
-  if (order.verificationStatus === "not_public") return "Repost Story";
-  if (order.verificationStatus === "taken_down_early") return "Repost Story";
-  if (order.verificationStatus === "awaiting_review") return "Confirming";
-  if (order.verificationStatus === "story_detected") return "Story Received";
-  if (order.status === "delivered") return "Story Needed";
-  if (order.status === "fulfilled") return "On the way";
-  return "Ordered";
-}
-
-function getStatusBadge(status: string) {
-  switch (status) {
-    case "Verified":
-    case "Confirmed":
-      return "bg-green-50 text-green-700 border border-green-200";
-    case "Confirming":
-    case "Story Received":
-      return "bg-blue-50 text-blue-700 border border-blue-200";
-    case "Story Needed":
-      return "bg-amber-50 text-amber-700 border border-amber-200";
-    case "Repost Story":
-      return "bg-orange-50 text-orange-700 border border-orange-200";
-    case "On the way":
-      return "bg-blue-50 text-blue-700 border border-blue-200";
-    default:
-      return "bg-gray-100 text-gray-600 border border-gray-200";
-  }
-}
+import { OrderCard } from "@/pages/Orders";
 
 interface CustomerProfile {
   id: string;
@@ -92,156 +60,180 @@ export default function CustomerHome() {
     shopifyOrderId: o.shopifyOrderId,
   }));
 
-  return (
-    <div className="min-h-screen safe-top bg-white">
-      <main className="px-6 pt-14 pb-8 space-y-6">
-        {profile && !profile.instagramHandle && <HomeInstagramConnect />}
+  const greetingName = profile?.name?.split(" ")[0] || profile?.instagramHandle;
+  const hasStats =
+    !!stats && (stats.totalSaved > 0 || stats.ordersCompleted > 0 || stats.discountPercent > 0);
+  const discountText =
+    stats && stats.discountPercent > 0
+      ? stats.discountPercent % 1 === 0
+        ? stats.discountPercent.toFixed(0)
+        : stats.discountPercent.toFixed(1)
+      : null;
 
+  return (
+    <div className="min-h-screen bg-warm safe-top pb-12">
+      <header className="px-6 pt-10 pb-6">
+        <h1
+          className="text-3xl font-black tracking-tight text-gray-900 mb-2"
+          data-testid="text-page-title"
+        >
+          {greetingName ? `Hi, ${greetingName}` : "Welcome"}
+        </h1>
         {profile?.instagramHandle && (
-          <div className="text-center" data-testid="card-instagram-profile">
-            <Avatar className="w-20 h-20 mx-auto border-2 border-gray-100">
-              <AvatarImage
-                src="/api/customer/instagram-avatar"
-                alt={profile.instagramHandle}
-              />
-              <AvatarFallback className="text-white" style={{ background: 'linear-gradient(135deg, #A8F5E0, #4ECCA3, #2BAE88)' }}>
-                <Instagram className="w-8 h-8" />
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex items-center justify-center gap-1.5 mt-3">
-              <span className="font-semibold text-gray-900" data-testid="text-instagram-handle">
-                @{profile.instagramHandle}
-              </span>
-              <CheckCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-            </div>
+          <div
+            className="glass-pill inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white shadow-sm border border-gray-100"
+            data-testid="card-instagram-profile"
+          >
+            <Instagram className="w-3.5 h-3.5 text-[#4ECCA3]" />
+            <span
+              className="text-xs font-bold text-gray-700"
+              data-testid="text-instagram-handle"
+            >
+              @{profile.instagramHandle}
+            </span>
+            <CheckCircle2 className="w-3.5 h-3.5 text-[#1A996E]" />
             {profile.followerCount ? (
-              <p className="text-sm text-gray-400 mt-1 flex items-center justify-center gap-1" data-testid="text-follower-count">
-                <Instagram className="w-3 h-3" />
-                {formatFollowerCount(profile.followerCount)} followers
-              </p>
+              <span
+                className="text-xs font-bold text-gray-500"
+                data-testid="text-follower-count"
+              >
+                · {formatFollowerCount(profile.followerCount)}
+              </span>
             ) : null}
           </div>
         )}
+      </header>
 
-        {stats && stats.discountPercent > 0 && (
-          <div className="text-center py-2" data-testid="card-discount">
-            <p className="text-gray-400 text-sm mb-1">Your Spiral discount</p>
-            <p className="text-6xl font-extrabold tracking-tight text-brand-gradient" data-testid="text-discount-percent">
-              {stats.discountPercent % 1 === 0 ? stats.discountPercent.toFixed(0) : stats.discountPercent.toFixed(1)}%
-            </p>
-            <p className="text-gray-400 text-sm mt-1">off every order</p>
-          </div>
-        )}
+      <main className="px-6 space-y-6">
+        {profile && !profile.instagramHandle && <HomeInstagramConnect />}
 
-        {stats?.totalSaved && stats.totalSaved > 0 ? (
-          <div className="p-5 rounded-2xl bg-gray-50 border border-gray-100">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-green-50 border border-green-100 flex items-center justify-center flex-shrink-0">
-                <Tag className="w-5 h-5 text-green-600" />
+        {hasStats && (
+          <div
+            className="creator-card p-6 bg-gray-900 text-white"
+            data-testid="card-stats"
+          >
+            <h3 className="font-black text-lg mb-5">Your Spiral</h3>
+
+            {discountText && (
+              <div
+                className="mb-5 pb-5 border-b border-gray-800"
+                data-testid="card-discount"
+              >
+                <p className="text-xs uppercase tracking-widest text-gray-400 font-bold mb-1">
+                  Discount on every order
+                </p>
+                <p
+                  className="text-5xl font-black tracking-tight text-[#A8F0D1]"
+                  data-testid="text-discount-percent"
+                >
+                  {discountText}%
+                </p>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-gray-500">You've saved</p>
-                <p className="text-xl font-bold text-green-700" data-testid="text-total-saved">
-                  ${stats.totalSaved.toFixed(2)}
+            )}
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-widest text-gray-400 font-bold mb-1">
+                  Saved
+                </p>
+                <p
+                  className="text-2xl font-black text-[#A8F0D1]"
+                  data-testid="text-total-saved"
+                >
+                  ${stats!.totalSaved.toFixed(2)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-widest text-gray-400 font-bold mb-1">
+                  Orders
+                </p>
+                <p
+                  className="text-2xl font-black text-white"
+                  data-testid="text-orders-completed"
+                >
+                  {stats!.ordersCompleted}
                 </p>
               </div>
             </div>
           </div>
-        ) : null}
+        )}
 
         {isSoftBanned && (
-          <div className="p-5 rounded-2xl bg-orange-50 border border-orange-200" data-testid="banner-soft-banned">
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
-                <Lock className="w-5 h-5 text-orange-600" />
+          <div
+            className="creator-card story-bg-gradient p-6 text-white relative overflow-hidden"
+            data-testid="banner-soft-banned"
+          >
+            <div className="absolute top-0 right-0 p-4 opacity-20 transform translate-x-4 -translate-y-4 pointer-events-none">
+              <Instagram className="w-32 h-32" />
+            </div>
+
+            <div className="relative z-10">
+              <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-[#4ECCA3] shadow-lg mb-4">
+                <Lock className="w-7 h-7" />
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-orange-900" data-testid="text-soft-ban-heading">
-                  Your next discount is on hold
-                </p>
-                <p className="text-sm text-orange-700 mt-1" data-testid="text-soft-ban-body">
-                  {profile?.softBannedReason === "inherited_from_instagram"
-                    ? "Your Instagram account owes a Story from a previous Spiral order. Post that Story tagging the brand to unlock your next Spiral discount."
-                    : pendingCount > 1
-                      ? `Post a Story tagging the brand for your ${pendingCount} pending orders to unlock your next Spiral discount.`
-                      : "Post a Story tagging the brand for your pending order to unlock your next Spiral discount."}
-                </p>
-                {pendingOrders.length > 0 && (
-                  <div className="mt-3 space-y-1.5">
-                    {pendingOrders.map((o) => (
-                      <Link key={o.id} href={`/orders/${o.id}`}>
-                        <div
-                          className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white border border-orange-200 hover-elevate cursor-pointer"
-                          data-testid={`link-pending-order-${o.id}`}
-                        >
-                          <span className="text-sm font-medium text-orange-900 truncate">
-                            {o.storeName || `Order #${o.shopifyOrderId.slice(-6)}`}
-                          </span>
-                          <ChevronRight className="w-4 h-4 text-orange-500 flex-shrink-0" />
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <h2
+                className="text-xl font-black mb-2 leading-tight"
+                data-testid="text-soft-ban-heading"
+              >
+                Your next discount is on hold
+              </h2>
+              <p
+                className="text-[#E6F8F0] font-medium text-sm mb-5 max-w-[300px]"
+                data-testid="text-soft-ban-body"
+              >
+                {profile?.softBannedReason === "inherited_from_instagram"
+                  ? "Your Instagram account owes a Story from a previous Spiral order. Post that Story tagging the brand to unlock your next Spiral discount."
+                  : pendingCount > 1
+                    ? `Post a Story tagging the brand for your ${pendingCount} pending orders to unlock your next Spiral discount.`
+                    : "Post a Story tagging the brand for your pending order to unlock your next Spiral discount."}
+              </p>
+
+              {pendingOrders.length > 0 && (
+                <div className="space-y-2">
+                  {pendingOrders.map((o) => (
+                    <Link key={o.id} href={`/orders/${o.id}`}>
+                      <div
+                        className="glass-pill flex items-center justify-between gap-2 px-4 py-3 rounded-2xl bg-white/90 cursor-pointer hover-elevate"
+                        data-testid={`link-pending-order-${o.id}`}
+                      >
+                        <span className="text-sm font-bold text-gray-900 truncate">
+                          {o.storeName || `Order #${o.shopifyOrderId.slice(-6)}`}
+                        </span>
+                        <ChevronRight className="w-4 h-4 text-[#4ECCA3] flex-shrink-0" />
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
 
         {recentOrders.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">Recent Orders</h2>
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest">
+                Recent Orders
+              </h2>
               <Link href="/discounts">
-                <Button variant="ghost" size="sm" className="text-gray-400" data-testid="link-view-all-orders">
+                <button
+                  className="flex items-center gap-1 text-xs font-bold text-[#4ECCA3] hover-elevate rounded-full px-2 py-1"
+                  data-testid="link-view-all-orders"
+                >
                   View all
-                  <ChevronRight className="w-4 h-4 ml-1" />
-                </Button>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
               </Link>
             </div>
 
-            <div className="space-y-3">
-              {recentOrders.map((order) => {
-                const status = getStatusLabel(order);
-                return (
-                  <Link key={order.id} href={`/orders/${order.id}`}>
-                    <div className="p-4 rounded-2xl bg-white border border-gray-100 cursor-pointer hover-elevate" data-testid={`card-order-${order.id}`}>
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-gray-900 truncate">
-                            Order #{order.shopifyOrderId.slice(-6)}
-                          </p>
-                          <p className="text-sm text-gray-400 mt-0.5">
-                            {new Date(order.createdAt).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-bold text-green-700">
-                            -${Number(order.discountAmount).toFixed(2)}
-                          </span>
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusBadge(status)}`}>
-                            {status}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
+            <div className="space-y-4">
+              {recentOrders.map((order) => (
+                <OrderCard key={order.id} order={order} />
+              ))}
             </div>
-          </div>
+          </section>
         )}
       </main>
     </div>
-  );
-}
-
-function ShoppingBag({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
-      <line x1="3" y1="6" x2="21" y2="6" />
-      <path d="M16 10a4 4 0 0 1-8 0" />
-    </svg>
   );
 }

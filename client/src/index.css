@@ -35,7 +35,7 @@
   --chart-3: 161 70% 81%;
   --chart-4: 173 58% 39%;
   --chart-5: 214 80% 55%;
-  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: 'Outfit', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Menlo, monospace;
   --radius: .75rem;
@@ -264,5 +264,49 @@
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+
+  /* Tactile Creator surface */
+  .creator-card {
+    background-color: #FFFFFF;
+    border-radius: 28px;
+    box-shadow: 0px 12px 32px rgba(0, 0, 0, 0.04), 0px 2px 8px rgba(0, 0, 0, 0.02);
+    border: 1px solid rgba(0, 0, 0, 0.02);
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+  }
+  .creator-card:active {
+    transform: scale(0.98);
+  }
+
+  .tactile-btn {
+    border-radius: 9999px;
+    background-color: #4ECCA3;
+    color: white;
+    font-weight: 700;
+    box-shadow: 0px 4px 12px rgba(78, 204, 163, 0.3), inset 0px -4px 0px rgba(0, 0, 0, 0.1);
+    transition: all 0.1s ease;
+    cursor: pointer;
+  }
+  .tactile-btn:active {
+    transform: translateY(2px);
+    box-shadow: 0px 0px 0px rgba(78, 204, 163, 0.3), inset 0px 0px 0px rgba(0, 0, 0, 0.1);
+  }
+  .tactile-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .story-bg-gradient {
+    background: linear-gradient(135deg, #A8F0D1 0%, #4ECCA3 100%);
+  }
+
+  .glass-pill {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+  }
+
+  .bg-warm {
+    background-color: #FCFCFB;
   }
 }
