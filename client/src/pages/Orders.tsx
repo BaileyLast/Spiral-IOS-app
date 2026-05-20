@@ -172,7 +172,7 @@ export function OrderCard({ order, dimmed = false }: { order: Order; dimmed?: bo
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-bold text-gray-900">Post a Story</p>
-                <p className="text-xs text-gray-500">to unlock your discount</p>
+                <p className="text-xs text-gray-500">to unlock your next discount</p>
               </div>
             </div>
             <span className="tactile-btn px-5 py-2.5 text-sm">Open</span>
