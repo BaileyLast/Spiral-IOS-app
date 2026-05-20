@@ -4717,19 +4717,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
           const result = await probeStorefront(b.storefrontUrl);
           const now = Date.now();
-          if (result === "unknown") {
-            // Touch lastProbedAt but don't change counters.
-            brandReachability.set(b.id, { ...prev, lastProbedAt: now });
-            continue;
-          }
-          if (result === "ok") {
-            if (prev.unreachable) {
+          if (result !== "dead") {
+            // Strict consecutive-probe semantics: any non-dead outcome
+            // (ok OR unknown) breaks the failure streak. This ensures a
+            // brand can only be hidden after 3 *consecutive* hard
+            // failures with no transient blip in between — a flaky
+            // network or a 5xx mid-streak resets the count to 0.
+            const recovered = result === "ok" && prev.unreachable;
+            if (recovered) {
               console.info(`[brands] recovered: ${b.id} (${b.storeName})`);
             }
             brandReachability.set(b.id, {
               consecutiveFailures: 0,
               lastProbedAt: now,
-              unreachable: false,
+              // Only flip back to reachable on a confirmed "ok". An
+              // "unknown" resets the streak but leaves an already-hidden
+              // brand hidden until we get a real success.
+              unreachable: result === "ok" ? false : prev.unreachable,
             });
             continue;
           }
