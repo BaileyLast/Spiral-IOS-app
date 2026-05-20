@@ -99,7 +99,7 @@ function AppContent() {
   
   return (
     <div className="min-h-screen bg-white">
-      {!hideBottomNav && <ConnectInstagramHeaderCTA />}
+      {!hideBottomNav && location !== "/discounts" && <ConnectInstagramHeaderCTA />}
       <main className={hideBottomNav ? "" : "pb-20"}>
         <Router />
       </main>
