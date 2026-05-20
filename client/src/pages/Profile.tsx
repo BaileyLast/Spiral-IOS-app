@@ -184,6 +184,33 @@ export default function Profile() {
           </div>
         </div>
 
+        {/* Start saving CTA — IG connected but no orders yet */}
+        {isInstagramConnected && ordersCompleted === 0 && (
+          <div
+            className="creator-card story-bg-gradient p-6 text-white text-center relative overflow-hidden"
+            data-testid="card-start-saving"
+          >
+            <div className="relative z-10 flex flex-col items-center">
+              <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-[#4ECCA3] shadow-lg mb-4">
+                <ShoppingBag className="w-8 h-8" />
+              </div>
+              <h3 className="text-2xl font-black mb-2 leading-tight">
+                Start saving today
+              </h3>
+              <p className="text-[#E6F8F0] font-medium text-sm mb-6 max-w-[260px]">
+                Browse brands and unlock your discount at checkout.
+              </p>
+              <button
+                onClick={() => setLocation("/marketplace")}
+                className="tactile-btn bg-white text-[#4ECCA3] w-full py-4 text-lg shadow-[0_4px_12px_rgba(0,0,0,0.1),inset_0_-4px_0_rgba(240,240,240,1)]"
+                data-testid="button-start-saving"
+              >
+                Browse brands
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Instagram connection */}
         {isInstagramConnected ? (
           <div className="creator-card p-5 bg-[#E6F8F0]" data-testid="card-instagram-connected">
