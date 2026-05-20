@@ -1,6 +1,5 @@
 import { Link, useLocation } from "wouter";
-
-const spiralLogoUrl = "/spiral-gradient-logo.png";
+import spiralLogoUrl from "@assets/Spiral_logo_(1)_1779303755271.png";
 
 export default function Splash() {
   const [, setLocation] = useLocation();
