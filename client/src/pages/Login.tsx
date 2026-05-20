@@ -100,7 +100,7 @@ export default function Login() {
           </h1>
           <p className="text-gray-500 font-medium text-sm max-w-[260px]">
             {mode === "login"
-              ? "Sign in to keep saving on every order"
+              ? "Sign in to view your Spiral account"
               : "Post a Story, tag the brand, save on every order"}
           </p>
         </div>
