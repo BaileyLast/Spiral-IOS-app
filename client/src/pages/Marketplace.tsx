@@ -598,13 +598,13 @@ function BrandCard({ brand, onOpenBrand, personalMode, personalDiscount, shopper
                   )}
                 </div>
                 <p
-                  className="mt-2 text-xs font-bold text-gray-900 line-clamp-2 leading-tight"
+                  className="mt-2 pr-2 text-xs font-bold text-gray-900 line-clamp-2 leading-tight"
                   data-testid={`text-product-title-${p.id}`}
                 >
                   {p.title}
                 </p>
                 {showDiscount ? (
-                  <div className="mt-1 flex items-baseline gap-1.5">
+                  <div className="mt-1 pr-2 flex items-baseline gap-1.5">
                     <span
                       className="text-sm font-black text-[#1A996E]"
                       data-testid={`text-product-discounted-price-${p.id}`}
@@ -621,7 +621,7 @@ function BrandCard({ brand, onOpenBrand, personalMode, personalDiscount, shopper
                 ) : (
                   formatted && (
                     <p
-                      className="text-xs text-gray-600 font-bold mt-0.5"
+                      className="text-xs text-gray-600 font-bold mt-0.5 pr-2"
                       data-testid={`text-product-price-${p.id}`}
                     >
                       {formatted}
