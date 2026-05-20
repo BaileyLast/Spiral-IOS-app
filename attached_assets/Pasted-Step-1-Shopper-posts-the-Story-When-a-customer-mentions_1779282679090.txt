@@ -1,0 +1,40 @@
+Step 1 — Shopper posts the Story
+
+When a customer mentions the merchant's Instagram account in their Story, Meta fires a webhook to your server (POST /api/instagram/webhook). That payload contains a "story_mention" event with the sender's ID and a media attachment object.
+
+Step 2 — Grabbing the actual image
+
+Meta's webhook sometimes includes a direct image URL in the payload (storyAttachment.payload.url), but often doesn't. So the system has a two-shot approach:
+
+Try 1 — use the URL directly from the payload if present
+Try 2 — use the media ID from the payload to make a separate call to Meta's Graph API: GET /{mediaId}?fields=media_url to fetch the ephemeral URL
+Meta's image URLs expire within hours. So the moment a URL is obtained, it's immediately downloaded and uploaded to your AWS S3 bucket under the key story-images/{verificationId}-{timestamp}.jpg. That becomes the permanent URL.
+
+Step 3 — What happens when the image can't be grabbed immediately
+
+If neither approach produces a URL right away (Meta is slow, story very new), the system schedules 6 automatic retries spaced out over ~68 minutes: 30s → 2min → 5min → 10min → 20min → 30min. Each retry re-attempts both the Graph API call and the S3 upload.
+
+If all 6 retries fail (e.g. shopper deleted the story first), the verification gets flagged as storyImageUnavailable = true and no image is shown.
+
+Step 4 — What's saved in the database
+
+On the verifications row for that shopper+order:
+
+Field	What it holds
+story_image_url	Permanent S3 URL — https://your-bucket.s3.region.amazonaws.com/story-images/…
+story_url	The original Instagram story URL
+story_image_unavailable	true if all retries exhausted without getting the image
+Step 5 — The Promotions page
+
+The merchant's Story Promotions dashboard page (GET /api/story-gallery) queries for verifications that have a story_image_url. Each card shows:
+
+The S3-hosted image filling the card
+Discount % badge (top right)
+Shopper's Instagram handle + follower count
+Estimated impressions (calculated server-side from a reach-rate formula based on follower count)
+Products they purchased
+If a story was detected but the image couldn't be retrieved, a camera icon placeholder appears instead of the photo. The Upcoming marquee strip above the grid shows shoppers who received a discount but haven't posted yet.
+
+The one gap worth knowing about
+
+The whole capture chain depends on the merchant having an Instagram Business account connected with a valid access token — because without it, the server can't call the Graph API to fetch the media URL. If the token expires or the merchant disconnects Instagram, the image fetch silently fails and falls back to retries, and ultimately marks the image unavailable.

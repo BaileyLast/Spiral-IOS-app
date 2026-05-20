@@ -216,6 +216,211 @@ export default function OrderDetail() {
         <h1 className="ml-2 text-lg font-bold text-gray-900">Order Details</h1>
       </header>
       <main className="px-6 pb-8 pt-6 space-y-6">
+        {/* Status hero — whatever the customer needs to see / do RIGHT NOW
+            sits at the top of the page. Action-needed states (awaiting,
+            awaitingPickup, not_public, taken_down_early) and result states
+            (awaiting_review, quick_verified, verified) all render here so
+            the page is always status-first, details-second. */}
+
+        {awaitingPickup && (
+          <div className="p-5 rounded-2xl bg-indigo-50 border border-indigo-200" data-testid="card-ready-for-pickup">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                <Store className="w-5 h-5 text-indigo-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-indigo-900">
+                  Your order is ready to pick up
+                </h3>
+                <p className="text-sm text-indigo-700 mt-1">
+                  Once you've grabbed it, tap below to unlock your Story step.
+                </p>
+              </div>
+            </div>
+            <Button
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={() => markReceivedMutation.mutate()}
+              disabled={markReceivedMutation.isPending}
+              data-testid="button-mark-collected"
+            >
+              {markReceivedMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                "I've collected it"
+              )}
+            </Button>
+          </div>
+        )}
+
+        {status === "awaiting" && (() => {
+          const rawHandle = (order.merchantInstagramHandle || "").replace(/^@/, "");
+          return (
+            <div
+              className="p-5 rounded-2xl bg-[#4ECCA3]/5 border border-[#4ECCA3]/30"
+              data-testid="card-post-story"
+            >
+              <div className="flex items-start gap-4 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-[#4ECCA3]/15 flex items-center justify-center flex-shrink-0">
+                  <Instagram className="w-5 h-5 text-[#4ECCA3]" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900">
+                    Post a Story to unlock your next discount
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Tag {rawHandle ? `@${rawHandle}` : "the brand"} in a public Story to unlock more discounts from your favourite stores.
+                  </p>
+                </div>
+              </div>
+              {rawHandle && (
+                <a
+                  href={`https://instagram.com/${rawHandle}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-white border border-gray-100 hover-elevate active-elevate-2"
+                  data-testid="link-merchant-handle"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Instagram className="w-4 h-4 text-[#4ECCA3] flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xs text-gray-400">Tag this account</p>
+                      <p className="text-sm font-semibold text-gray-900 truncate" data-testid="text-merchant-handle">
+                        @{rawHandle}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-[#4ECCA3] font-medium flex-shrink-0">Open</span>
+                </a>
+              )}
+              <p className="text-xs text-gray-400 mt-3">
+                Public Stories only — Close Friends won't count. We confirm within a few hours.
+              </p>
+            </div>
+          );
+        })()}
+
+        {(status === "story_received" || status === "awaiting_review") && (
+          <div className="p-5 rounded-2xl bg-blue-50 border border-blue-200">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+                <Clock className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-blue-900" data-testid="text-awaiting-review-heading">
+                  Story received — confirming shortly
+                </h3>
+                <p className="text-sm text-blue-700 mt-1" data-testid="text-awaiting-review-body">
+                  We'll confirm your discount once your Story has been live for a few hours. Stories must be public — Close Friends posts won't count.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {status === "quick_verified" && (
+          <div
+            className="flex items-center gap-2 px-1"
+            data-testid="card-quick-verified"
+          >
+            <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+            <p className="text-sm text-gray-600" data-testid="text-quick-verified-heading">
+              Story confirmed
+            </p>
+          </div>
+        )}
+
+        {status === "verified" && (
+          <div className="p-5 rounded-2xl bg-green-50 border border-green-200">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-green-900">
+                  You saved ${Number(order.discountAmount).toFixed(2)}!
+                </h3>
+                <p className="text-sm text-green-700 mt-1">
+                  Your story was verified and your discount is confirmed
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {(status === "not_public" || status === "taken_down_early") && (
+          <div className="p-5 rounded-2xl bg-orange-50 border border-orange-200" data-testid={`card-${status}`}>
+            <div className="flex items-start gap-4 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
+                <Camera className="w-5 h-5 text-orange-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-orange-900" data-testid={`text-${status}-heading`}>
+                  {status === "not_public"
+                    ? "We couldn't see your Story"
+                    : "Your Story came down too early"}
+                </h3>
+                <p className="text-sm text-orange-700 mt-1" data-testid={`text-${status}-body`}>
+                  {status === "not_public"
+                    ? "Stories must be public — Close Friends doesn't count. Repost publicly and tag the brand to unlock your next discount."
+                    : "Spiral Stories need to stay up for 24 hours. Repost publicly and tag the brand to unlock your next discount."}
+                </p>
+              </div>
+            </div>
+            <div className="bg-orange-100/60 rounded-xl p-4 space-y-2">
+              <div className="flex items-center gap-2 text-sm text-orange-800">
+                <Instagram className="w-4 h-4" />
+                <span className="font-semibold">How to repost:</span>
+              </div>
+              <ol className="text-sm text-orange-800 space-y-1.5 ml-6 list-decimal">
+                <li>Open Instagram and create a new Story (public, not Close Friends)</li>
+                <li>Tag the brand using the @ mention sticker</li>
+                <li>Leave it up for 24 hours</li>
+              </ol>
+            </div>
+          </div>
+        )}
+
+        {(status === "ordered" || status === "shipped") && !awaitingPickup && (
+          <div data-testid="section-mark-received">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={markReceivedMutation.isPending}
+                  data-testid="button-mark-received"
+                >
+                  {markReceivedMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    "I've received this order"
+                  )}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Confirm you've received it?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Once you've got it, post an Instagram Story tagging the brand to unlock your next discount.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel data-testid="button-mark-received-cancel">Not yet</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => markReceivedMutation.mutate()}
+                    data-testid="button-mark-received-confirm"
+                  >
+                    Yes, I have it
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <p className="text-xs text-gray-400 text-center mt-2">
+              Only tap once the order is in your hands.
+            </p>
+          </div>
+        )}
+
         <div className="p-5 rounded-2xl bg-gray-50 border border-gray-100">
           <div className="flex items-start justify-between mb-4">
             <div>
@@ -303,199 +508,6 @@ export default function OrderDetail() {
           </div>
         </div>
 
-        {awaitingPickup && (
-          <div className="p-5 rounded-2xl bg-indigo-50 border border-indigo-200" data-testid="card-ready-for-pickup">
-            <div className="flex items-start gap-4 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                <Store className="w-5 h-5 text-indigo-600" />
-              </div>
-              <div>
-                <h3 className="font-bold text-indigo-900">
-                  Your order is ready to pick up
-                </h3>
-                <p className="text-sm text-indigo-700 mt-1">
-                  Once you've grabbed it, tap below to unlock your Story step.
-                </p>
-              </div>
-            </div>
-            <Button
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
-              onClick={() => markReceivedMutation.mutate()}
-              disabled={markReceivedMutation.isPending}
-              data-testid="button-mark-collected"
-            >
-              {markReceivedMutation.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                "I've collected it"
-              )}
-            </Button>
-          </div>
-        )}
-
-        {status === "awaiting" && (() => {
-          const rawHandle = (order.merchantInstagramHandle || "").replace(/^@/, "");
-          return (
-            <div className="p-5 rounded-2xl bg-gray-50 border border-gray-100" data-testid="card-post-story">
-              <div className="flex items-start gap-4 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-[#4ECCA3]/10 flex items-center justify-center flex-shrink-0">
-                  <Instagram className="w-5 h-5 text-[#4ECCA3]" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-gray-900">
-                    Post a Story of your order and mention {rawHandle ? `@${rawHandle}` : "the brand"}!
-                  </h3>
-                  <p className="text-sm text-gray-500 mt-1">Tag the brand in a public Story and you can unlock more discounts from your favourite stores.</p>
-                </div>
-              </div>
-              {rawHandle && (
-                <a
-                  href={`https://instagram.com/${rawHandle}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-white border border-gray-100 hover-elevate active-elevate-2"
-                  data-testid="link-merchant-handle"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Instagram className="w-4 h-4 text-[#4ECCA3] flex-shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-xs text-gray-400">Tag this account</p>
-                      <p className="text-sm font-semibold text-gray-900 truncate" data-testid="text-merchant-handle">
-                        @{rawHandle}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-xs text-[#4ECCA3] font-medium flex-shrink-0">Open</span>
-                </a>
-              )}
-              <p className="text-xs text-gray-400 mt-3">
-                Public Stories only — Close Friends won't count. We confirm within a few hours.
-              </p>
-            </div>
-          );
-        })()}
-
-        {(status === "story_received" || status === "awaiting_review") && (
-          <div className="p-5 rounded-2xl bg-blue-50 border border-blue-200">
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
-                <Clock className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <h3 className="font-bold text-blue-900" data-testid="text-awaiting-review-heading">
-                  Story received — confirming shortly
-                </h3>
-                <p className="text-sm text-blue-700 mt-1" data-testid="text-awaiting-review-body">
-                  We'll confirm your discount once your Story has been live for a few hours. Stories must be public — Close Friends posts won't count.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {status === "quick_verified" && (
-          <div
-            className="flex items-center gap-2 px-1"
-            data-testid="card-quick-verified"
-          >
-            <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
-            <p className="text-sm text-gray-600" data-testid="text-quick-verified-heading">
-              Story confirmed
-            </p>
-          </div>
-        )}
-
-        {status === "verified" && (
-          <div className="p-5 rounded-2xl bg-green-50 border border-green-200">
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-              </div>
-              <div>
-                <h3 className="font-bold text-green-900">
-                  You saved ${Number(order.discountAmount).toFixed(2)}!
-                </h3>
-                <p className="text-sm text-green-700 mt-1">
-                  Your story was verified and your discount is confirmed
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {(status === "ordered" || status === "shipped") && !awaitingPickup && (
-          <div className="pt-2" data-testid="section-mark-received">
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  disabled={markReceivedMutation.isPending}
-                  data-testid="button-mark-received"
-                >
-                  {markReceivedMutation.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    "I've received this order"
-                  )}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Confirm you've received it?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Once you've got it, post an Instagram Story tagging the brand to unlock your next discount.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel data-testid="button-mark-received-cancel">Not yet</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => markReceivedMutation.mutate()}
-                    data-testid="button-mark-received-confirm"
-                  >
-                    Yes, I have it
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-            <p className="text-xs text-gray-400 text-center mt-2">
-              Only tap once the order is in your hands.
-            </p>
-          </div>
-        )}
-
-        {(status === "not_public" || status === "taken_down_early") && (
-          <div className="p-5 rounded-2xl bg-orange-50 border border-orange-200" data-testid={`card-${status}`}>
-            <div className="flex items-start gap-4 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
-                <Camera className="w-5 h-5 text-orange-600" />
-              </div>
-              <div>
-                <h3 className="font-bold text-orange-900" data-testid={`text-${status}-heading`}>
-                  {status === "not_public"
-                    ? "We couldn't see your Story"
-                    : "Your Story came down too early"}
-                </h3>
-                <p className="text-sm text-orange-700 mt-1" data-testid={`text-${status}-body`}>
-                  {status === "not_public"
-                    ? "Stories must be public — Close Friends doesn't count. Repost publicly and tag the brand to unlock your next discount."
-                    : "Spiral Stories need to stay up for 24 hours. Repost publicly and tag the brand to unlock your next discount."}
-                </p>
-              </div>
-            </div>
-            <div className="bg-orange-100/60 rounded-xl p-4 space-y-2">
-              <div className="flex items-center gap-2 text-sm text-orange-800">
-                <Instagram className="w-4 h-4" />
-                <span className="font-semibold">How to repost:</span>
-              </div>
-              <ol className="text-sm text-orange-800 space-y-1.5 ml-6 list-decimal">
-                <li>Open Instagram and create a new Story (public, not Close Friends)</li>
-                <li>Tag the brand using the @ mention sticker</li>
-                <li>Leave it up for 24 hours</li>
-              </ol>
-            </div>
-          </div>
-        )}
       </main>
     </div>
   );
