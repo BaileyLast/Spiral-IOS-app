@@ -312,7 +312,7 @@ export default function MerchantProducts() {
                       <Store className="w-8 h-8 text-gray-200" />
                     )}
                     <span
-                      className="absolute top-2 right-2 inline-flex items-center justify-center w-7 h-7 rounded-full bg-white shadow-sm ring-1 ring-black/5"
+                      className="absolute top-2 right-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-white/70 backdrop-blur-sm shadow-sm ring-1 ring-black/5"
                       data-testid={`badge-product-spiral-${p.id}`}
                     >
                       <img
