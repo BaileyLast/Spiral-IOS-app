@@ -181,7 +181,7 @@ export default function HomeInstagramConnect() {
               {[
                 "Tap the button above to copy your code",
                 "Instagram opens to @joinspiral — paste and send the code",
-                "We'll verify your account and unlock your discounts",
+                "We'll verify your account so you can begin earning discounts",
               ].map((step, i) => (
                 <li key={i} className="flex items-start gap-3">
                   <div className="w-8 h-8 rounded-full bg-[#E6F8F0] text-[#1A996E] flex items-center justify-center font-black text-sm flex-shrink-0">
