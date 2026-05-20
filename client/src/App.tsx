@@ -42,7 +42,7 @@ function BottomNav() {
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 safe-bottom z-50 px-4 pb-3">
+    <nav className="fixed bottom-0 left-0 right-0 safe-bottom z-50 px-4 pb-6">
       <div className="max-w-md mx-auto bg-white/90 backdrop-blur-md rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.08),0_2px_8px_rgba(0,0,0,0.04)] border border-white/60 flex items-center justify-around h-16 px-2">
         {navItems.map((item) => {
           const active = isActive(item.path);
