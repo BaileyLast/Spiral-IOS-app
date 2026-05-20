@@ -221,7 +221,7 @@ export default function OrderDetail() {
                 <Instagram className="w-8 h-8" />
               </div>
               <h2 className="text-2xl font-black mb-2 leading-tight">
-                Post your Story,<br />keep your discount.
+                Post your Story,<br />unlock your next deal.
               </h2>
               <p className="text-[#E6F8F0] font-medium text-sm mb-6 max-w-[260px]">
                 Tag {rawHandle ? `@${rawHandle}` : "the brand"} in a public Story to unlock more discounts from your favourite stores.
