@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { ShoppingBag, ChevronRight, CheckCircle2, Clock, Store, Lock } from "lucide-react";
+import { ShoppingBag, ChevronRight, CheckCircle2, Store, Lock } from "lucide-react";
 import type { Order } from "@shared/schema";
 
 export interface LineItem {
@@ -183,15 +183,6 @@ export function OrderCard({ order, dimmed = false }: { order: Order; dimmed?: bo
                     <div className="flex items-center gap-1">
                       <CheckCircle2 className="w-3 h-3 text-green-500" />
                       <p className="text-xs text-green-600 font-medium">Confirmed</p>
-                    </div>
-                  </>
-                )}
-                {status === "Story Needed" && (
-                  <>
-                    <span className="text-gray-200">·</span>
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-amber-500" />
-                      <p className="text-xs text-amber-600 font-medium">Unlocks your next discount</p>
                     </div>
                   </>
                 )}
@@ -395,16 +386,31 @@ export default function Orders() {
           </div>
         ) : hasRealOrders ? (
           <>
-            {activeOrders.length > 0 && (
-              <section>
-                <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider px-1 mb-3">Active</p>
-                <div className="space-y-3">
-                  {activeOrders.map((order) => (
-                    <OrderCard key={order.id} order={order} />
-                  ))}
-                </div>
-              </section>
-            )}
+            {activeOrders.length > 0 && (() => {
+              // When any active order is awaiting a Story, dim the rest so the
+              // action-needed cards visually win. If everything is in flight,
+              // every card stays full-strength.
+              const hasStoryNeeded = activeOrders.some(
+                (o) => getStatusLabel(o) === "Story Needed",
+              );
+              return (
+                <section>
+                  <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider px-1 mb-3">Active</p>
+                  <div className="space-y-3">
+                    {activeOrders.map((order) => {
+                      const isStoryNeeded = getStatusLabel(order) === "Story Needed";
+                      return (
+                        <OrderCard
+                          key={order.id}
+                          order={order}
+                          dimmed={hasStoryNeeded && !isStoryNeeded}
+                        />
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            })()}
 
             {activeOrders.length === 0 && historyOrders.length > 0 && (
               <section>
