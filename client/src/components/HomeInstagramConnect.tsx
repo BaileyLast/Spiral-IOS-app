@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -6,7 +6,6 @@ import {
   CheckCircle,
   Copy,
   ExternalLink,
-  RefreshCw,
   Instagram,
 } from "lucide-react";
 
@@ -53,26 +52,39 @@ export default function HomeInstagramConnect() {
     queryClient.invalidateQueries({ queryKey: ["/api/customer/stats"] });
   }
 
-  const regenerateCodeMutation = useMutation({
+  const regenerateCodeMutation = useMutation<SpiralCodeResponse, Error, { silent?: boolean } | void>({
     mutationFn: async () => {
       const response = await apiRequest("POST", "/api/customer/spiral-code/regenerate");
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       queryClient.setQueryData(["/api/customer/spiral-code"], data);
-      toast({
-        title: "New code generated",
-        description: "Your Spiral code has been refreshed",
-      });
+      const silent = variables && "silent" in variables ? variables.silent : false;
+      if (!silent) {
+        toast({
+          title: "New code generated",
+          description: "Your Spiral code has been refreshed",
+        });
+      }
     },
-    onError: () => {
-      toast({
-        title: "Failed to regenerate",
-        description: "Please try again",
-        variant: "destructive",
-      });
+    onError: (_err, variables) => {
+      const silent = variables && "silent" in variables ? variables.silent : false;
+      if (!silent) {
+        toast({
+          title: "Failed to regenerate",
+          description: "Please try again",
+          variant: "destructive",
+        });
+      }
     },
   });
+
+  // Auto-regenerate silently if the current code expires while the page is open.
+  useEffect(() => {
+    if (verificationStatus?.status === "expired" && !regenerateCodeMutation.isPending) {
+      regenerateCodeMutation.mutate({ silent: true });
+    }
+  }, [verificationStatus?.status, regenerateCodeMutation.isPending]);
 
   const handleCopyAndMessage = async () => {
     if (!spiralCode?.code) return;
@@ -191,19 +203,6 @@ export default function HomeInstagramConnect() {
                 </li>
               ))}
             </ol>
-          </div>
-
-          {/* REGENERATE */}
-          <div className="text-center">
-            <button
-              onClick={() => regenerateCodeMutation.mutate()}
-              disabled={regenerateCodeMutation.isPending}
-              className="inline-flex items-center justify-center gap-2 text-gray-400 hover:text-gray-600 transition-colors text-sm font-medium"
-              data-testid="button-regenerate"
-            >
-              <RefreshCw className={`w-4 h-4 ${regenerateCodeMutation.isPending ? "animate-spin" : ""}`} />
-              <span>Get a new code</span>
-            </button>
           </div>
         </>
       )}
