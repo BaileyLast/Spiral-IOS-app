@@ -39,15 +39,16 @@ export default function Login() {
   const selectedCountry = getCountryByCode(country);
 
   const authMutation = useMutation({
-    mutationFn: async (data: { email: string; password: string; firstName?: string; lastName?: string; country?: string }) => {
-      const endpoint = mode === "login" ? "/api/customer/login" : "/api/customer/signup";
-      const response = await apiRequest("POST", endpoint, data);
+    mutationFn: async (data: { mode: AuthMode; email: string; password: string; firstName?: string; lastName?: string; country?: string }) => {
+      const endpoint = data.mode === "login" ? "/api/customer/login" : "/api/customer/signup";
+      const { mode: _mode, ...payload } = data;
+      const response = await apiRequest("POST", endpoint, payload);
       return response.json();
     },
-    onSuccess: (data: AuthResponse) => {
+    onSuccess: (data: AuthResponse, variables) => {
       localStorage.setItem("spiral_customer", JSON.stringify(data));
 
-      if (mode === "signup") {
+      if (variables.mode === "signup") {
         setLocation("/verify-email");
       } else if (!data.emailVerified) {
         setLocation("/verify-email");
@@ -57,13 +58,13 @@ export default function Login() {
         setLocation("/home");
       }
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables) => {
       const isDuplicateEmail =
-        mode === "signup" &&
+        variables.mode === "signup" &&
         error.message === "An account with this email already exists";
 
       if (isDuplicateEmail) {
-        const attemptedEmail = email;
+        const attemptedEmail = variables.email;
         toast({
           title: "You already have a Spiral account",
           description: "This email is already associated with a Spiral account.",
@@ -104,6 +105,7 @@ export default function Login() {
       return;
     }
     authMutation.mutate({
+      mode,
       email,
       password,
       ...(mode === "signup" && firstName.trim() && { firstName: firstName.trim() }),
