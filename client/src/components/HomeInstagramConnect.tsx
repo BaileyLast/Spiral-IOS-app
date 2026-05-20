@@ -97,12 +97,9 @@ export default function HomeInstagramConnect() {
           </p>
         </div>
       </div>
-
       {spiralCode?.status === "pending" && (
         <div className="bg-white rounded-2xl border border-emerald-100 p-5">
-          <p className="text-sm text-gray-500 mb-3 text-center">
-            Send this code to @joinspiral on Instagram:
-          </p>
+          <p className="text-sm text-gray-500 mb-3 text-center">DM this code to @joinspiral on Instagram:</p>
 
           <div className="bg-gray-50 rounded-xl border border-gray-100 p-4 mb-4 text-center">
             <span
@@ -166,14 +163,12 @@ export default function HomeInstagramConnect() {
           </button>
         </div>
       )}
-
       {!spiralCode && (
         <div className="bg-white rounded-2xl border border-emerald-100 p-6 flex items-center justify-center gap-2 text-sm text-gray-400">
           <Loader2 className="w-4 h-4 animate-spin" />
           <span>Generating your code...</span>
         </div>
       )}
-
       {verificationStatus?.status === "verified" && (
         <div className="bg-green-50 rounded-2xl border border-green-100 p-5 text-center">
           <CheckCircle className="w-10 h-10 text-green-600 mx-auto mb-2" />
