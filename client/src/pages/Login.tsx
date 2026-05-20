@@ -257,7 +257,7 @@ export default function Login() {
 
             <button
               type="submit"
-              className="tactile-btn w-full py-4 text-base mt-6"
+              className="tactile-btn bg-white text-[#4ECCA3] w-full py-4 text-base mt-6 shadow-[0_4px_12px_rgba(0,0,0,0.1),inset_0_-4px_0_rgba(240,240,240,1)]"
               disabled={authMutation.isPending}
               data-testid="button-submit"
             >
