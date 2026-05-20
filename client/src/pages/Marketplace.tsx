@@ -559,7 +559,7 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
       {/* Product carousel — 2-up with a peek of the 3rd to invite scroll */}
       {carouselProducts.length > 0 && (
         <div
-          className="flex gap-3 overflow-x-auto px-4 py-3 snap-x snap-mandatory scrollbar-none"
+          className="flex gap-4 overflow-x-auto px-4 py-3 snap-x snap-mandatory scrollbar-none"
           style={{ scrollbarWidth: "none" }}
           data-testid={`carousel-products-${testKey}`}
         >
@@ -575,7 +575,7 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
                 href={p.productUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-shrink-0 w-[44%] snap-start hover-elevate rounded-md p-1 -m-1"
+                className="flex-shrink-0 w-[44%] snap-start hover-elevate rounded-md px-2 py-1 -mx-2 -my-1"
                 data-testid={`link-product-${p.id}`}
                 onClick={(e) => e.stopPropagation()}
               >
@@ -597,13 +597,13 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
                   )}
                 </div>
                 <p
-                  className="mt-2 pr-4 text-xs font-bold text-gray-900 line-clamp-2 leading-tight"
+                  className="mt-2 text-xs font-bold text-gray-900 line-clamp-2 leading-tight"
                   data-testid={`text-product-title-${p.id}`}
                 >
                   {p.title}
                 </p>
                 {showDiscount ? (
-                  <div className="mt-1 pr-4 flex items-baseline gap-1.5">
+                  <div className="mt-1 flex items-baseline gap-1.5">
                     <span
                       className="text-sm font-black text-[#1A996E]"
                       data-testid={`text-product-discounted-price-${p.id}`}
@@ -620,7 +620,7 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
                 ) : (
                   formatted && (
                     <p
-                      className="text-xs text-gray-600 font-bold mt-0.5 pr-2"
+                      className="text-xs text-gray-600 font-bold mt-0.5"
                       data-testid={`text-product-price-${p.id}`}
                     >
                       {formatted}
