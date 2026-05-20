@@ -4633,7 +4633,129 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // setting up Spiral don't leak into the shopper marketplace.
   function isBrandVisibleForMarketplace(b: UpstreamBrand): boolean {
     if (b.spiralEnabled !== true) return false;
-    return (b.selectedProductCount ?? 0) > 0;
+    if ((b.selectedProductCount ?? 0) <= 0) return false;
+    // Storefront-reachability backstop: catches dead/deleted Shopify
+    // stores whose `spiralEnabled` flag is still true upstream (e.g.
+    // merchant deleted the store from Shopify admin without going
+    // through the proper uninstall flow). See `runStorefrontReachabilityJob`
+    // below for the probe.
+    if (!isBrandReachable(b.id)) return false;
+    return true;
+  }
+  // ---- Storefront reachability backstop ----
+  // Defense-in-depth for the ~5% of "dead store" cases the merchant
+  // dashboard's `spiralEnabled` flag can't catch in real time:
+  //   - merchant deleted the entire Shopify store (no uninstall webhook)
+  //   - merchant password-protected / paused the storefront
+  //   - app/uninstalled webhook delivery failed
+  // We probe each brand's `storefrontUrl` on a slow tick and only HARD
+  // failures (404/410, DNS, conn-refused, cert) count. Transient failures
+  // (5xx, timeout, 401/403/429) are explicitly ignored so a slow Shopify
+  // or rate-limit blip can't nuke a real merchant. A brand is hidden
+  // only after 3 consecutive hard failures and recovers on the first
+  // success. In-memory only — on restart we re-probe from scratch.
+  const REACHABILITY_FAIL_THRESHOLD = 3;
+  const REACHABILITY_PROBE_TIMEOUT_MS = 5000;
+  const REACHABILITY_PROBE_INTERVAL_MS = 30 * 60 * 1000;
+  const REACHABILITY_FIRST_RUN_DELAY_MS = 2 * 60 * 1000;
+  const REACHABILITY_PROBE_CONCURRENCY = 5;
+  type ReachabilityState = {
+    consecutiveFailures: number;
+    lastProbedAt: number;
+    unreachable: boolean;
+  };
+  const brandReachability = new Map<string, ReachabilityState>();
+  function isBrandReachable(brandId: string): boolean {
+    return !(brandReachability.get(brandId)?.unreachable ?? false);
+  }
+  async function probeStorefront(url: string): Promise<"ok" | "dead" | "unknown"> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REACHABILITY_PROBE_TIMEOUT_MS);
+    try {
+      let res = await fetch(url, { method: "HEAD", signal: controller.signal, redirect: "follow" });
+      // Some Shopify themes / CDNs reject HEAD with 405/501. Retry as GET.
+      if (res.status === 405 || res.status === 501) {
+        res = await fetch(url, { method: "GET", signal: controller.signal, redirect: "follow" });
+      }
+      if (res.status === 404 || res.status === 410) return "dead";
+      if (res.status >= 200 && res.status < 400) return "ok";
+      // 401/403/429/5xx → don't penalize. Could be auth-walled, rate-limited,
+      // or a transient backend hiccup, none of which mean the store is gone.
+      return "unknown";
+    } catch (err: any) {
+      if (err?.name === "AbortError") return "unknown";
+      // node-fetch surfaces system errors on `err.cause.code`.
+      const code = err?.cause?.code ?? err?.code ?? "";
+      if (
+        code === "ENOTFOUND" ||
+        code === "EAI_AGAIN" ||
+        code === "ECONNREFUSED" ||
+        code === "CERT_HAS_EXPIRED" ||
+        code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" ||
+        code === "DEPTH_ZERO_SELF_SIGNED_CERT"
+      ) {
+        return "dead";
+      }
+      return "unknown";
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  async function runStorefrontReachabilityJob() {
+    try {
+      const brands = brandsCache?.data ?? [];
+      if (brands.length === 0) return;
+      // Bounded-concurrency worker pool over the brand list.
+      let cursor = 0;
+      const worker = async () => {
+        while (cursor < brands.length) {
+          const b = brands[cursor++];
+          const prev = brandReachability.get(b.id) ?? {
+            consecutiveFailures: 0,
+            lastProbedAt: 0,
+            unreachable: false,
+          };
+          const result = await probeStorefront(b.storefrontUrl);
+          const now = Date.now();
+          if (result === "unknown") {
+            // Touch lastProbedAt but don't change counters.
+            brandReachability.set(b.id, { ...prev, lastProbedAt: now });
+            continue;
+          }
+          if (result === "ok") {
+            if (prev.unreachable) {
+              console.info(`[brands] recovered: ${b.id} (${b.storeName})`);
+            }
+            brandReachability.set(b.id, {
+              consecutiveFailures: 0,
+              lastProbedAt: now,
+              unreachable: false,
+            });
+            continue;
+          }
+          // result === "dead"
+          const nextFailures = prev.consecutiveFailures + 1;
+          const unreachable = nextFailures >= REACHABILITY_FAIL_THRESHOLD;
+          if (unreachable && !prev.unreachable) {
+            console.warn(
+              `[brands] marked unreachable: ${b.id} (${b.storeName}, storefrontUrl=${b.storefrontUrl})`,
+            );
+          }
+          brandReachability.set(b.id, {
+            consecutiveFailures: nextFailures,
+            lastProbedAt: now,
+            unreachable,
+          });
+        }
+      };
+      const workers = Array.from(
+        { length: Math.min(REACHABILITY_PROBE_CONCURRENCY, brands.length) },
+        () => worker(),
+      );
+      await Promise.all(workers);
+    } catch (err) {
+      console.error("[brands] reachability job failed:", err);
+    }
   }
   // Number of products inlined per brand on the marketplace card (1 hero +
   // ~5 carousel). Keep small to bound the parallel upstream fan-out.
@@ -4861,6 +4983,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
   setTimeout(() => { void runDeliveryFallbackJob(); }, 2 * 60 * 1000);
   setInterval(() => { void runDeliveryFallbackJob(); }, DELIVERY_FALLBACK_INTERVAL_MS);
+
+  // Storefront reachability backstop (see `runStorefrontReachabilityJob`
+  // for rationale). Delayed first run so the upstream brands cache has a
+  // chance to warm; thereafter on a slow 30-min tick.
+  setTimeout(() => { void runStorefrontReachabilityJob(); }, REACHABILITY_FIRST_RUN_DELAY_MS);
+  setInterval(() => { void runStorefrontReachabilityJob(); }, REACHABILITY_PROBE_INTERVAL_MS);
 
   return httpServer;
 }
