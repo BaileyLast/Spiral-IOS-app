@@ -314,6 +314,7 @@ interface MeResponse {
   email: string;
   accountStatus?: string;
   softBannedReason?: string | null;
+  instagramHandle?: string | null;
 }
 
 export default function Orders() {
@@ -357,6 +358,30 @@ export default function Orders() {
       </header>
 
       <main className="px-6 space-y-8">
+        {me && !me.instagramHandle && (
+          <Link href="/connect-instagram">
+            <a
+              className="block p-5 rounded-2xl bg-gradient-to-br from-[#EBF9F5] to-[#D6F2E6] border border-[#A8F5E0] hover-elevate active-elevate-2"
+              data-testid="card-connect-instagram-prominent"
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <Instagram className="w-6 h-6 text-[#2BAE88]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-black text-[#0F4F3C] text-base">
+                    Reconnect Instagram
+                  </p>
+                  <p className="text-sm text-[#155843] mt-0.5">
+                    Your Instagram isn't connected. Reconnect to verify your past Stories and keep earning Spiral discounts.
+                  </p>
+                </div>
+                <ChevronRight className="w-5 h-5 text-[#2BAE88] flex-shrink-0 mt-1" />
+              </div>
+            </a>
+          </Link>
+        )}
+
         {isSoftBanned && (
           <div
             className="p-4 rounded-2xl bg-orange-50 border border-orange-200 flex items-start gap-3"
