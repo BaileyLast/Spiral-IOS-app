@@ -15,6 +15,7 @@ import Profile from "@/pages/Profile";
 import Marketplace from "@/pages/Marketplace";
 import MerchantProducts from "@/pages/MerchantProducts";
 import CustomerHome from "@/pages/CustomerHome";
+import Splash from "@/pages/Splash";
 import ManageAccount from "@/pages/ManageAccount";
 import Privacy from "@/pages/Privacy";
 import DataDeletion from "@/pages/DataDeletion";
@@ -72,7 +73,7 @@ function BottomNav() {
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Login} />
+      <Route path="/" component={Splash} />
       <Route path="/login" component={Login} />
       <Route path="/verify-email" component={VerifyEmail} />
       <Route path="/instagram-help" component={InstagramHelp} />
