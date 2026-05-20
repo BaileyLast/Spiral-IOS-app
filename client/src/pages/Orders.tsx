@@ -438,16 +438,30 @@ export default function Orders() {
           </>
         ) : import.meta.env.DEV ? (
           <>
-            <section>
-              <p className="text-xs text-gray-300 font-semibold uppercase tracking-wider px-1 mb-3">
-                Active — preview
-              </p>
-              <div className="space-y-3">
-                {MOCK_ACTIVE.map((mock) => (
-                  <OrderCard key={mock.id} order={mock} />
-                ))}
-              </div>
-            </section>
+            {(() => {
+              const mockHasStoryNeeded = MOCK_ACTIVE.some(
+                (o) => getStatusLabel(o) === "Story Needed",
+              );
+              return (
+                <section>
+                  <p className="text-xs text-gray-300 font-semibold uppercase tracking-wider px-1 mb-3">
+                    Active — preview
+                  </p>
+                  <div className="space-y-3">
+                    {MOCK_ACTIVE.map((mock) => {
+                      const isStoryNeeded = getStatusLabel(mock) === "Story Needed";
+                      return (
+                        <OrderCard
+                          key={mock.id}
+                          order={mock}
+                          dimmed={mockHasStoryNeeded && !isStoryNeeded}
+                        />
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            })()}
 
             <section>
               <p className="text-xs text-gray-300 font-semibold uppercase tracking-wider px-1 mb-3">
