@@ -1,23 +1,10 @@
-import { useState } from "react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { useToast } from "@/hooks/use-toast";
-import {
   LogOut,
   ChevronRight,
-  Trash2,
   Loader2,
   UserCog,
   Shield,
@@ -55,8 +42,6 @@ function formatFollowerCount(count: number | null | undefined): string {
 
 export default function Profile() {
   const [, setLocation] = useLocation();
-  const { toast } = useToast();
-  const [deleteOpen, setDeleteOpen] = useState(false);
   const { data: profile, isLoading: profileLoading } = useQuery<CustomerProfile>({
     queryKey: ["/api/customer/me"],
   });
@@ -78,31 +63,6 @@ export default function Profile() {
       localStorage.removeItem("spiral_customer");
       queryClient.clear();
       setLocation("/");
-    },
-  });
-
-  const deleteAccountMutation = useMutation({
-    mutationFn: async () => {
-      try {
-        await apiRequest("POST", "/api/customer/push-token", { token: null });
-      } catch (err) {
-        console.warn("[push-token] clear on delete failed", err);
-      }
-      await apiRequest("DELETE", "/api/customer/me");
-    },
-    onSuccess: () => {
-      localStorage.removeItem("spiral_customer");
-      queryClient.clear();
-      setDeleteOpen(false);
-      toast({ title: "Account deleted", description: "Your Spiral account has been permanently removed." });
-      setLocation("/");
-    },
-    onError: () => {
-      toast({
-        title: "Couldn't delete account",
-        description: "Something went wrong. Please try again.",
-        variant: "destructive",
-      });
     },
   });
 
@@ -334,59 +294,6 @@ export default function Profile() {
             <ChevronRight className="w-5 h-5 text-gray-300 flex-shrink-0" />
           </button>
 
-          <button
-            onClick={() => setDeleteOpen(true)}
-            className="w-full flex items-center gap-4 p-4 rounded-2xl hover-elevate text-left"
-            data-testid="button-delete-account"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-red-50 flex items-center justify-center flex-shrink-0">
-              <Trash2 className="w-5 h-5 text-red-500" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-bold text-red-600">Delete account</p>
-              <p className="text-xs text-red-400 font-medium">Permanently remove your data</p>
-            </div>
-            <ChevronRight className="w-5 h-5 text-red-200 flex-shrink-0" />
-          </button>
-
-          <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-            <AlertDialogContent data-testid="dialog-delete-account">
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete your Spiral account?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This permanently removes your profile, Instagram link, and verification codes.
-                  Your past order history will be anonymized but kept for the brands you bought from.
-                  This can't be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel
-                  disabled={deleteAccountMutation.isPending}
-                  data-testid="button-cancel-delete-account"
-                >
-                  Cancel
-                </AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={(e) => {
-                    e.preventDefault();
-                    deleteAccountMutation.mutate();
-                  }}
-                  disabled={deleteAccountMutation.isPending}
-                  className="bg-red-500 text-white hover:bg-red-600"
-                  data-testid="button-confirm-delete-account"
-                >
-                  {deleteAccountMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Deleting...
-                    </>
-                  ) : (
-                    "Delete account"
-                  )}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
         </div>
 
         <div className="text-center pt-2">
