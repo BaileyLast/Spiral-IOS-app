@@ -542,26 +542,6 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
           <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/35 to-black/45 pointer-events-none" />
         </button>
 
-        {/* Category strip — top-left, sits above carousel */}
-        {(primary || secondary.length > 0) && (
-          <div className="absolute top-3 left-3 right-3 text-white pointer-events-none">
-            <p
-              className="text-[10px] uppercase tracking-widest font-black drop-shadow"
-              data-testid={`text-brand-category-${testKey}`}
-            >
-              {primary && <span className="text-[#A8F0D1]">{primary}</span>}
-              {primary && secondary.length > 0 && (
-                <span className="text-white/80 font-bold ml-2">
-                  · {secondary.join(" · ")}
-                </span>
-              )}
-              {!primary && secondary.length > 0 && (
-                <span className="text-white/85 font-bold">{secondary.join(" · ")}</span>
-              )}
-            </p>
-          </div>
-        )}
-
         {/* Product carousel — vertically centered, floats on the backdrop */}
         {carouselProducts.length > 0 && (
           <div className="absolute inset-x-0 top-1/2 -translate-y-1/2">
