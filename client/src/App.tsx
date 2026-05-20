@@ -20,6 +20,7 @@ import ManageAccount from "@/pages/ManageAccount";
 import Privacy from "@/pages/Privacy";
 import DataDeletion from "@/pages/DataDeletion";
 import EmailFailures from "@/pages/EmailFailures";
+import { ConnectInstagramHeaderCTA } from "@/components/ConnectInstagramHeaderCTA";
 
 function BottomNav() {
   const [location] = useLocation();
@@ -98,6 +99,7 @@ function AppContent() {
   
   return (
     <div className="min-h-screen bg-white">
+      {!hideBottomNav && <ConnectInstagramHeaderCTA />}
       <main className={hideBottomNav ? "" : "pb-20"}>
         <Router />
       </main>
