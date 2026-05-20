@@ -468,7 +468,7 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
 
   return (
     <div
-      className="creator-card overflow-hidden"
+      className="creator-card overflow-hidden shadow-[0_18px_40px_-12px_rgba(0,0,0,0.18),0_6px_16px_-6px_rgba(0,0,0,0.10)]"
       data-testid={`card-brand-${testKey}`}
     >
       {/* Header strip */}
