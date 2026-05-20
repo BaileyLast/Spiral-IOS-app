@@ -514,7 +514,6 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
             {badgeLabel} {badgePercent}% off
           </span>
         )}
-        <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
       </button>
 
       {/* Hero backdrop with carousel floating on top */}
