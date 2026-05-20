@@ -185,9 +185,6 @@ export default function MerchantProducts() {
               <h1 className="font-bold text-gray-900 text-base truncate" data-testid="text-merchant-name">
                 {displayName}
               </h1>
-              {brand?.instagramUsername && (
-                <p className="text-xs text-gray-400 truncate">@{brand.instagramUsername}</p>
-              )}
             </div>
             {brand?.storefrontUrl && (
               <a
