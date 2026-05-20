@@ -567,7 +567,7 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
         {carouselProducts.length > 0 && (
           <div className="absolute inset-x-0 top-1/2 -translate-y-1/2">
             <div
-              className="flex gap-4 overflow-x-auto pl-8 pr-4 scroll-pl-8 snap-x snap-mandatory scrollbar-none"
+              className="flex gap-4 overflow-x-auto pl-4 pr-4 scroll-pl-4 snap-x snap-mandatory scrollbar-none"
               style={{ scrollbarWidth: "none" }}
               data-testid={`carousel-products-${testKey}`}
             >
