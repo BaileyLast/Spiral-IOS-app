@@ -56,7 +56,7 @@ export default function InstagramHelp() {
       
       <div className="relative z-10 flex-1 flex flex-col px-6 py-8 overflow-y-auto">
         <button 
-          onClick={() => setLocation("/connect-instagram")}
+          onClick={() => setLocation("/home")}
           className="flex items-center gap-2 text-white/80 hover:text-white transition-colors mb-6 w-fit"
           data-testid="button-back"
         >
@@ -155,7 +155,7 @@ export default function InstagramHelp() {
       <div className="relative z-10 px-6 pb-8 space-y-3 safe-bottom">
         <Button 
           className="w-full h-14 text-base font-medium rounded-xl bg-white text-primary hover:bg-white/90"
-          onClick={() => setLocation("/connect-instagram")}
+          onClick={() => setLocation("/home")}
           data-testid="button-try-again"
         >
           I'm ready - Connect now

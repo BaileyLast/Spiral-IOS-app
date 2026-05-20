@@ -8,7 +8,6 @@ import { Home, Store, Percent, User } from "lucide-react";
 import { Link } from "wouter";
 import Login from "@/pages/Login";
 import VerifyEmail from "@/pages/VerifyEmail";
-import InstagramConnect from "@/pages/InstagramConnect";
 import InstagramHelp from "@/pages/InstagramHelp";
 import Orders from "@/pages/Orders";
 import OrderDetail from "@/pages/OrderDetail";
@@ -76,7 +75,6 @@ function Router() {
       <Route path="/" component={Login} />
       <Route path="/login" component={Login} />
       <Route path="/verify-email" component={VerifyEmail} />
-      <Route path="/connect-instagram" component={InstagramConnect} />
       <Route path="/instagram-help" component={InstagramHelp} />
       <Route path="/home" component={CustomerHome} />
       <Route path="/marketplace" component={Marketplace} />
@@ -95,7 +93,7 @@ function Router() {
 function AppContent() {
   const [location] = useLocation();
   
-  const hideBottomNav = location === "/" || location === "/login" || location === "/verify-email" || location === "/connect-instagram" || location === "/instagram-help" || location === "/privacy" || location === "/data-deletion" || location === "/manage-account" || location.startsWith("/admin/");
+  const hideBottomNav = location === "/" || location === "/login" || location === "/verify-email" || location === "/instagram-help" || location === "/privacy" || location === "/data-deletion" || location === "/manage-account" || location.startsWith("/admin/");
   
   return (
     <div className="min-h-screen bg-white">

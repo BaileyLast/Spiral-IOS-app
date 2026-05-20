@@ -235,7 +235,7 @@ export default function MerchantProducts() {
             <Instagram className="w-4 h-4 mt-0.5 shrink-0" />
             <p>
               <button
-                onClick={() => setLocation("/connect-instagram")}
+                onClick={() => setLocation("/home")}
                 className="font-semibold underline underline-offset-2"
                 data-testid="link-connect-instagram"
               >

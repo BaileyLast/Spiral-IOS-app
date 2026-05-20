@@ -360,7 +360,7 @@ export default function Orders() {
       <main className="px-6 space-y-8">
         {me && !me.instagramHandle && (
           <Link
-            href="/connect-instagram"
+            href="/home"
             className="block p-5 rounded-2xl bg-gradient-to-br from-[#EBF9F5] to-[#D6F2E6] border border-[#A8F5E0] hover-elevate active-elevate-2"
             data-testid="card-connect-instagram-prominent"
           >

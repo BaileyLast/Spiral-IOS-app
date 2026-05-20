@@ -233,7 +233,7 @@ export default function Profile() {
                 Link your account to unlock bigger discounts at your favourite stores.
               </p>
               <button
-                onClick={() => setLocation("/connect-instagram")}
+                onClick={() => setLocation("/home")}
                 className="tactile-btn bg-white text-[#4ECCA3] w-full py-4 text-lg shadow-[0_4px_12px_rgba(0,0,0,0.1),inset_0_-4px_0_rgba(240,240,240,1)]"
                 data-testid="button-connect-instagram"
               >

@@ -201,7 +201,7 @@ export default function ManageAccount() {
         ) : (
           <div
             className="creator-card p-5 hover-elevate cursor-pointer"
-            onClick={() => setLocation("/connect-instagram")}
+            onClick={() => setLocation("/home")}
             data-testid="card-connect-instagram"
           >
             <div className="flex items-center gap-4">

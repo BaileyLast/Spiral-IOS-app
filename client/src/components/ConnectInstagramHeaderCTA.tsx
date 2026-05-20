@@ -17,7 +17,7 @@ export function ConnectInstagramHeaderCTA() {
 
   return (
     <Link
-      href="/connect-instagram"
+      href="/home"
       className="block bg-[#EBF9F5] border-b border-[#A8F5E0] px-6 py-2.5 hover-elevate active-elevate-2"
       data-testid="header-cta-connect-instagram"
     >
