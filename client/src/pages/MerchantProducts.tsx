@@ -241,7 +241,7 @@ export default function MerchantProducts() {
               >
                 Connect Instagram
               </button>{" "}
-              to see your Spiral price at this brand.
+              to see your Spiral discount at this brand.
             </p>
           </div>
         )}
