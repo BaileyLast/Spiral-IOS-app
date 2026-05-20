@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient, apiRequest } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -90,6 +90,36 @@ function Router() {
   );
 }
 
+// Resets window scroll to the top whenever the route changes via a push
+// (clicking a Link, calling setLocation). Browser back/forward fires a
+// popstate first, which sets a flag so we skip the scroll and let the
+// browser restore the previous scroll position naturally.
+function ScrollToTop() {
+  const [location] = useLocation();
+  const prevLocationRef = useRef(location);
+  const isPopRef = useRef(false);
+
+  useEffect(() => {
+    const onPop = () => {
+      isPopRef.current = true;
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  useEffect(() => {
+    if (location === prevLocationRef.current) return;
+    prevLocationRef.current = location;
+    if (isPopRef.current) {
+      isPopRef.current = false;
+      return;
+    }
+    window.scrollTo(0, 0);
+  }, [location]);
+
+  return null;
+}
+
 function AppContent() {
   const [location] = useLocation();
   
@@ -97,6 +127,7 @@ function AppContent() {
   
   return (
     <div className="min-h-screen bg-white">
+      <ScrollToTop />
       {!hideBottomNav && location !== "/discounts" && location !== "/home" && <ConnectInstagramHeaderCTA />}
       <main className={hideBottomNav ? "" : "pb-20"}>
         <Router />
