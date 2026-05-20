@@ -204,9 +204,10 @@ function HeroSlideshow({
   // Image-timer effect — only for non-video (or failed-video) current slides.
   // Video slides advance on the `ended` event instead.
   const currentSlide = slides[index];
+  const isVideoType = (t: InstagramMediaType) => t === "VIDEO" || t === "REELS";
   const treatAsImage =
     !currentSlide ||
-    currentSlide.mediaType !== "VIDEO" ||
+    !isVideoType(currentSlide.mediaType) ||
     !!videoFailed[index];
 
   useEffect(() => {
@@ -304,7 +305,7 @@ function SlideMedia({
   // rewind to t=0 when a slide *becomes* active for the first time, but on
   // subsequent visibility/tab flips we resume from where we paused.
   const playbackStartedRef = useRef(false);
-  const isVideo = slide.mediaType === "VIDEO" && !hasFailed;
+  const isVideo = (slide.mediaType === "VIDEO" || slide.mediaType === "REELS") && !hasFailed;
 
   // Reset playback-session flag whenever this slide leaves the active spot
   // so the next time it becomes active it starts fresh from t=0.
