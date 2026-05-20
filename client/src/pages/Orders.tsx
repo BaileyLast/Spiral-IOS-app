@@ -115,7 +115,7 @@ export function OrderCard({ order, dimmed = false }: { order: Order; dimmed?: bo
   const heroImage = firstItem?.imageUrl || null;
 
   return (
-    <Link href={`/orders/${order.id}`}>
+    <Link href={`/orders/${order.id}`} className="block">
       <div
         className={`creator-card overflow-hidden cursor-pointer ${dimmed ? "opacity-70 grayscale-[0.2]" : ""}`}
         data-testid={`card-order-${order.id}`}
