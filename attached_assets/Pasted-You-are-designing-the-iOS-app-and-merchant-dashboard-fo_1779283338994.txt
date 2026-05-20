@@ -1,0 +1,122 @@
+You are designing the iOS app and merchant dashboard for a modern social-commerce platform called Spiral.
+
+Spiral allows shoppers to unlock discounts from brands in exchange for posting Instagram Stories featuring the product. The brand identity should feel premium, socially driven, modern, clean, and culturally relevant. The product should NOT look like a generic SaaS dashboard, crypto app, Replit starter template, or basic Shopify plugin.
+
+CORE BRAND FEELING:
+Spiral should feel like:
+
+* modern social status
+* creator culture
+* clean luxury
+* internet-native commerce
+* premium but youthful
+* emotionally engaging
+* visually confident
+* minimal but distinctive
+
+The app should feel more like:
+
+* a fashion-tech product
+* a premium consumer app
+* a social platform
+  than a business tool.
+
+VISUAL STYLE:
+
+* Soft white backgrounds with subtle layering using slightly different warm whites
+* Main accent color is a fresh mint green (#A8F0D1 style direction)
+* Use mint gradients sparingly and elegantly
+* Rounded corners should feel signature to the brand (18-28px)
+* Components should feel soft, floating, and tactile
+* Avoid sharp corners entirely
+* Very subtle shadows only
+* No harsh outlines
+* Large spacing and breathing room
+* Minimal visual clutter
+* Smooth and polished animations
+
+DO NOT:
+
+* use generic blue SaaS colours
+* use dark mode by default
+* use neon cyberpunk aesthetics
+* use generic Tailwind dashboard layouts
+* use boxed admin panels
+* overuse gradients
+* use excessive borders
+* make it look corporate or enterprise
+
+BUTTON DESIGN:
+Buttons should feel uniquely Spiral branded:
+
+* pill-shaped or heavily rounded
+* soft mint fills
+* subtle gradients
+* slightly oversized height
+* elegant hover and press states
+* smooth scaling animations
+* premium tactile feel
+* minimal icons
+* clean typography
+
+Primary buttons should feel:
+“rewarding to press”
+
+CARD DESIGN:
+Cards are extremely important to the brand identity.
+
+Cards should:
+
+* feel layered and floating
+* use soft white elevation
+* have large rounded corners
+* include subtle translucent sections occasionally
+* use oversized typography and metrics
+* feel editorial and social-first
+* prioritize imagery and creator identity
+
+Cards should NOT:
+
+* look like tables
+* look like admin widgets
+* feel cramped
+* use excessive dividers
+
+TYPOGRAPHY:
+
+* Use a modern geometric sans-serif
+* Large headings
+* Strong hierarchy
+* Minimal text density
+* Lowercase styling acceptable in headings
+* Typography should feel fashion-inspired and modern
+
+SPACING:
+
+* extremely generous padding
+* consistent spacing system
+* clean alignment
+* mobile-first composition
+
+ANIMATION STYLE:
+
+* smooth and soft
+* premium app-like transitions
+* subtle parallax and floating interactions
+* gentle scaling
+* no aggressive flashy animations
+
+SHOPPER EXPERIENCE:
+The shopper should feel:
+
+* important
+* socially valuable
+* rewarded
+* part of something modern and culturally relevant
+
+MERCHANT EXPERIENCE:
+The merchant dashboard should still feel premium and branded, not corporate. Metrics should feel elegant and visual, not spreadsheet-heavy.
+
+OVERALL GOAL:
+Every screen should instantly feel recognisable as Spiral.
+The product should feel custom-designed and premium, not generated from templates or copied from generic SaaS UI kits.
