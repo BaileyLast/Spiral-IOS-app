@@ -391,7 +391,7 @@ export default function Orders() {
                 (o) => getStatusLabel(o) === "Story Needed",
               );
               return (
-                <section className="space-y-4">
+                <section className="space-y-5">
                   {activeOrders.map((order) => {
                     const isStoryNeeded = getStatusLabel(order) === "Story Needed";
                     return (
@@ -419,7 +419,7 @@ export default function Orders() {
             )}
 
             {historyOrders.length > 0 && (
-              <section className="space-y-4">
+              <section className="space-y-5">
                 <div className="flex items-center gap-4">
                   <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Past</h2>
                   <div className="h-px bg-gray-200 flex-1" />
@@ -437,7 +437,7 @@ export default function Orders() {
                 (o) => getStatusLabel(o) === "Story Needed",
               );
               return (
-                <section className="space-y-4">
+                <section className="space-y-5">
                   <p className="text-xs text-gray-300 font-bold uppercase tracking-widest px-1">
                     Active — preview
                   </p>
@@ -455,7 +455,7 @@ export default function Orders() {
               );
             })()}
 
-            <section className="space-y-4">
+            <section className="space-y-5">
               <div className="flex items-center gap-4">
                 <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Past — preview</h2>
                 <div className="h-px bg-gray-200 flex-1" />
