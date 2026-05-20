@@ -1,9 +1,9 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Store, Sparkles, X, Instagram, ChevronRight } from "lucide-react";
+import { Store, Sparkles, X, Instagram, ChevronRight, Search } from "lucide-react";
 import { getCountryByCode, detectCountryFromLocale } from "@/lib/countries";
-import { normalizeCategoryForDisplay } from "@shared/categories";
+import { normalizeCategoryForDisplay, type BrandCategory } from "@shared/categories";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 const FALLBACK_GRADIENTS = [
@@ -58,6 +58,12 @@ interface InstagramMediaItem {
   thumbnailUrl: string | null;
 }
 
+interface DiscountTier {
+  fromFollowers: number;
+  toFollowers: number | null;
+  discountPercent: number;
+}
+
 interface Brand {
   id: string;
   storeName: string;
@@ -69,8 +75,15 @@ interface Brand {
   country: string | null;
   shippingCountries: string[] | null;
   selectedProductCount: number;
+  discountTiers?: DiscountTier[] | null;
   products?: ProductCard[];
   instagramMedia?: InstagramMediaItem[];
+}
+
+function maxDiscountPercent(brand: Brand): number {
+  const tiers = brand.discountTiers ?? [];
+  if (tiers.length === 0) return 0;
+  return tiers.reduce((max, t) => (t.discountPercent > max ? t.discountPercent : max), 0);
 }
 
 interface CustomerProfile {
@@ -392,6 +405,7 @@ function BrandCard({ brand, onOpenBrand }: BrandCardProps) {
   const displayName = cleanBrandName(brand.storeName, brand.instagramUsername);
   const initial = brandInitial(brand.instagramUsername || displayName);
   const gradient = gradientFor(brand.instagramUsername || displayName);
+  const maxDiscount = maxDiscountPercent(brand);
   const primary = normalizeCategoryForDisplay(brand.category);
   const secondary = (brand.secondaryCategories ?? [])
     .map((c) => normalizeCategoryForDisplay(c))
@@ -460,6 +474,14 @@ function BrandCard({ brand, onOpenBrand }: BrandCardProps) {
             </p>
           )}
         </div>
+        {maxDiscount > 0 && (
+          <span
+            className="flex-shrink-0 inline-flex items-center px-2.5 py-1 rounded-full bg-[#E6F8F0] text-[#1A996E] text-xs font-black"
+            data-testid={`badge-brand-discount-${testKey}`}
+          >
+            Up to {maxDiscount}% off
+          </span>
+        )}
         <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
       </button>
 
@@ -574,9 +596,36 @@ function BrandCard({ brand, onOpenBrand }: BrandCardProps) {
   );
 }
 
+interface CategoryChipProps {
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+  testId: string;
+}
+
+function CategoryChip({ label, selected, onClick, testId }: CategoryChipProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex-shrink-0 inline-flex items-center h-9 px-4 rounded-full text-xs font-black whitespace-nowrap hover-elevate active-elevate-2 ${
+        selected
+          ? "bg-[#1A996E] text-white"
+          : "bg-white text-gray-700 border border-gray-200"
+      }`}
+      aria-pressed={selected}
+      data-testid={testId}
+    >
+      {label}
+    </button>
+  );
+}
+
 export default function Marketplace() {
   const [, setLocation] = useLocation();
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<BrandCategory | "all">("all");
 
   const { data: profile } = useQuery<CustomerProfile>({
     queryKey: ["/api/customer/me"],
@@ -592,30 +641,135 @@ export default function Marketplace() {
   const usingLocaleFallback = !profileCountry && !!localeCountry;
   const country = getCountryByCode(effectiveCountry);
 
-  const filteredBrands = useMemo(() => {
+  // Country + product-count filter — runs before search/category so the
+  // category chip row only shows categories that actually have shippable brands.
+  const countryFilteredBrands = useMemo(() => {
     if (!brands) return [];
     return brands
       .filter((b) => (b.selectedProductCount ?? 0) > 0)
-      .filter((b) => brandShipsToCountry(b, effectiveCountry));
+      .filter((b) => brandShipsToCountry(b, effectiveCountry))
+      .filter((b) => isSafeHttpUrl(b.storefrontUrl));
   }, [brands, effectiveCountry]);
 
-  const visibleBrands = filteredBrands.filter((b) => isSafeHttpUrl(b.storefrontUrl));
+  // Categories present in the current (country-filtered) brand list, ordered
+  // by how often they appear so the most popular chips render first.
+  const availableCategories = useMemo<BrandCategory[]>(() => {
+    const counts = new Map<BrandCategory, number>();
+    for (const b of countryFilteredBrands) {
+      const cats: (BrandCategory | null)[] = [
+        normalizeCategoryForDisplay(b.category),
+        ...(b.secondaryCategories ?? []).map((c) => normalizeCategoryForDisplay(c)),
+      ];
+      const seen = new Set<BrandCategory>();
+      for (const c of cats) {
+        if (!c || seen.has(c)) continue;
+        seen.add(c);
+        counts.set(c, (counts.get(c) ?? 0) + 1);
+      }
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([c]) => c);
+  }, [countryFilteredBrands]);
+
+  // If the user had a category selected and the list refreshes without it,
+  // fall back to "all" so the page doesn't go silently empty.
+  useEffect(() => {
+    if (selectedCategory === "all") return;
+    if (!availableCategories.includes(selectedCategory)) {
+      setSelectedCategory("all");
+    }
+  }, [availableCategories, selectedCategory]);
+
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const visibleBrands = useMemo(() => {
+    return countryFilteredBrands.filter((b) => {
+      if (selectedCategory !== "all") {
+        const primary = normalizeCategoryForDisplay(b.category);
+        const secondaries = (b.secondaryCategories ?? [])
+          .map((c) => normalizeCategoryForDisplay(c))
+          .filter((c): c is BrandCategory => c !== null);
+        const all = primary ? [primary, ...secondaries] : secondaries;
+        if (!all.includes(selectedCategory)) return false;
+      }
+      if (normalizedQuery) {
+        const display = cleanBrandName(b.storeName, b.instagramUsername).toLowerCase();
+        const handle = (b.instagramUsername ?? "").toLowerCase();
+        const store = b.storeName.toLowerCase();
+        if (
+          !display.includes(normalizedQuery) &&
+          !handle.includes(normalizedQuery) &&
+          !store.includes(normalizedQuery)
+        ) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [countryFilteredBrands, selectedCategory, normalizedQuery]);
+
+  const hasActiveFilters = normalizedQuery.length > 0 || selectedCategory !== "all";
+  const clearFilters = () => {
+    setSearchQuery("");
+    setSelectedCategory("all");
+  };
 
   return (
     <div className="min-h-screen bg-warm safe-top pb-12">
-      <header className="px-6 pt-10 pb-6">
+      <header className="px-6 pt-10 pb-4 space-y-4">
         <h1
-          className="text-3xl font-black tracking-tight text-gray-900 mb-2"
+          className="text-3xl font-black tracking-tight text-gray-900"
           data-testid="text-page-title"
         >
           Discover
         </h1>
-        {visibleBrands.length > 0 && (
-          <div className="glass-pill inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white shadow-sm border border-gray-100">
-            <div className="w-2 h-2 rounded-full bg-[#4ECCA3] animate-pulse" />
-            <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">
-              {visibleBrands.length} brand{visibleBrands.length === 1 ? "" : "s"}
-            </span>
+
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <input
+            type="search"
+            inputMode="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search brands"
+            aria-label="Search brands"
+            className="w-full h-11 pl-10 pr-10 rounded-full bg-white border border-gray-200 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-[#4ECCA3] focus:ring-2 focus:ring-[#4ECCA3]/20"
+            data-testid="input-search-brands"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center hover-elevate"
+              data-testid="button-clear-search"
+            >
+              <X className="w-4 h-4 text-gray-400" />
+            </button>
+          )}
+        </div>
+
+        {availableCategories.length > 0 && (
+          <div
+            className="flex gap-2 overflow-x-auto -mx-6 px-6 pb-1 scrollbar-none"
+            style={{ scrollbarWidth: "none" }}
+            data-testid="row-category-chips"
+          >
+            <CategoryChip
+              label="All"
+              selected={selectedCategory === "all"}
+              onClick={() => setSelectedCategory("all")}
+              testId="chip-category-all"
+            />
+            {availableCategories.map((cat) => (
+              <CategoryChip
+                key={cat}
+                label={cat}
+                selected={selectedCategory === cat}
+                onClick={() => setSelectedCategory(cat)}
+                testId={`chip-category-${cat.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+              />
+            ))}
           </div>
         )}
       </header>
@@ -673,24 +827,49 @@ export default function Marketplace() {
             ))}
           </div>
         ) : visibleBrands.length === 0 ? (
-          <div
-            className="creator-card p-8 text-center"
-            data-testid="card-empty-marketplace"
-          >
-            <div className="w-16 h-16 rounded-2xl bg-[#E6F8F0] flex items-center justify-center mx-auto mb-4">
-              <Store className="w-8 h-8 text-[#4ECCA3]" />
+          hasActiveFilters ? (
+            <div
+              className="creator-card p-8 text-center"
+              data-testid="card-empty-filtered"
+            >
+              <div className="w-16 h-16 rounded-2xl bg-[#E6F8F0] flex items-center justify-center mx-auto mb-4">
+                <Search className="w-8 h-8 text-[#4ECCA3]" />
+              </div>
+              <h3 className="font-black text-gray-900 mb-2 text-lg">
+                No brands match
+              </h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Try a different search or category.
+              </p>
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="inline-flex items-center justify-center gap-2 text-xs text-[#1A996E] font-black bg-[#E6F8F0] px-4 py-2 rounded-full hover-elevate"
+                data-testid="button-clear-filters"
+              >
+                Clear filters
+              </button>
             </div>
-            <h3 className="font-black text-gray-900 mb-2 text-lg">
-              {country ? `No brands shipping to ${country.name} yet` : "No brands available yet"}
-            </h3>
-            <p className="text-sm text-gray-500 mb-4">
-              We're adding new partner brands every week — check back soon.
-            </p>
-            <div className="inline-flex items-center justify-center gap-2 text-xs text-[#1A996E] font-bold bg-[#E6F8F0] px-3 py-1.5 rounded-full">
-              <Sparkles className="w-4 h-4" />
-              <span>New brands added weekly</span>
+          ) : (
+            <div
+              className="creator-card p-8 text-center"
+              data-testid="card-empty-marketplace"
+            >
+              <div className="w-16 h-16 rounded-2xl bg-[#E6F8F0] flex items-center justify-center mx-auto mb-4">
+                <Store className="w-8 h-8 text-[#4ECCA3]" />
+              </div>
+              <h3 className="font-black text-gray-900 mb-2 text-lg">
+                {country ? `No brands shipping to ${country.name} yet` : "No brands available yet"}
+              </h3>
+              <p className="text-sm text-gray-500 mb-4">
+                We're adding new partner brands every week — check back soon.
+              </p>
+              <div className="inline-flex items-center justify-center gap-2 text-xs text-[#1A996E] font-bold bg-[#E6F8F0] px-3 py-1.5 rounded-full">
+                <Sparkles className="w-4 h-4" />
+                <span>New brands added weekly</span>
+              </div>
             </div>
-          </div>
+          )
         ) : (
           <div className="space-y-4" data-testid="grid-brands">
             {visibleBrands.map((brand) => (
