@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -79,12 +79,21 @@ export default function HomeInstagramConnect() {
     },
   });
 
-  // Auto-regenerate silently if the current code expires while the page is open.
+  // Auto-regenerate silently (exactly once) if the current code expires
+  // while the page is open. Guard resets when status moves away from
+  // "expired" so a future expiry can still auto-renew.
+  const autoRegenFiredRef = useRef(false);
   useEffect(() => {
-    if (verificationStatus?.status === "expired" && !regenerateCodeMutation.isPending) {
-      regenerateCodeMutation.mutate({ silent: true });
+    const status = verificationStatus?.status;
+    if (status === "expired") {
+      if (!autoRegenFiredRef.current) {
+        autoRegenFiredRef.current = true;
+        regenerateCodeMutation.mutate({ silent: true });
+      }
+    } else {
+      autoRegenFiredRef.current = false;
     }
-  }, [verificationStatus?.status, regenerateCodeMutation.isPending]);
+  }, [verificationStatus?.status]);
 
   const handleCopyAndMessage = async () => {
     if (!spiralCode?.code) return;
