@@ -111,7 +111,7 @@ export default function CustomerHome() {
 
         {hasStats && (
           <div
-            className="creator-card p-6 bg-gray-900 text-white"
+            className="creator-card p-6 !bg-gray-900 text-white"
             data-testid="card-stats"
           >
             <h3 className="font-black text-lg mb-5">Your Spiral</h3>

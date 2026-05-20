@@ -162,7 +162,7 @@ export default function Profile() {
         </div>
 
         {/* Stats card */}
-        <div className="creator-card p-5 bg-gray-900 text-white" data-testid="card-stats">
+        <div className="creator-card p-5 !bg-gray-900 text-white" data-testid="card-stats">
           <h3 className="font-black text-lg mb-4">Your savings</h3>
           <div className="grid grid-cols-2 gap-4">
             <div>
