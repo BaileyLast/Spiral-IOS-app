@@ -4,6 +4,7 @@ import { ChevronRight, Instagram, Lock, CheckCircle2 } from "lucide-react";
 import type { Order } from "@shared/schema";
 import HomeInstagramConnect from "@/components/HomeInstagramConnect";
 import { OrderCard } from "@/pages/Orders";
+import { formatCurrency } from "@/lib/countries";
 
 interface CustomerProfile {
   id: string;
@@ -15,6 +16,7 @@ interface CustomerProfile {
   followerCount?: number;
   accountStatus?: string;
   softBannedReason?: string | null;
+  country?: string | null;
 }
 
 function formatFollowerCount(count: number): string {
@@ -140,7 +142,7 @@ export default function CustomerHome() {
                   className="text-2xl font-black text-[#A8F0D1]"
                   data-testid="text-total-saved"
                 >
-                  ${stats!.totalSaved.toFixed(2)}
+                  {formatCurrency(stats!.totalSaved, profile?.country)}
                 </p>
               </div>
               <div>

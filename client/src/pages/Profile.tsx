@@ -26,6 +26,8 @@ import {
   ShoppingBag,
 } from "lucide-react";
 
+import { formatCurrency } from "@/lib/countries";
+
 interface CustomerProfile {
   id: string;
   email: string;
@@ -37,6 +39,7 @@ interface CustomerProfile {
   instagramProfilePicture?: string;
   instagramAccountType?: string;
   followerCount?: number;
+  country?: string | null;
 }
 
 function formatFollowerCount(count: number | null | undefined): string {
@@ -164,7 +167,7 @@ export default function Profile() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-3xl font-black text-[#A8F0D1]" data-testid="text-total-saved">
-                ${Number(totalSaved).toFixed(2)}
+                {formatCurrency(Number(totalSaved), profile?.country)}
               </p>
               <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mt-1">
                 Total saved
