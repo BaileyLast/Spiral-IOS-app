@@ -314,7 +314,7 @@ export default function MerchantProducts() {
                       className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-md border border-[#A8F5E0] bg-white px-1.5 py-1 shadow-sm"
                       data-testid={`badge-product-spiral-${p.id}`}
                     >
-                      <img src="/spiral-icon.png" alt="" width={18} height={18} className="block" />
+                      <img src="/spiral-icon.png" alt="" width={14} height={14} className="block" />
                       <span className="text-[11px] font-semibold text-[#2BAE88] leading-none">Spiral Discount</span>
                     </span>
                   </div>
