@@ -1,0 +1,56 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+
+:root {
+  --font-outfit: 'Outfit', sans-serif;
+  --mint-deep: #4ECCA3;
+  --mint-pale: #A8F0D1;
+  --mint-light: #E6F8F0;
+  --bg-warm: #FCFCFB;
+  --text-dark: #111111;
+  --text-muted: #888888;
+  --card-bg: #FFFFFF;
+  --card-shadow: 0px 12px 32px rgba(0, 0, 0, 0.04), 0px 2px 8px rgba(0, 0, 0, 0.02);
+}
+
+.creator-theme {
+  font-family: var(--font-outfit);
+  background-color: var(--bg-warm);
+  color: var(--text-dark);
+}
+
+.creator-card {
+  background-color: var(--card-bg);
+  border-radius: 28px;
+  box-shadow: var(--card-shadow);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+  border: 1px solid rgba(0,0,0,0.02);
+}
+
+.creator-card:active {
+  transform: scale(0.98);
+}
+
+.tactile-btn {
+  border-radius: 9999px;
+  background-color: var(--mint-deep);
+  color: white;
+  font-weight: 700;
+  box-shadow: 0px 4px 12px rgba(78, 204, 163, 0.3), inset 0px -4px 0px rgba(0,0,0,0.1);
+  transition: all 0.1s ease;
+  cursor: pointer;
+}
+
+.tactile-btn:active {
+  transform: translateY(4px);
+  box-shadow: 0px 0px 0px rgba(78, 204, 163, 0.3), inset 0px 0px 0px rgba(0,0,0,0.1);
+}
+
+.story-bg-gradient {
+  background: linear-gradient(135deg, #A8F0D1 0%, #4ECCA3 100%);
+}
+
+.glass-pill {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.5);
+}
