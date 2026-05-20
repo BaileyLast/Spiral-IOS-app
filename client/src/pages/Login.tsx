@@ -7,6 +7,7 @@ import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { Eye, EyeOff, Loader2, ChevronDown, Check, Sparkles } from "lucide-react";
 import { COUNTRIES, getCountryByCode, detectCountryFromLocale } from "@/lib/countries";
 const spiralLogoUrl = "/spiral-gradient-logo.png";
@@ -57,6 +58,33 @@ export default function Login() {
       }
     },
     onError: (error: Error) => {
+      const isDuplicateEmail =
+        mode === "signup" &&
+        error.message === "An account with this email already exists";
+
+      if (isDuplicateEmail) {
+        const attemptedEmail = email;
+        toast({
+          title: "You already have a Spiral account",
+          description: "This email is already associated with a Spiral account.",
+          action: (
+            <ToastAction
+              altText="Sign in with this email"
+              onClick={() => {
+                setMode("login");
+                setEmail(attemptedEmail);
+                setPassword("");
+                setShowPassword(false);
+              }}
+              data-testid="button-toast-switch-signin"
+            >
+              Sign In
+            </ToastAction>
+          ),
+        });
+        return;
+      }
+
       toast({
         title: mode === "login" ? "Login failed" : "Sign up failed",
         description: error.message || "Please check your details and try again",
