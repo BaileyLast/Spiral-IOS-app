@@ -5,8 +5,8 @@ export const modules: ModuleMap = {
   "./components/mockups/orders-section/OrdersList.tsx": () => import("../components/mockups/orders-section/OrdersList.tsx"),
   "./components/mockups/spiral-creator/OrderDetail.tsx": () => import("../components/mockups/spiral-creator/OrderDetail.tsx"),
   "./components/mockups/spiral-creator/OrdersList.tsx": () => import("../components/mockups/spiral-creator/OrdersList.tsx"),
-  "./components/mockups/spiral-editorial/OrderDetail.tsx": () => import("../components/mockups/spiral-editorial/OrderDetail.tsx"),
-  "./components/mockups/spiral-editorial/OrdersList.tsx": () => import("../components/mockups/spiral-editorial/OrdersList.tsx"),
   "./components/mockups/spiral-premium/OrderDetail.tsx": () => import("../components/mockups/spiral-premium/OrderDetail.tsx"),
-  "./components/mockups/spiral-premium/OrdersList.tsx": () => import("../components/mockups/spiral-premium/OrdersList.tsx")
+  "./components/mockups/spiral-premium/OrdersList.tsx": () => import("../components/mockups/spiral-premium/OrdersList.tsx"),
+  "./components/mockups/spiral-editorial/OrderDetail.tsx": () => import("../components/mockups/spiral-editorial/OrderDetail.tsx"),
+  "./components/mockups/spiral-editorial/OrdersList.tsx": () => import("../components/mockups/spiral-editorial/OrdersList.tsx")
 };
