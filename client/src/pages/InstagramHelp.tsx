@@ -65,13 +65,6 @@ export default function InstagramHelp() {
         </button>
 
         <div className="w-full max-w-sm mx-auto">
-          <img 
-            src={spiralLogoUrl} 
-            alt="Spiral" 
-            className="h-8 mx-auto mb-8 object-contain brightness-0 invert"
-            data-testid="img-spiral-logo"
-          />
-
           <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center mx-auto mb-6">
             <Instagram className="w-7 h-7 text-white" />
           </div>
