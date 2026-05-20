@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Store, Sparkles, X, Instagram, ChevronRight, Search } from "lucide-react";
+import { Store, Sparkles, X, Instagram, ChevronRight, Search, Check } from "lucide-react";
 import { getCountryByCode, detectCountryFromLocale } from "@/lib/countries";
 import { normalizeCategoryForDisplay, type BrandCategory } from "@shared/categories";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -86,8 +86,25 @@ function maxDiscountPercent(brand: Brand): number {
   return tiers.reduce((max, t) => (t.discountPercent > max ? t.discountPercent : max), 0);
 }
 
+// Returns the discount % a shopper with `followerCount` followers unlocks at
+// `brand`, or 0 if no tier matches (i.e. they're below the brand's minimum).
+function discountForFollowers(brand: Brand, followerCount: number | null | undefined): number {
+  const tiers = brand.discountTiers ?? [];
+  if (!followerCount || followerCount <= 0 || tiers.length === 0) return 0;
+  for (const t of tiers) {
+    const min = t.fromFollowers ?? 0;
+    const max = t.toFollowers ?? Infinity;
+    if (followerCount >= min && followerCount <= max) {
+      return t.discountPercent;
+    }
+  }
+  return 0;
+}
+
 interface CustomerProfile {
   country?: string;
+  followerCount?: number | null;
+  instagramUserId?: string | null;
 }
 
 function isSafeHttpUrl(url: string | null | undefined): boolean {
@@ -399,13 +416,20 @@ function SlideMedia({
 interface BrandCardProps {
   brand: Brand;
   onOpenBrand: (brandId: string) => void;
+  personalMode: boolean;
+  personalDiscount: number;
 }
 
-function BrandCard({ brand, onOpenBrand }: BrandCardProps) {
+function BrandCard({ brand, onOpenBrand, personalMode, personalDiscount }: BrandCardProps) {
   const displayName = cleanBrandName(brand.storeName, brand.instagramUsername);
   const initial = brandInitial(brand.instagramUsername || displayName);
   const gradient = gradientFor(brand.instagramUsername || displayName);
   const maxDiscount = maxDiscountPercent(brand);
+  // In personal mode (toggle on + IG connected) the badge reflects the
+  // shopper's actual unlocked tier; if no tier matches, the badge is hidden
+  // because the brand effectively offers them nothing today.
+  const badgePercent = personalMode ? personalDiscount : maxDiscount;
+  const badgeLabel = personalMode ? "Your discount" : "Up to";
   const primary = normalizeCategoryForDisplay(brand.category);
   const secondary = (brand.secondaryCategories ?? [])
     .map((c) => normalizeCategoryForDisplay(c))
@@ -474,12 +498,12 @@ function BrandCard({ brand, onOpenBrand }: BrandCardProps) {
             </p>
           )}
         </div>
-        {maxDiscount > 0 && (
+        {badgePercent > 0 && (
           <span
             className="flex-shrink-0 inline-flex items-center px-2.5 py-1 rounded-full bg-[#E6F8F0] text-[#1A996E] text-xs font-black"
             data-testid={`badge-brand-discount-${testKey}`}
           >
-            Up to {maxDiscount}% off
+            {badgeLabel} {badgePercent}% off
           </span>
         )}
         <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
@@ -626,6 +650,7 @@ export default function Marketplace() {
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<BrandCategory | "all">("all");
+  const [bestForMeOn, setBestForMeOn] = useState(false);
 
   const { data: profile } = useQuery<CustomerProfile>({
     queryKey: ["/api/customer/me"],
@@ -640,6 +665,21 @@ export default function Marketplace() {
   const effectiveCountry = profileCountry || (localeCountry ? localeCountry.toUpperCase() : null);
   const usingLocaleFallback = !profileCountry && !!localeCountry;
   const country = getCountryByCode(effectiveCountry);
+
+  // "Best discount for me" is only meaningful when we actually know the
+  // shopper's follower count — i.e. they've linked Instagram. Otherwise we
+  // hide the toggle entirely.
+  const followerCount = profile?.followerCount ?? 0;
+  const personalAvailable = !!profile?.instagramUserId && followerCount > 0;
+  const personalMode = personalAvailable && bestForMeOn;
+
+  // If the shopper disconnects Instagram while the toggle was on, silently
+  // turn it off so the badges/sort don't claim a personal % we can't compute.
+  useEffect(() => {
+    if (!personalAvailable && bestForMeOn) {
+      setBestForMeOn(false);
+    }
+  }, [personalAvailable, bestForMeOn]);
 
   // Country + product-count filter — runs before search/category so the
   // category chip row only shows categories that actually have shippable brands.
@@ -683,7 +723,7 @@ export default function Marketplace() {
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const visibleBrands = useMemo(() => {
-    return countryFilteredBrands.filter((b) => {
+    const filtered = countryFilteredBrands.filter((b) => {
       if (selectedCategory !== "all") {
         const primary = normalizeCategoryForDisplay(b.category);
         const secondaries = (b.secondaryCategories ?? [])
@@ -706,12 +746,23 @@ export default function Marketplace() {
       }
       return true;
     });
-  }, [countryFilteredBrands, selectedCategory, normalizedQuery]);
 
-  const hasActiveFilters = normalizedQuery.length > 0 || selectedCategory !== "all";
+    if (!personalMode) return filtered;
+
+    // Stable sort by personal discount desc. Brands the shopper doesn't
+    // qualify for (0%) sink to the bottom but stay in their original order.
+    return filtered
+      .map((b, idx) => ({ b, idx, pct: discountForFollowers(b, followerCount) }))
+      .sort((a, z) => (z.pct - a.pct) || (a.idx - z.idx))
+      .map((x) => x.b);
+  }, [countryFilteredBrands, selectedCategory, normalizedQuery, personalMode, followerCount]);
+
+  const hasActiveFilters =
+    normalizedQuery.length > 0 || selectedCategory !== "all" || bestForMeOn;
   const clearFilters = () => {
     setSearchQuery("");
     setSelectedCategory("all");
+    setBestForMeOn(false);
   };
 
   return (
@@ -770,6 +821,25 @@ export default function Marketplace() {
                 testId={`chip-category-${cat.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
               />
             ))}
+          </div>
+        )}
+
+        {personalAvailable && (
+          <div className="flex" data-testid="row-personal-toggle">
+            <button
+              type="button"
+              onClick={() => setBestForMeOn((v) => !v)}
+              aria-pressed={bestForMeOn}
+              className={`inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-xs font-black whitespace-nowrap hover-elevate active-elevate-2 ${
+                bestForMeOn
+                  ? "bg-[#1A996E] text-white"
+                  : "bg-white text-gray-700 border border-gray-200"
+              }`}
+              data-testid="button-toggle-best-for-me"
+            >
+              {bestForMeOn && <Check className="w-3.5 h-3.5" />}
+              Best discount for me
+            </button>
           </div>
         )}
       </header>
@@ -876,6 +946,10 @@ export default function Marketplace() {
               <BrandCard
                 key={brand.id}
                 brand={brand}
+                personalMode={personalMode}
+                personalDiscount={
+                  personalMode ? discountForFollowers(brand, followerCount) : 0
+                }
                 onOpenBrand={(id) =>
                   setLocation(`/marketplace/${encodeURIComponent(id)}`)
                 }
