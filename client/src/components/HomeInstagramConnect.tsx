@@ -118,14 +118,13 @@ export default function HomeInstagramConnect() {
           >
             {copied ? (
               <>
-                <CheckCircle className="w-5 h-5 mr-2" />
-                Copied! Opening Instagram...
+                <CheckCircle className="w-5 h-5 mr-2 shrink-0" />
+                <span className="truncate">Copied! Opening...</span>
               </>
             ) : (
               <>
-                <Copy className="w-5 h-5 mr-2" />
-                Copy & Message @joinspiral
-                <ExternalLink className="w-4 h-4 ml-2" />
+                <Copy className="w-5 h-5 mr-2 shrink-0" />
+                <span className="truncate">Message @joinspiral</span>
               </>
             )}
           </Button>
