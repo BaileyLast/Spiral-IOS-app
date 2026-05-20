@@ -283,13 +283,14 @@
     background-color: #4ECCA3;
     color: white;
     font-weight: 700;
-    box-shadow: 0px 4px 12px rgba(78, 204, 163, 0.3), inset 0px -4px 0px rgba(0, 0, 0, 0.1);
-    transition: all 0.1s ease;
+    transition: background-color 0.15s ease, opacity 0.15s ease;
     cursor: pointer;
   }
+  .tactile-btn:hover {
+    background-color: #44b994;
+  }
   .tactile-btn:active {
-    transform: translateY(2px);
-    box-shadow: 0px 0px 0px rgba(78, 204, 163, 0.3), inset 0px 0px 0px rgba(0, 0, 0, 0.1);
+    background-color: #3da585;
   }
   .tactile-btn:disabled {
     opacity: 0.6;

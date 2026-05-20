@@ -170,10 +170,7 @@ export function OrderCard({ order, dimmed = false }: { order: Order; dimmed?: bo
               <div className="w-10 h-10 rounded-full bg-[#E6F8F0] flex items-center justify-center text-[#4ECCA3] flex-shrink-0">
                 <Instagram className="w-5 h-5" />
               </div>
-              <div className="min-w-0">
-                <p className="text-sm font-bold text-gray-900">Post a Story</p>
-                <p className="text-xs text-gray-500">to unlock your next discount</p>
-              </div>
+              <p className="text-sm font-bold text-gray-900">Post a Story</p>
             </div>
             <span className="tactile-btn px-5 py-2.5 text-sm">Open</span>
           </div>
@@ -185,10 +182,7 @@ export function OrderCard({ order, dimmed = false }: { order: Order; dimmed?: bo
               <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-[#1A996E] flex-shrink-0">
                 <CheckCircle2 className="w-5 h-5" />
               </div>
-              <div className="min-w-0">
-                <p className="text-sm font-bold text-gray-900">{status}</p>
-                <p className="text-xs text-gray-500">Discount unlocked</p>
-              </div>
+              <p className="text-sm font-bold text-gray-900">{status}</p>
             </div>
             <ChevronRight className="w-5 h-5 text-gray-300 flex-shrink-0" />
           </div>
