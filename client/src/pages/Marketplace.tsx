@@ -424,21 +424,20 @@ function SlideMedia({
 interface BrandCardProps {
   brand: Brand;
   onOpenBrand: (brandId: string) => void;
-  personalMode: boolean;
-  personalDiscount: number;
+  igConnected: boolean;
   shopperDiscount: number;
 }
 
-function BrandCard({ brand, onOpenBrand, personalMode, personalDiscount, shopperDiscount }: BrandCardProps) {
+function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCardProps) {
   const displayName = cleanBrandName(brand.storeName, brand.instagramUsername);
   const initial = brandInitial(brand.instagramUsername || displayName);
   const gradient = gradientFor(brand.instagramUsername || displayName);
   const maxDiscount = maxDiscountPercent(brand);
-  // In personal mode (toggle on + IG connected) the badge reflects the
-  // shopper's actual unlocked tier; if no tier matches, the badge is hidden
-  // because the brand effectively offers them nothing today.
-  const badgePercent = personalMode ? personalDiscount : maxDiscount;
-  const badgeLabel = personalMode ? "Your discount" : "Up to";
+  // Once IG is linked, the badge always reflects the shopper's actual unlocked
+  // tier on this brand — no toggle required. Without IG, fall back to teasing
+  // the brand's max tier. Either way, badge is hidden when the value is 0.
+  const badgePercent = igConnected ? shopperDiscount : maxDiscount;
+  const badgeLabel = igConnected ? "Your discount" : "Up to";
   const primary = normalizeCategoryForDisplay(brand.category);
   const secondary = (brand.secondaryCategories ?? [])
     .map((c) => normalizeCategoryForDisplay(c))
@@ -974,10 +973,7 @@ export default function Marketplace() {
               <BrandCard
                 key={brand.id}
                 brand={brand}
-                personalMode={personalMode}
-                personalDiscount={
-                  personalMode ? discountForFollowers(brand, followerCount) : 0
-                }
+                igConnected={personalAvailable}
                 shopperDiscount={
                   personalAvailable ? discountForFollowers(brand, followerCount) : 0
                 }
