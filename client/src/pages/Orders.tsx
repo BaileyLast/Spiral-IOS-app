@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { ShoppingBag, ChevronRight, CheckCircle2, Store, Lock } from "lucide-react";
+import { ShoppingBag, ChevronRight, Store, Lock } from "lucide-react";
 import type { Order } from "@shared/schema";
 
 export interface LineItem {
@@ -188,15 +188,6 @@ export function OrderCard({ order, dimmed = false }: { order: Order; dimmed?: bo
                     year: "numeric",
                   })}
                 </p>
-                {status === "Verified" && (
-                  <>
-                    <span className="text-gray-200">·</span>
-                    <div className="flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3 text-green-500" />
-                      <p className="text-xs text-green-600 font-medium">Confirmed</p>
-                    </div>
-                  </>
-                )}
               </div>
               <div className="flex items-center gap-1.5">
                 <span className={`text-sm font-bold ${dimmed ? "text-green-600/60" : "text-green-700"}`}>
