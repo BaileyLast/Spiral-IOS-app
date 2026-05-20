@@ -198,6 +198,41 @@ export function OrderCard({ order, dimmed = false }: { order: Order; dimmed?: bo
   );
 }
 
+export function OrderRowCompact({ order }: { order: Order }) {
+  const lineItems = parseLineItems(order.lineItems);
+  const firstItem = lineItems[0];
+  const itemName = firstItem ? lineItemDisplayName(firstItem) : "";
+
+  return (
+    <Link href={`/orders/${order.id}`} className="block">
+      <div
+        className="creator-card flex items-center gap-3 px-4 py-3 cursor-pointer hover-elevate"
+        data-testid={`card-order-${order.id}`}
+      >
+        <StoreBadgeImg src={order.storeLogo} name={order.storeName} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-bold text-gray-900 truncate" data-testid={`text-store-name-${order.id}`}>
+              {order.storeName || `Order #${order.shopifyOrderId.slice(-6)}`}
+            </p>
+            <span className="text-xs text-gray-400 flex-shrink-0">#{order.shopifyOrderId.slice(-6)}</span>
+          </div>
+          {itemName && (
+            <p className="text-xs text-gray-500 truncate mt-0.5">{itemName}</p>
+          )}
+        </div>
+        <div className="text-right flex-shrink-0">
+          <p className="text-sm font-bold text-[#1A996E]">
+            ${Number(order.discountAmount).toFixed(2)}
+          </p>
+          <p className="text-[10px] text-gray-400 uppercase tracking-wide font-bold">saved</p>
+        </div>
+        <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+      </div>
+    </Link>
+  );
+}
+
 export const MOCK_ACTIVE: Order[] = [
   {
     id: "mock-active-1",
@@ -479,13 +514,13 @@ export default function Orders() {
               );
             })()}
 
-            <section className="space-y-5">
+            <section className="space-y-3">
               <div className="flex items-center gap-4">
-                <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Past — preview</h2>
+                <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Past orders</h2>
                 <div className="h-px bg-gray-200 flex-1" />
               </div>
-              {MOCK_HISTORY.map((mock) => (
-                <OrderCard key={mock.id} order={mock} dimmed />
+              {[...historyOrders, ...MOCK_HISTORY].map((order) => (
+                <OrderRowCompact key={order.id} order={order} />
               ))}
             </section>
           </>
