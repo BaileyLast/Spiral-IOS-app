@@ -70,29 +70,34 @@ function isCompleted(order: Order) {
   return status === "Verified" || status === "Confirmed";
 }
 
-function getStatusBadge(status: string) {
+// Visual treatment per status. Two design rules:
+// 1. Only "action-needed" states get a tinted pill (Story Needed = primary
+//    mint, Repost Story = orange). Everything else uses a neutral grey pill
+//    so colour noise stays low and the action-needed cards visually win.
+// 2. Every state still gets a coloured dot so the eye can scan state at a
+//    glance without reading text. Klarna/Apple-style.
+function getStatusBadgeStyle(status: string): { pill: string; dot: string } {
   switch (status) {
     case "Verified":
     case "Confirmed":
-      return "bg-green-50 text-green-700 border border-green-200";
+      return { pill: "bg-gray-50 text-gray-700", dot: "bg-emerald-500" };
     case "Confirming":
     case "Story Received":
-      return "bg-blue-50 text-blue-700 border border-blue-200";
+      return { pill: "bg-gray-50 text-gray-700", dot: "bg-blue-500" };
     case "Story Needed":
-      return "bg-amber-50 text-amber-700 border border-amber-200";
+      return { pill: "bg-primary/10 text-primary", dot: "bg-primary" };
     case "Repost Story":
-      return "bg-orange-50 text-orange-700 border border-orange-200";
+      return { pill: "bg-orange-50 text-orange-700", dot: "bg-orange-500" };
     case "Ready for pickup":
-      return "bg-indigo-50 text-indigo-700 border border-indigo-200";
+      return { pill: "bg-gray-50 text-gray-700", dot: "bg-indigo-500" };
     case "Out for delivery":
-      return "bg-blue-50 text-blue-700 border border-blue-200";
+    case "On the way":
+      return { pill: "bg-gray-50 text-gray-700", dot: "bg-sky-500" };
     case "Delivery attempted":
     case "Delivery issue":
-      return "bg-orange-50 text-orange-700 border border-orange-200";
-    case "On the way":
-      return "bg-blue-50 text-blue-700 border border-blue-200";
+      return { pill: "bg-gray-50 text-gray-700", dot: "bg-orange-500" };
     default:
-      return "bg-gray-100 text-gray-600 border border-gray-200";
+      return { pill: "bg-gray-50 text-gray-600", dot: "bg-gray-400" };
   }
 }
 
@@ -155,11 +160,17 @@ export function OrderCard({ order, dimmed = false }: { order: Order; dimmed?: bo
                   <p className="text-xs text-gray-400">#{order.shopifyOrderId.slice(-6)}</p>
                 )}
               </div>
-              <span
-                className={`px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 ${getStatusBadge(status)}`}
-              >
-                {status}
-              </span>
+              {(() => {
+                const { pill, dot } = getStatusBadgeStyle(status);
+                return (
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 ${pill}`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+                    {status}
+                  </span>
+                );
+              })()}
             </div>
 
             {summary ? (
