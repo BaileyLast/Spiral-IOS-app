@@ -4399,6 +4399,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       )
       .nullable()
       .optional(),
+    // Recent Instagram media for the marketplace hero slideshow. Provided
+    // by the merchant dashboard, which holds the per-merchant access tokens
+    // and is responsible for refreshing the IG CDN URLs before they expire.
+    // Optional during rollout — missing or empty means the shopper card
+    // falls back to a static product-image hero. Malformed items are
+    // dropped individually so one bad post can't blank the slideshow.
+    instagramMedia: z
+      .array(z.unknown())
+      .transform((arr) =>
+        arr
+          .map((item) => {
+            const parsed = z
+              .object({
+                mediaUrl: httpUrl,
+                mediaType: z.enum(["IMAGE", "VIDEO", "CAROUSEL_ALBUM", "REELS"]),
+                thumbnailUrl: httpUrl.nullable().optional(),
+              })
+              .safeParse(item);
+            return parsed.success ? parsed.data : null;
+          })
+          .filter((m): m is { mediaUrl: string; mediaType: "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM" | "REELS"; thumbnailUrl?: string | null } => m !== null),
+      )
+      .nullable()
+      .optional(),
   });
   // Drop individual brands that fail validation (rather than 502 the whole list)
   // so one bad merchant record can't break the marketplace for everyone.
@@ -4566,6 +4590,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // product hero + carousel without an N+1 fan-out from the client. See
       // `fetchBrandPreviewProducts` for the fetch + cache strategy.
       products,
+      // Recent IG posts for the hero slideshow. See brandSchema comment.
+      instagramMedia: (brand.instagramMedia ?? []).map((m) => ({
+        mediaUrl: m.mediaUrl,
+        mediaType: m.mediaType,
+        thumbnailUrl: m.thumbnailUrl ?? null,
+      })),
     };
   }
   // Defensive filter shared by the marketplace list and the per-brand
