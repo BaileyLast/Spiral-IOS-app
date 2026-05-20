@@ -88,28 +88,21 @@ export default function Login() {
     <div className="min-h-screen bg-warm safe-top pb-12">
       <main className="px-6 pt-8 space-y-6">
         {/* HERO */}
-        <div className="creator-card story-bg-gradient p-8 text-white text-center relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-4 opacity-20 transform translate-x-4 -translate-y-4 pointer-events-none">
-            <Sparkles className="w-32 h-32" />
-          </div>
-          <div className="relative z-10 flex flex-col items-center">
-            <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-lg mb-5">
-              <img
-                src={spiralLogoUrl}
-                alt="Spiral"
-                className="h-14 w-14 object-contain"
-                data-testid="img-spiral-logo"
-              />
-            </div>
-            <h1 className="text-3xl font-black mb-2 leading-tight tracking-tight">
-              {mode === "login" ? "Welcome back" : "Earn instant discounts"}
-            </h1>
-            <p className="text-[#E6F8F0] font-medium text-sm max-w-[260px]">
-              {mode === "login"
-                ? "Sign in to keep saving on every order"
-                : "Post a Story, tag the brand, save on every order"}
-            </p>
-          </div>
+        <div className="pt-8 pb-2 text-center flex flex-col items-center">
+          <img
+            src={spiralLogoUrl}
+            alt="Spiral"
+            className="h-14 w-14 object-contain mb-6"
+            data-testid="img-spiral-logo"
+          />
+          <h1 className="text-3xl font-black mb-2 leading-tight tracking-tight text-gray-900">
+            {mode === "login" ? "Welcome back" : "Earn instant discounts"}
+          </h1>
+          <p className="text-gray-500 font-medium text-sm max-w-[260px]">
+            {mode === "login"
+              ? "Sign in to keep saving on every order"
+              : "Post a Story, tag the brand, save on every order"}
+          </p>
         </div>
 
         {/* FORM */}
