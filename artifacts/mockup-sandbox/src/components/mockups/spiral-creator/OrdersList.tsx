@@ -159,10 +159,10 @@ export function OrdersList() {
   return (
     <div className="min-h-screen creator-theme pb-12">
       <header className="px-6 pt-12 pb-6">
-        <h1 className="text-3xl font-black tracking-tight text-gray-900 mb-2">My Hauls</h1>
+        <h1 className="text-3xl font-black tracking-tight text-gray-900 mb-2">My Orders</h1>
         <div className="glass-pill inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white shadow-sm border border-gray-100">
           <div className="w-2 h-2 rounded-full bg-[#4ECCA3] animate-pulse" />
-          <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">2 Active Drops</span>
+          <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">2 in progress</span>
         </div>
       </header>
 
