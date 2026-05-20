@@ -279,7 +279,6 @@ export default function Profile() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-bold text-gray-900">Manage account</p>
-              <p className="text-xs text-gray-500 font-medium">Email, name, address</p>
             </div>
             <ChevronRight className="w-5 h-5 text-gray-300 flex-shrink-0" />
           </button>
