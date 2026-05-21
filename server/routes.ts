@@ -1160,11 +1160,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const hasCompleteInstagramData = !!instagramHandle && !!instagramUserId;
       
-      // Extract discount amount
+      // Extract discount + shipping + per-item subtotal from Shopify payload.
+      //
+      // Shopify field semantics:
+      //   order.subtotal_price = items only, AFTER item discounts, BEFORE shipping/tax/tips
+      //   order.total_discounts = sum of all order/line discounts
+      //   order.total_shipping_price_set.shop_money.amount = shipping charged
+      //   order.total_price = final amount paid (post-discount, incl shipping/tax)
+      //
+      // We store `orderTotal` as the PRE-discount item subtotal so the Summary
+      // card math is honest: Subtotal − Discount + Shipping = Total Paid.
+      // We compute discountPercent against the items-only base (NOT the total
+      // that includes shipping) so a 15% tier displays as 15%, not 8% just
+      // because shipping inflated the denominator.
       const discountAmount = parseFloat(order.total_discounts || '0');
-      const orderTotal = parseFloat(order.total_price || '0');
-      const discountPercent = orderTotal > 0 
-        ? (discountAmount / (orderTotal + discountAmount)) * 100 
+      const subtotalAfterDiscount = parseFloat(order.subtotal_price || '0');
+      const orderTotal = subtotalAfterDiscount + discountAmount;
+      const shippingRaw = parseFloat(
+        order.total_shipping_price_set?.shop_money?.amount ??
+        order.total_shipping_price ??
+        '0'
+      );
+      const shippingAmount = Number.isFinite(shippingRaw) && shippingRaw > 0 ? shippingRaw : null;
+      const discountPercent = orderTotal > 0
+        ? (discountAmount / orderTotal) * 100
         : 0;
       
       const settings = await storage.getStoreSettings();
@@ -1231,6 +1250,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         followerCount: followerCount,
         discountPercent: String(discountPercent.toFixed(2)),
         orderTotal: String(orderTotal.toFixed(2)),
+        shippingAmount: shippingAmount !== null ? shippingAmount.toFixed(2) : null,
         discountAmount: String(discountAmount.toFixed(2)),
         status: 'pending',
         verificationStatus: initialVerificationStatus,
