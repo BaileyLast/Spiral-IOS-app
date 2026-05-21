@@ -3365,6 +3365,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const recipientId = entry.id;
           if (entry.messaging) {
             let hasStoryMention = false;
+            // Per-event resolved global IG user IDs, keyed by sender scoped ID.
+            // Used to annotate the forwarded payload so the merchant dashboard
+            // can match the Story to its verification records without an extra
+            // Graph API hop. Resolution happens inside handleStoryMention.
+            const resolvedBySender = new Map<string, string>();
             for (const event of entry.messaging) {
               if (event.message?.attachments) {
                 for (const attachment of event.message.attachments) {
@@ -3376,16 +3381,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     console.log(`Story mention received from scoped ID ${senderScopedId} on merchant IG ${recipientId}`);
                     console.log(`  Story URL: ${storyUrl}`);
                     
-                    await handleStoryMention(recipientId, senderScopedId, storyUrl);
+                    try {
+                      const result = await handleStoryMention(recipientId, senderScopedId, storyUrl);
+                      if (result.resolved && result.instagramUserId && senderScopedId) {
+                        resolvedBySender.set(senderScopedId, result.instagramUserId);
+                      }
+                    } catch (resolveErr) {
+                      // Resolution failure must NEVER block the forward. The
+                      // dashboard still gets the raw entry (without the
+                      // instagramUserId annotation) so it can fall back to its
+                      // own Graph API resolution.
+                      console.error('Story mention handler threw — forwarding raw entry without instagramUserId annotation:', resolveErr);
+                    }
                   }
                 }
               }
             }
             // Fire-and-forget forward to merchant dashboard (Promotions gallery).
             // Only forwards entries that actually contained a story_mention; DM
-            // verification-code messages are skipped.
+            // verification-code messages are skipped. Each entry is shallow-cloned
+            // and annotated with the resolved global IG user ID when we have one
+            // — Meta's original payload object is never mutated.
             if (hasStoryMention) {
-              void forwardStoryMentionToDashboard(entry.messaging);
+              const annotated = entry.messaging.map((event: any) => {
+                const senderScopedId = event.sender?.id;
+                const igUserId = senderScopedId ? resolvedBySender.get(senderScopedId) : undefined;
+                return igUserId ? { ...event, instagramUserId: igUserId } : event;
+              });
+              void forwardStoryMentionToDashboard(annotated);
             }
           }
         }
@@ -3513,17 +3536,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   // Alias for the /webhooks/instagram endpoint (uses same logic)
-  async function handleStoryMentionWebhook(merchantInstagramId: string, senderScopedId: string, storyUrl: string): Promise<void> {
+  // Resolution result returned to the /webhooks/instagram-dm caller so it can
+  // annotate the forwarded payload with the shopper's real (global) IG user ID
+  // — the merchant dashboard uses this to match Stories to its verification
+  // records without re-hitting the Graph API.
+  type StoryMentionResolution =
+    | { resolved: true; instagramUserId: string | null }
+    | { resolved: false };
+
+  async function handleStoryMentionWebhook(merchantInstagramId: string, senderScopedId: string, storyUrl: string): Promise<StoryMentionResolution> {
     return handleStoryMention(merchantInstagramId, senderScopedId, storyUrl);
   }
 
-  // Handle story_mention webhook: match sender to customer and verify their pending order
-  async function handleStoryMention(merchantInstagramId: string, senderScopedId: string, storyUrl: string): Promise<void> {
+  // Handle story_mention webhook: match sender to customer and verify their pending order.
+  // Returns the resolved Spiral customer's global IG user ID (when known) so the
+  // outer webhook handler can attach it to the merchant-dashboard forward.
+  async function handleStoryMention(merchantInstagramId: string, senderScopedId: string, storyUrl: string): Promise<StoryMentionResolution> {
     try {
       const settings = await storage.getStoreSettings();
       if (!settings) {
         console.error('Story mention: No store settings found');
-        return;
+        return { resolved: false };
       }
 
       // Update last webhook received timestamp
@@ -3532,7 +3565,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if the merchant IG ID matches our store's connected Instagram
       if (settings.instagramBusinessAccountId !== merchantInstagramId) {
         console.log(`Story mention: Merchant IG ${merchantInstagramId} does not match store IG ${settings.instagramBusinessAccountId}`);
-        return;
+        return { resolved: false };
       }
 
       // Step 1: Look up existing scoped ID mapping (positive OR negative cache).
@@ -3546,7 +3579,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (mapping && mapping.isSpiral === false) {
         await storage.touchMerchantScopedUserMap(mapping.id);
         console.log(`Story mention: Skipping non-Spiral sender ${senderScopedId} (negative cache hit)`);
-        return;
+        return { resolved: false };
       }
 
       let customerId = mapping?.spiralCustomerId ?? undefined;
@@ -3638,7 +3671,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!customerId) {
         console.log(`Story mention: Could not identify customer for scoped ID ${senderScopedId}`);
-        return;
+        return { resolved: false };
       }
 
       // Step 3: Find orders that this Story can verify. Combines:
@@ -3671,7 +3704,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (pendingOrders.length === 0) {
         console.log(`Story mention: No pending orders for customer ${customerId}`);
         // No DM — shopper will see status in-app; we don't spam non-customers either.
-        return;
+        // Still treat as resolved so the merchant dashboard can attribute the Story
+        // to this shopper even when no Spiral order is owed (e.g. spontaneous tag).
+        return { resolved: true, instagramUserId: customerObj?.instagramGlobalUserId ?? null };
       }
 
       // Step 4: Verify the most recent pending order
@@ -3740,8 +3775,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`Story mention: Order ${orderToVerify.id} marked AWAITING_REVIEW; quick publicity check scheduled`);
 
       // No DM — shopper sees "Story received — confirming" status live in-app.
+      return { resolved: true, instagramUserId: customerObj?.instagramGlobalUserId ?? null };
     } catch (error) {
       console.error('Error handling story mention:', error);
+      return { resolved: false };
     }
   }
 
