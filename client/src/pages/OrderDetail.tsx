@@ -220,10 +220,6 @@ export default function OrderDetail() {
 
         {status === "awaiting" && (
           <div className="creator-card story-bg-gradient p-6 text-white text-center relative overflow-hidden" data-testid="card-post-story">
-            <div className="absolute top-0 right-0 p-4 opacity-20 transform translate-x-4 -translate-y-4 pointer-events-none">
-              <Instagram className="w-32 h-32" />
-            </div>
-
             <div className="relative z-10 flex flex-col items-center">
               <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-[#4ECCA3] shadow-lg mb-4">
                 <Instagram className="w-8 h-8" />
@@ -358,7 +354,13 @@ export default function OrderDetail() {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Confirm you've received it?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Once you've got it, post an Instagram Story tagging the brand to unlock your next discount.
+                    Once you've got it, post an Instagram Story tagging{" "}
+                    {rawHandle ? (
+                      <span className="font-bold underline">@{rawHandle}</span>
+                    ) : (
+                      "the brand"
+                    )}{" "}
+                    to unlock your next discount.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
