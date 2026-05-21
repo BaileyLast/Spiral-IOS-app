@@ -13,6 +13,7 @@ import {
   merchantScopedUserMap,
   emailSendFailures,
   publicityChecks,
+  dashboardForwardQueue,
   type StoreSettings, 
   type DiscountTier, 
   type Verification,
@@ -35,6 +36,8 @@ import {
   type InsertEmailSendFailure,
   type PublicityCheck,
   type InsertPublicityCheck,
+  type DashboardForwardQueue,
+  type InsertDashboardForwardQueue,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, inArray, and, or, lt, isNull, desc, sql, type SQL } from "drizzle-orm";
@@ -147,6 +150,11 @@ export interface IStorage {
   getIncompletePublicityCheckByVerification(verificationId: string): Promise<PublicityCheck | undefined>;
   getPublicityCheckByVerificationAndStage(verificationId: string, stage: string): Promise<PublicityCheck | undefined>;
   recordPublicityCheckAttempt(id: string, opts: { lastError?: string | null; lastResult?: string | null; rescheduleAt?: Date | null; completed?: boolean }): Promise<PublicityCheck>;
+  // Dashboard forward retry queue (story_mention forwards to merchant dashboard)
+  enqueueDashboardForward(entry: InsertDashboardForwardQueue): Promise<DashboardForwardQueue>;
+  getDueDashboardForwards(now: Date, limit?: number): Promise<DashboardForwardQueue[]>;
+  rescheduleDashboardForward(id: string, opts: { nextAttemptAt: Date; lastError: string | null; lastStatusCode: number | null }): Promise<void>;
+  deleteDashboardForward(id: string): Promise<void>;
   // Verification status helpers used by publicity check worker
   markVerificationAwaitingReview(verificationId: string, storyMediaId: string | null): Promise<void>;
   // iOS push token registration (for fail/reminder notifications only — never used for success)
@@ -1296,6 +1304,39 @@ export class DatabaseStorage implements IStorage {
       .where(eq(publicityChecks.id, id))
       .returning();
     return updated;
+  }
+
+  async enqueueDashboardForward(entry: InsertDashboardForwardQueue): Promise<DashboardForwardQueue> {
+    const [row] = await db.insert(dashboardForwardQueue).values(entry).returning();
+    return row;
+  }
+
+  async getDueDashboardForwards(now: Date, limit: number = 25): Promise<DashboardForwardQueue[]> {
+    return await db
+      .select()
+      .from(dashboardForwardQueue)
+      .where(lt(dashboardForwardQueue.nextAttemptAt, now))
+      .orderBy(dashboardForwardQueue.nextAttemptAt)
+      .limit(limit);
+  }
+
+  async rescheduleDashboardForward(
+    id: string,
+    opts: { nextAttemptAt: Date; lastError: string | null; lastStatusCode: number | null },
+  ): Promise<void> {
+    await db
+      .update(dashboardForwardQueue)
+      .set({
+        attempts: sql`${dashboardForwardQueue.attempts} + 1`,
+        nextAttemptAt: opts.nextAttemptAt,
+        lastError: opts.lastError,
+        lastStatusCode: opts.lastStatusCode,
+      })
+      .where(eq(dashboardForwardQueue.id, id));
+  }
+
+  async deleteDashboardForward(id: string): Promise<void> {
+    await db.delete(dashboardForwardQueue).where(eq(dashboardForwardQueue.id, id));
   }
 
   async markVerificationAwaitingReview(verificationId: string, storyMediaId: string | null): Promise<void> {

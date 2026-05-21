@@ -294,6 +294,24 @@ export const merchantScopedUserMap = pgTable("merchant_scoped_user_map", {
     .on(t.merchantId, t.senderScopedId),
 }));
 
+// Persistent retry queue for story_mention events that fail to forward to the
+// merchant dashboard (non-2xx, timeout, network error). A background worker
+// retries on a 1m / 5m / 30m backoff and gives up after ~24h. Successful
+// forwards delete the row.
+export const dashboardForwardQueue = pgTable("dashboard_forward_queue", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  // Full `{ messaging: [...] }` body that the dashboard expects, stored verbatim
+  // so we can re-POST it without reconstructing.
+  payload: jsonb("payload").notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  nextAttemptAt: timestamp("next_attempt_at").notNull().defaultNow(),
+  lastError: text("last_error"),
+  lastStatusCode: integer("last_status_code"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => ({
+  nextAttemptIdx: index("dashboard_forward_queue_next_attempt_idx").on(t.nextAttemptAt),
+}));
+
 export const insertStoreSettingsSchema = createInsertSchema(storeSettings).omit({ id: true });
 export const insertDiscountTierSchema = createInsertSchema(discountTiers)
   .omit({ id: true })
@@ -328,6 +346,11 @@ export const insertSpiralCodeSchema = createInsertSchema(spiralCodes).omit({ id:
 export const insertPublicityCheckSchema = createInsertSchema(publicityChecks).omit({ id: true, createdAt: true, completedAt: true, attempts: true, lastResult: true, lastError: true, stage: true }).extend({
   stage: z.enum(["quick", "final"]).default("quick"),
 });
+export const insertDashboardForwardQueueSchema = createInsertSchema(dashboardForwardQueue).omit({
+  id: true,
+  createdAt: true,
+  attempts: true,
+});
 
 export type InsertStoreSettings = z.infer<typeof insertStoreSettingsSchema>;
 export type StoreSettings = typeof storeSettings.$inferSelect;
@@ -355,3 +378,5 @@ export type InsertEmailSendFailure = z.infer<typeof insertEmailSendFailureSchema
 export type EmailSendFailure = typeof emailSendFailures.$inferSelect;
 export type InsertPublicityCheck = z.infer<typeof insertPublicityCheckSchema>;
 export type PublicityCheck = typeof publicityChecks.$inferSelect;
+export type InsertDashboardForwardQueue = z.infer<typeof insertDashboardForwardQueueSchema>;
+export type DashboardForwardQueue = typeof dashboardForwardQueue.$inferSelect;

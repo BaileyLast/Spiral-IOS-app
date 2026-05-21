@@ -2931,16 +2931,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Forward story_mention webhook events to the merchant dashboard so it can
   // build its Promotions gallery from shopper Story images. Fire-and-forget;
-  // never blocks our 200 ack back to Meta and never throws.
+  // never blocks our 200 ack back to Meta and never throws. On any failure
+  // (non-2xx, timeout, network error) the payload is persisted to
+  // `dashboard_forward_queue` and retried by `processDashboardForwardQueue`
+  // on a 1m / 5m / 30m backoff (gives up after ~24h).
   let storyForwardKeyMissingWarned = false;
-  async function forwardStoryMentionToDashboard(messaging: any[]): Promise<void> {
+
+  type ForwardAttemptResult =
+    | { ok: true }
+    | { ok: false; reason: string; statusCode: number | null; retriable: boolean };
+
+  async function attemptDashboardForward(payload: { messaging: any[] }): Promise<ForwardAttemptResult> {
     const internalKey = process.env.SPIRAL_INTERNAL_KEY;
     if (!internalKey) {
       if (!storyForwardKeyMissingWarned) {
         console.warn('[STORY-FORWARD] SPIRAL_INTERNAL_KEY not set — skipping forward to merchant dashboard');
         storyForwardKeyMissingWarned = true;
       }
-      return;
+      // Not retriable: missing config, not a transient dashboard outage.
+      return { ok: false, reason: 'missing_internal_key', statusCode: null, retriable: false };
     }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3000);
@@ -2951,19 +2960,118 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'Content-Type': 'application/json',
           'x-spiral-internal-key': internalKey,
         },
-        body: JSON.stringify({ messaging }),
+        body: JSON.stringify(payload),
         signal: controller.signal,
       });
       if (!res.ok) {
-        console.warn(`[STORY-FORWARD] Merchant dashboard responded ${res.status}`);
-      } else {
-        console.log(`[STORY-FORWARD] Forwarded ${messaging.length} event(s) to merchant dashboard`);
+        // 4xx (other than 408/429) almost always means the dashboard rejected
+        // the payload shape or auth — retrying won't help. 5xx and 408/429
+        // are transient and worth retrying.
+        const retriable = res.status >= 500 || res.status === 408 || res.status === 429;
+        return { ok: false, reason: `http_${res.status}`, statusCode: res.status, retriable };
       }
+      return { ok: true };
     } catch (err: any) {
-      const reason = err?.name === 'AbortError' ? 'timeout (3s)' : (err?.message || String(err));
-      console.warn(`[STORY-FORWARD] Forward failed: ${reason}`);
+      const reason = err?.name === 'AbortError' ? 'timeout_3s' : (err?.message || String(err));
+      return { ok: false, reason, statusCode: null, retriable: true };
     } finally {
       clearTimeout(timeout);
+    }
+  }
+
+  async function forwardStoryMentionToDashboard(messaging: any[]): Promise<void> {
+    const payload = { messaging };
+    const result = await attemptDashboardForward(payload);
+    if (result.ok) {
+      console.log(`[STORY-FORWARD] Forwarded ${messaging.length} event(s) to merchant dashboard`);
+      return;
+    }
+    // Persist every failure (non-2xx, timeout, network error) so we never
+    // silently lose a shopper Story post. The worker decides whether to retry
+    // (transient: 5xx/408/429/timeout/network) or drop with a logged error
+    // (terminal: other 4xx, missing internal key) on its next tick.
+    const retryLabel = result.retriable ? 'enqueuing for retry' : 'enqueuing for investigation (non-retriable)';
+    console.warn(`[STORY-FORWARD] Forward failed: ${result.reason} — ${retryLabel}`);
+    try {
+      // Seed nextAttemptAt to "now + 1m" for retriable failures so the worker
+      // picks it up on its next tick. Non-retriable rows are scheduled
+      // immediately so the worker can drop them quickly with a clear log.
+      const seedDelayMs = result.retriable ? DASHBOARD_FORWARD_RETRY_DELAYS_MS[0] : 0;
+      await storage.enqueueDashboardForward({
+        payload,
+        nextAttemptAt: new Date(Date.now() + seedDelayMs),
+        lastError: result.reason,
+        lastStatusCode: result.statusCode,
+      });
+    } catch (err: any) {
+      console.error(`[STORY-FORWARD] Failed to enqueue forward retry: ${err?.message || err}`);
+    }
+  }
+
+  // Retry worker for failed dashboard forwards. Runs every minute. Backoff is
+  // attempt-count based: after attempt N (1-indexed) the next retry is at
+  // [1m, 5m, 30m, 30m, ...]. Rows older than 24h are dropped (logged) so the
+  // queue stays bounded.
+  const DASHBOARD_FORWARD_RETRY_DELAYS_MS = [
+    60 * 1000,        // after 1st failure → 1 minute
+    5 * 60 * 1000,    // after 2nd failure → 5 minutes
+    30 * 60 * 1000,   // after 3rd failure → 30 minutes
+  ];
+  const DASHBOARD_FORWARD_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
+  const DASHBOARD_FORWARD_INTERVAL_MS = 60 * 1000;
+
+  function nextDashboardForwardDelayMs(attemptsAfter: number): number {
+    const idx = Math.min(attemptsAfter - 1, DASHBOARD_FORWARD_RETRY_DELAYS_MS.length - 1);
+    return DASHBOARD_FORWARD_RETRY_DELAYS_MS[Math.max(0, idx)];
+  }
+
+  let dashboardForwardWorkerBusy = false;
+  async function processDashboardForwardQueue(): Promise<void> {
+    if (dashboardForwardWorkerBusy) return;
+    dashboardForwardWorkerBusy = true;
+    try {
+      const now = new Date();
+      const due = await storage.getDueDashboardForwards(now, 25);
+      if (due.length === 0) return;
+      for (const row of due) {
+        const ageMs = now.getTime() - new Date(row.createdAt).getTime();
+        if (ageMs > DASHBOARD_FORWARD_MAX_AGE_MS) {
+          console.error(
+            `[STORY-FORWARD] Giving up on queued forward ${row.id} after ${row.attempts} attempt(s) — ` +
+            `${Math.round(ageMs / 3600000)}h old, last error: ${row.lastError || 'unknown'}`
+          );
+          await storage.deleteDashboardForward(row.id);
+          continue;
+        }
+        const payload = row.payload as { messaging: any[] };
+        const result = await attemptDashboardForward(payload);
+        if (result.ok) {
+          console.log(`[STORY-FORWARD] Retry succeeded for ${row.id} on attempt ${row.attempts + 1}`);
+          await storage.deleteDashboardForward(row.id);
+          continue;
+        }
+        if (!result.retriable) {
+          console.error(`[STORY-FORWARD] Dropping queued forward ${row.id} — non-retriable: ${result.reason}`);
+          await storage.deleteDashboardForward(row.id);
+          continue;
+        }
+        const attemptsAfter = row.attempts + 1;
+        const delayMs = nextDashboardForwardDelayMs(attemptsAfter);
+        const nextAttemptAt = new Date(now.getTime() + delayMs);
+        await storage.rescheduleDashboardForward(row.id, {
+          nextAttemptAt,
+          lastError: result.reason,
+          lastStatusCode: result.statusCode,
+        });
+        console.warn(
+          `[STORY-FORWARD] Retry ${attemptsAfter} failed for ${row.id} (${result.reason}); ` +
+          `next attempt in ${Math.round(delayMs / 1000)}s`
+        );
+      }
+    } catch (err: any) {
+      console.error(`[STORY-FORWARD] Worker tick failed: ${err?.message || err}`);
+    } finally {
+      dashboardForwardWorkerBusy = false;
     }
   }
 
@@ -5127,6 +5235,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Start the deferred publicity-check worker (anti Close Friends / deletion)
   setTimeout(() => { void processPublicityChecks(); }, 90 * 1000);
   setInterval(() => { void processPublicityChecks(); }, PUBLICITY_CHECK_INTERVAL_MS);
+
+  // Retry worker for story_mention forwards that failed to reach the merchant
+  // dashboard (Promotions gallery). Keeps shopper Story posts from being lost
+  // when the dashboard is briefly down or slow.
+  setTimeout(() => { void processDashboardForwardQueue(); }, 45 * 1000);
+  setInterval(() => { void processDashboardForwardQueue(); }, DASHBOARD_FORWARD_INTERVAL_MS);
 
   // Background delivery fallback. Catches the two cases Shopify can't tell us
   // about in real time:
