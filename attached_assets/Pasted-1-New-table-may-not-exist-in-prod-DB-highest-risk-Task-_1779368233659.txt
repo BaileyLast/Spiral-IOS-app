@@ -1,0 +1,20 @@
+1. New table may not exist in prod DB — highest risk.
+Task #83 added dashboard_forward_queue. In dev it was created via raw SQL because drizzle-kit push got stuck on an interactive prompt (post-merge log showed it asking "create table or rename from session"). If the prod deploy doesn't apply that schema, every failed forward will crash on enqueueDashboardForward insert — caught and logged, but the event is gone. Action: run drizzle-kit push against prod (or apply the CREATE TABLE manually) before deploying.
+
+2. SPIRAL_INTERNAL_KEY must be set on prod secrets, identical on both apps.
+If missing on ours, forward silently skips (one warning, then nothing). If mismatched, dashboard returns 401 → non-retriable → enqueued then dropped. Action: verify the secret exists on both prod Repls and matches exactly.
+
+3. Forward only fires when handleStoryMention finishes without throwing.
+The forward call sits after await handleStoryMention(...) inside the same try block. If our customer-side verification throws (e.g. DB hiccup, Profile API blip), control jumps to the outer catch, we still 200 Meta, but the dashboard never gets the event. Currently a quiet failure mode. Action (optional, post-deploy): could be tightened by wrapping handleStoryMention in its own try so the forward fires regardless.
+
+4. /webhooks/instagram (line 1407) does NOT forward — by design.
+That's the older endpoint for merchant-Page-subscription events (not the Spiral app's subscription). Confirm with the dashboard team that ALL spiral story_mentions land on /webhooks/instagram-dm. If any merchants are still on the old subscription path, their Stories won't reach the gallery.
+
+5. Dashboard endpoint must actually be deployed and respond in <3s.
+Their note said "under 1s," so fine — but if their endpoint does S3 upload synchronously before responding, we'll hit the 3s abort and re-queue. Worth one curl to confirm latency before flipping ours on.
+
+6. 404/4xx from dashboard = non-retriable, dropped on next worker tick.
+If their route path is even slightly off (/api/instagram/story-mention vs /api/instagram/story-mentions, etc.), every event silently drops within 1 minute. Action: curl their endpoint once with a synthetic payload before deploying ours.
+
+7. Hardcoded prod URL.
+https://spiral-merchant-dashboard.replit.app is baked into our code. Not a launch blocker, but if they ever move domains we need a redeploy.
