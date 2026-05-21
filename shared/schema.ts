@@ -168,6 +168,10 @@ export const orders = pgTable("orders", {
   followerCount: integer("follower_count"),
   discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }).notNull(),
   orderTotal: numeric("order_total", { precision: 10, scale: 2 }).notNull(),
+  // Shipping charged on the order, broken out so the shopper sees an honest
+  // breakdown on OrderDetail (Subtotal → Discount → Shipping → Total Paid).
+  // Sent by the dashboard from Shopify's order webhook; null/0 hides the row.
+  shippingAmount: numeric("shipping_amount", { precision: 10, scale: 2 }),
   discountAmount: numeric("discount_amount", { precision: 10, scale: 2 }).notNull(),
   status: text("status").notNull().default("pending"),
   fulfilledAt: timestamp("fulfilled_at"),

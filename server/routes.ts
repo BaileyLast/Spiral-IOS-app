@@ -1733,6 +1733,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         discountAmount: legacyDiscountAmount,
         totalPrice,
         orderTotal: legacyOrderTotal,
+        shippingAmount: bodyShippingAmount,
         currency,
         lineItems: rawLineItemsFromWidget,
       } = req.body;
@@ -1810,6 +1811,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         followerCount: customer.followerCount,
         discountPercent: discountPct.toFixed(2),
         orderTotal: orderTotal.toFixed(2),
+        shippingAmount: (() => {
+          const n = parseFloat(String(bodyShippingAmount ?? ''));
+          return Number.isFinite(n) && n > 0 ? n.toFixed(2) : null;
+        })(),
         discountAmount: discountAmount.toFixed(2),
         status: 'pending',
         verificationStatus: 'pending',

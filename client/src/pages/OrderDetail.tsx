@@ -439,15 +439,12 @@ export default function OrderDetail() {
                 );
               })}
             </div>
-            <p className="text-xs text-gray-400 mt-4">
-              Quantity shown reflects items discounted under your tier.
-            </p>
           </div>
         )}
 
         {/* SAVINGS SUMMARY */}
         <div className="creator-card p-5 !bg-gray-900 text-white">
-          <h3 className="font-black text-lg mb-4">The Math</h3>
+          <h3 className="font-black text-lg mb-4">Summary</h3>
 
           <div className="space-y-3 mb-5 border-b border-gray-800 pb-5">
             <div className="flex justify-between text-sm">
@@ -472,12 +469,20 @@ export default function OrderDetail() {
                 -${Number(order.discountAmount).toFixed(2)}
               </span>
             </div>
+            {Number(order.shippingAmount ?? 0) > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400 font-medium">Shipping</span>
+                <span className="font-bold" data-testid="text-shipping">
+                  ${Number(order.shippingAmount).toFixed(2)}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="flex justify-between items-center">
             <span className="text-sm text-gray-400 font-medium">Total Paid</span>
             <span className="text-2xl font-black">
-              ${(Number(order.orderTotal) - Number(order.discountAmount)).toFixed(2)}
+              ${(Number(order.orderTotal) + Number(order.shippingAmount ?? 0) - Number(order.discountAmount)).toFixed(2)}
             </span>
           </div>
         </div>
