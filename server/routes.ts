@@ -2622,9 +2622,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // merchantInstagramHandle is snapshotted onto the order row at creation
-      // time by getBrandHandleForShopDomain (see orders/create webhook), so we
-      // can return it directly here — no extra brands lookup at read time.
-      res.json(order);
+      // time by getBrandHandleForShopDomain (see orders/create webhook). For
+      // older orders (or orders created when the brands feed was unreachable)
+      // the snapshot may be null — do a live storeName-based fallback so the
+      // OrderDetail page can always show the brand's @handle in the
+      // "tag the brand" CTA.
+      let responseOrder = order;
+      if (!order.merchantInstagramHandle && order.storeName) {
+        const fallbackHandle = await getBrandHandleForStoreName(order.storeName);
+        if (fallbackHandle) {
+          responseOrder = { ...order, merchantInstagramHandle: fallbackHandle };
+        }
+      }
+      res.json(responseOrder);
     } catch (error) {
       console.error("Failed to fetch order:", error);
       res.status(500).json({ error: "Failed to fetch order" });
@@ -4511,6 +4521,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handle;
     } catch (e) {
       console.warn("[brands] handle lookup threw for", target, e);
+      return null;
+    }
+  }
+
+  // storeName-based fallback used when an order row has no snapshotted
+  // merchantInstagramHandle (e.g. older orders, or orders created when the
+  // brands feed was unreachable). Returns the brand's IG handle (without
+  // leading "@") or null. Case-insensitive exact match on the brand's
+  // storeName as published in the brands feed.
+  async function getBrandHandleForStoreName(
+    storeName: string | null | undefined,
+  ): Promise<string | null> {
+    const target = (storeName || "").trim().toLowerCase();
+    if (!target) return null;
+    try {
+      if (!brandsCache || Date.now() - brandsCache.fetchedAt >= BRANDS_CACHE_TTL_MS) {
+        const upstream = await fetch(MERCHANT_BRANDS_URL);
+        if (upstream.ok) {
+          const raw = await upstream.json();
+          const parsed = brandsResponseSchema.safeParse(raw);
+          if (parsed.success) {
+            brandsCache = { data: parsed.data, fetchedAt: Date.now() };
+          }
+        }
+      }
+      const brand = brandsCache?.data.find(
+        (b) => (b.storeName || "").trim().toLowerCase() === target,
+      );
+      if (!brand) return null;
+      const handle = brand.instagramUsername?.replace(/^@/, "").trim();
+      return handle || null;
+    } catch (e) {
+      console.warn("[brands] storeName handle lookup threw for", target, e);
       return null;
     }
   }
