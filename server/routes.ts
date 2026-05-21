@@ -902,9 +902,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get existing settings to preserve non-OAuth fields
       const existingSettings = await storage.getStoreSettings();
       
-      // Merge with existing settings instead of overwriting
+      // Merge with existing settings instead of overwriting.
+      // Treat the seeded "My Store" placeholder as empty so a real shop name
+      // takes its place on (re-)install.
+      const existingStoreNameClean =
+        existingSettings?.storeName && existingSettings.storeName !== 'My Store'
+          ? existingSettings.storeName
+          : null;
       await storage.updateStoreSettings({
-        storeName: existingSettings?.storeName || shop as string,
+        storeName: existingStoreNameClean || (shop as string),
         instagramHandle: existingSettings?.instagramHandle || '',
         tokenActive: true,
         shopDomain: shop as string,
@@ -1721,6 +1727,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         shopifyOrderId: legacyShopifyOrderId,
         orderNumber,
         shopDomain,
+        storeName: bodyStoreName,
         discountPercent, 
         discountCode,
         discountAmount: legacyDiscountAmount,
@@ -1806,7 +1813,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         discountAmount: discountAmount.toFixed(2),
         status: 'pending',
         verificationStatus: 'pending',
-        storeName: settings?.storeName || null,
+        storeName: (typeof bodyStoreName === 'string' && bodyStoreName.trim().length > 0)
+          ? bodyStoreName.trim()
+          : (settings?.storeName && settings.storeName !== 'My Store'
+              ? settings.storeName
+              : (confirmShopDomain ? confirmShopDomain.replace(/\.myshopify\.com$/i, '') : null)),
         storeLogo: confirmStoreLogo,
         merchantInstagramHandle: await getBrandHandleForShopDomain(confirmShopDomain),
         lineItems: confirmLineItems,
