@@ -408,7 +408,7 @@ export default function OrderDetail() {
         {lineItems.length > 0 && (
           <div className="creator-card p-5" data-testid="card-items">
             <div className="flex justify-between items-end mb-4">
-              <h3 className="font-black text-lg text-gray-900">The Goods</h3>
+              <h3 className="font-black text-lg text-gray-900">Items</h3>
               <span className="text-sm font-bold text-gray-400">{lineItems.length} item{lineItems.length === 1 ? "" : "s"}</span>
             </div>
             <div className="grid grid-cols-2 gap-3">
