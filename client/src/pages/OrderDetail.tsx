@@ -224,7 +224,7 @@ export default function OrderDetail() {
                 Post your Story,<br />unlock your next discount.
               </h2>
               <p className="text-[#E6F8F0] font-medium text-sm mb-6 max-w-[260px]">
-                Tag {rawHandle ? `@${rawHandle}` : "the brand"} in a public Story to unlock more discounts from your favourite stores.
+                Showcase your new purchase and tag {rawHandle ? `@${rawHandle}` : "the brand"} in a public Story to unlock more discounts from your favourite stores.
               </p>
 
               {rawHandle ? (
