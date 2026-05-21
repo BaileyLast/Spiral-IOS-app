@@ -71,6 +71,7 @@ export interface IStorage {
   updateOrderVerificationStatus(orderId: string, status: string, verificationId?: string): Promise<void>;
   updateOrderFulfillment(orderId: string, fulfilledAt: Date): Promise<Order>;
   updateOrderTrackingStatus(orderId: string, status: string): Promise<Order | undefined>;
+  patchOrderIfNull(orderId: string, fields: Partial<Order>): Promise<Order | undefined>;
   getOrdersAwaitingDeliveryFallback(): Promise<Order[]>;
   // Products and Collections
   syncProducts(products: InsertShopifyProduct[]): Promise<ShopifyProduct[]>;
@@ -473,6 +474,28 @@ export class DatabaseStorage implements IStorage {
         status: 'fulfilled',
         fulfilledAt,
       })
+      .where(eq(orders.id, orderId))
+      .returning();
+    return updated;
+  }
+
+  async patchOrderIfNull(orderId: string, fields: Partial<Order>): Promise<Order | undefined> {
+    // Atomic fill-missing-only: each column gets `COALESCE(col, $value)` in a
+    // single UPDATE so a concurrent writer that just filled the column can't
+    // be clobbered by us. Drizzle column names map 1:1 to JS keys.
+    const patch: Record<string, SQL> = {};
+    for (const [k, v] of Object.entries(fields)) {
+      if (v === undefined || v === null) continue;
+      const column = (orders as any)[k];
+      if (!column) continue;
+      patch[k] = sql`COALESCE(${column}, ${v as any})`;
+    }
+    if (Object.keys(patch).length === 0) {
+      return this.getOrderById(orderId);
+    }
+    const [updated] = await db
+      .update(orders)
+      .set(patch as any)
       .where(eq(orders.id, orderId))
       .returning();
     return updated;

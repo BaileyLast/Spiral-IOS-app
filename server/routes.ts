@@ -1093,10 +1093,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const order = req.body;
       console.log('Shopify order webhook received:', order.id, order.name);
       
-      // Check if this order already exists (idempotency)
+      // Check if this order already exists (idempotency).
+      //
+      // Widget shoppers: `confirm-discount` from the merchant dashboard
+      // typically arrives BEFORE this webhook with the enriched Spiral data
+      // (customer ID, Instagram handle, follower count, discount tier). In
+      // that case we MUST NOT overwrite those fields with the raw Shopify
+      // payload. But we CAN backfill anything the dashboard didn't send —
+      // shipping, line items with product images, store logo, merchant IG
+      // handle — using a fill-missing-fields-only patch.
       const existingOrder = await storage.getOrderByShopifyOrderId(order.id.toString());
       if (existingOrder) {
-        console.log('Order already processed:', order.id);
+        const discountAmt = parseFloat(order.total_discounts || '0');
+        const subtotalAfterDisc = parseFloat(order.subtotal_price || '0');
+        const orderTotalCalc = subtotalAfterDisc + discountAmt;
+        const shippingRawExisting = parseFloat(
+          order.total_shipping_price_set?.shop_money?.amount ??
+          order.total_shipping_price ??
+          '0'
+        );
+        const shippingForBackfill = Number.isFinite(shippingRawExisting) && shippingRawExisting > 0
+          ? shippingRawExisting.toFixed(2)
+          : null;
+        const settingsForBackfill = await storage.getStoreSettings();
+        const shopDomainHeader =
+          (req.headers['x-shopify-shop-domain'] as string | undefined) ||
+          settingsForBackfill?.shopDomain ||
+          '';
+        const storeLogoForBackfill = shopDomainHeader
+          ? `https://www.google.com/s2/favicons?domain=${shopDomainHeader}&sz=64`
+          : null;
+        const merchantHandleForBackfill = shopDomainHeader
+          ? await getBrandHandleForShopDomain(shopDomainHeader)
+          : null;
+        await storage.patchOrderIfNull(existingOrder.id, {
+          shippingAmount: shippingForBackfill,
+          orderTotal: orderTotalCalc > 0 ? orderTotalCalc.toFixed(2) : null,
+          discountAmount: discountAmt > 0 ? discountAmt.toFixed(2) : null,
+          storeLogo: storeLogoForBackfill,
+          merchantInstagramHandle: merchantHandleForBackfill,
+          shopperEmail: order.email || order.contact_email || null,
+        } as any);
+        console.log('Order already processed (backfilled missing fields only):', order.id);
         return res.status(200).json({ status: 'already_processed' });
       }
       
@@ -1779,9 +1817,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? parseFloat(legacyDiscountAmount.toString()) 
         : (orderTotal * discountPct / 100);
       
-      // Check for existing order (idempotency)
+      // Check for existing order (idempotency).
+      //
+      // Race case: Shopify's `orders/create` webhook can arrive BEFORE this
+      // dashboard call, in which case the row exists but is missing the
+      // enriched Spiral data (customer ID, Instagram identity, discount
+      // tier, follower count). Backfill any of those fields that are null,
+      // never overwrite. Returns success either way for idempotency.
       const existingOrder = await storage.getOrderByShopifyOrderId(shopifyOrderId.toString());
       if (existingOrder) {
+        await storage.patchOrderIfNull(existingOrder.id, {
+          spiralCustomerId: customer.id,
+          instagramHandle: customer.instagramHandle,
+          instagramUserId: customer.instagramUserId,
+          instagramGlobalUserId: customer.instagramGlobalUserId ?? null,
+          followerCount: customer.followerCount,
+          discountPercent: discountPct > 0 ? discountPct.toFixed(2) : null,
+          discountAmount: discountAmount > 0 ? discountAmount.toFixed(2) : null,
+          orderTotal: orderTotal > 0 ? orderTotal.toFixed(2) : null,
+          shippingAmount: (() => {
+            const n = parseFloat(String(bodyShippingAmount ?? ''));
+            return Number.isFinite(n) && n > 0 ? n.toFixed(2) : null;
+          })(),
+        } as any);
         return res.json({ success: true });
       }
       

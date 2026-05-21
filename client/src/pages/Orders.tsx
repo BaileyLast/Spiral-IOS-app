@@ -65,14 +65,14 @@ function getStatusLabel(order: Order) {
 
 function isCompleted(order: Order) {
   const status = getStatusLabel(order);
-  return status === "Verified" || status === "Confirmed";
+  return status === "Story verified" || status === "Confirmed";
 }
 
 // Tactile Creator status pill (image-card overlay). The "Story Needed" state
 // gets the loud mint pill so it visually wins; everything else stays calm.
 function statusPillClasses(status: string) {
   switch (status) {
-    case "Verified":
+    case "Story verified":
     case "Confirmed":
       return "bg-[#E6F8F0] text-[#1A996E]";
     case "Story Received":
@@ -176,7 +176,7 @@ export function OrderCard({ order, dimmed = false }: { order: Order; dimmed?: bo
           </div>
         )}
 
-        {(status === "Verified" || status === "Confirmed") && (
+        {(status === "Story verified" || status === "Confirmed") && (
           <div className="p-4 bg-white flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-[#1A996E] flex-shrink-0">
