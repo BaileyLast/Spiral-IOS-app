@@ -437,7 +437,7 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
   // tier on this brand — no toggle required. Without IG, fall back to teasing
   // the brand's max tier. Either way, badge is hidden when the value is 0.
   const badgePercent = igConnected ? shopperDiscount : maxDiscount;
-  const badgeLabel = igConnected ? "Your discount" : "Up to";
+  const badgeLabel = igConnected ? "Spiral" : "Up to";
   const primary = normalizeCategoryForDisplay(brand.category);
   const secondary = (brand.secondaryCategories ?? [])
     .map((c) => normalizeCategoryForDisplay(c))
