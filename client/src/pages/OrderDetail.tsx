@@ -275,10 +275,22 @@ export default function OrderDetail() {
                 </span>
               )}
 
-              <div className="mt-4 flex items-center gap-1.5 text-[#E6F8F0] text-xs font-medium bg-black/10 px-3 py-1.5 rounded-full">
-                <ShieldCheck className="w-4 h-4" />
-                <span>Public Stories only — Close Friends won't count</span>
-              </div>
+              <ul className="mt-4 text-[#E6F8F0] text-xs font-medium bg-black/10 px-4 py-3 rounded-2xl space-y-1.5 text-left w-full max-w-[280px]">
+                <li className="flex items-start gap-2">
+                  <ShieldCheck className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>Public Story (not Close Friends)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <ShieldCheck className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>
+                    {rawHandle ? <BrandHandle handle={rawHandle} /> : "@brand"} must be clearly visible
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <ShieldCheck className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>Stays up for 24 hours</span>
+                </li>
+              </ul>
             </div>
           </div>
         )}
