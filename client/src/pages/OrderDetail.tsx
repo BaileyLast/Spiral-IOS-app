@@ -193,7 +193,7 @@ export default function OrderDetail() {
             <ArrowLeft className="w-5 h-5 text-gray-900" />
           </button>
         </Link>
-        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm max-w-[60%]">
+        <div className="flex items-center gap-2 bg-gray-800 px-3 py-1.5 rounded-full shadow-sm max-w-[60%]">
           {order.storeLogo && (
             <img
               src={order.storeLogo}
@@ -205,7 +205,7 @@ export default function OrderDetail() {
             />
           )}
           <span
-            className="text-sm font-bold text-gray-900 truncate"
+            className="text-sm font-bold text-white truncate"
             data-testid="text-order-id"
           >
             Order #{order.shopifyOrderId.slice(-4)}
