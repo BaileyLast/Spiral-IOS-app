@@ -2929,6 +2929,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Instagram DM Webhook (for receiving verification DMs)
   // ============================================
 
+  // Forward story_mention webhook events to the merchant dashboard so it can
+  // build its Promotions gallery from shopper Story images. Fire-and-forget;
+  // never blocks our 200 ack back to Meta and never throws.
+  let storyForwardKeyMissingWarned = false;
+  async function forwardStoryMentionToDashboard(messaging: any[]): Promise<void> {
+    const internalKey = process.env.SPIRAL_INTERNAL_KEY;
+    if (!internalKey) {
+      if (!storyForwardKeyMissingWarned) {
+        console.warn('[STORY-FORWARD] SPIRAL_INTERNAL_KEY not set — skipping forward to merchant dashboard');
+        storyForwardKeyMissingWarned = true;
+      }
+      return;
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    try {
+      const res = await fetch('https://spiral-merchant-dashboard.replit.app/api/instagram/story-mention', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-spiral-internal-key': internalKey,
+        },
+        body: JSON.stringify({ messaging }),
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        console.warn(`[STORY-FORWARD] Merchant dashboard responded ${res.status}`);
+      } else {
+        console.log(`[STORY-FORWARD] Forwarded ${messaging.length} event(s) to merchant dashboard`);
+      }
+    } catch (err: any) {
+      const reason = err?.name === 'AbortError' ? 'timeout (3s)' : (err?.message || String(err));
+      console.warn(`[STORY-FORWARD] Forward failed: ${reason}`);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   // Webhook verification endpoint (Meta requires this for setup)
   app.get("/webhooks/instagram-dm", (req, res) => {
     const VERIFY_TOKEN = process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN || 'spiral_verify_token';
@@ -3218,10 +3256,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         for (const entry of body.entry) {
           const recipientId = entry.id;
           if (entry.messaging) {
+            let hasStoryMention = false;
             for (const event of entry.messaging) {
               if (event.message?.attachments) {
                 for (const attachment of event.message.attachments) {
                   if (attachment.type === 'story_mention') {
+                    hasStoryMention = true;
                     const senderScopedId = event.sender?.id;
                     const storyUrl = attachment.payload?.url || '';
                     
@@ -3232,6 +3272,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   }
                 }
               }
+            }
+            // Fire-and-forget forward to merchant dashboard (Promotions gallery).
+            // Only forwards entries that actually contained a story_mention; DM
+            // verification-code messages are skipped.
+            if (hasStoryMention) {
+              void forwardStoryMentionToDashboard(entry.messaging);
             }
           }
         }
