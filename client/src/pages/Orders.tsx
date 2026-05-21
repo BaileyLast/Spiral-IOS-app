@@ -35,7 +35,7 @@ export function formatDiscountPercent(raw: string | number | null | undefined): 
 }
 
 function getStatusLabel(order: Order) {
-  if (order.verificationStatus === "verified") return "Verified";
+  if (order.verificationStatus === "verified") return "Story verified";
   if (order.verificationStatus === "quick_verified") return "Confirmed";
   if (order.verificationStatus === "not_public") return "Repost Story";
   if (order.verificationStatus === "taken_down_early") return "Repost Story";

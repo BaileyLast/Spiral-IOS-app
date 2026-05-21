@@ -129,8 +129,15 @@ export default function OrderDetail() {
   const awaitingPickup = order.shopifyTrackingStatus === "ready_for_pickup" && order.status !== "delivered";
   const rawHandle = (order.merchantInstagramHandle || "").replace(/^@/, "");
 
-  const shippedLabel = (() => {
-    if (isPickup) return "Ready for pickup";
+  // Journey middle-step label is dynamic per delivery mode.
+  // Pickup journey: Order placed → Almost ready → Ready for pickup (→ Collected) → Post a story
+  // Shipping journey: Order placed → On the way / In transit / Out for delivery → Delivered → Post a story
+  const middleLabel = (() => {
+    if (isPickup) {
+      // Once the order is ready_for_pickup we show "Ready for pickup" on step 2;
+      // before that (just fulfilled, not yet at the store), show "Almost ready".
+      return order.shopifyTrackingStatus === "ready_for_pickup" ? "Ready for pickup" : "Almost ready";
+    }
     switch (order.shopifyTrackingStatus) {
       case "out_for_delivery": return "Out for delivery";
       case "in_transit": return "In transit";
@@ -138,11 +145,12 @@ export default function OrderDetail() {
     }
   })();
 
+  const storyComplete = status === "verified";
   const steps = [
     { id: "ordered", label: "Order placed", icon: Package, complete: true },
-    { id: "shipped", label: shippedLabel, icon: isPickup ? Store : Clock, complete: status !== "ordered" },
+    { id: "shipped", label: middleLabel, icon: isPickup ? Store : Clock, complete: status !== "ordered" },
     { id: "delivered", label: isPickup ? "Collected" : "Delivered", icon: CheckCircle, complete: ["awaiting", "story_received", "awaiting_review", "quick_verified", "not_public", "taken_down_early", "verified"].includes(status) },
-    { id: "verified", label: "Story verified", icon: CheckCircle, complete: status === "verified" },
+    { id: "verified", label: storyComplete ? "Story posted" : "Post a story", icon: CheckCircle, complete: storyComplete },
   ];
 
   return (
