@@ -1,7 +1,19 @@
-import { Instagram, ShieldCheck } from "lucide-react";
+import { useState } from "react";
+import { Check, Copy, Instagram, ShieldCheck } from "lucide-react";
 
 export function PostStoryCard() {
   const rawHandle = "glossier";
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(`@${rawHandle}`);
+    } catch {
+      // ignore
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#F5F2EC] p-6 font-['Inter']">
@@ -28,9 +40,23 @@ export function PostStoryCard() {
               <br />
               unlock your next discount.
             </h2>
-            <p className="text-[#E6F8F0] font-medium text-sm mb-6 max-w-[260px]">
-              Showcase your new purchase and tag @{rawHandle} in a public Story
-              to unlock more discounts from your favourite stores.
+            <p className="text-[#E6F8F0] font-medium text-sm mb-6 max-w-[280px]">
+              Showcase your new purchase and tag{" "}
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="inline-flex items-center gap-1 font-bold text-white underline underline-offset-2 decoration-white/70 hover:decoration-white active:opacity-80"
+                aria-label={copied ? "Handle copied" : `Copy @${rawHandle}`}
+              >
+                @{rawHandle}
+                {copied ? (
+                  <Check className="w-3.5 h-3.5" />
+                ) : (
+                  <Copy className="w-3.5 h-3.5 opacity-80" />
+                )}
+              </button>{" "}
+              in a public Story to unlock more discounts from your favourite
+              stores.
             </p>
 
             <a
@@ -49,6 +75,13 @@ export function PostStoryCard() {
             <div className="mt-4 flex items-center gap-1.5 text-[#E6F8F0] text-xs font-medium bg-black/10 px-3 py-1.5 rounded-full">
               <ShieldCheck className="w-4 h-4" />
               <span>Public Stories only — Close Friends won't count</span>
+            </div>
+
+            <div
+              className={`mt-3 text-xs text-white/90 transition-opacity ${copied ? "opacity-100" : "opacity-0"}`}
+              aria-live="polite"
+            >
+              Copied @{rawHandle} to clipboard
             </div>
           </div>
         </div>
