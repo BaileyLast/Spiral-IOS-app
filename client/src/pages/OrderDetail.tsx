@@ -37,6 +37,34 @@ import {
   type LineItem,
 } from "@/pages/Orders";
 
+// Brand @handle: always bold + underlined, click to copy with toast.
+// Used everywhere we show the merchant's Instagram handle so it's both
+// visually distinct against any background and trivially copyable.
+function BrandHandle({ handle, className = "" }: { handle: string; className?: string }) {
+  const { toast } = useToast();
+  const display = `@${handle.replace(/^@/, "")}`;
+  const onCopy = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(display);
+      toast({ title: "Copied", description: `${display} copied to clipboard.` });
+    } catch {
+      toast({ title: "Couldn't copy", description: "Please try again.", variant: "destructive" });
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={onCopy}
+      className={`font-bold underline underline-offset-2 hover:opacity-80 active:opacity-70 ${className}`}
+      data-testid="button-copy-brand-handle"
+    >
+      {display}
+    </button>
+  );
+}
+
 function getStatusLabel(order: Order) {
   if (order.verificationStatus === "verified") return "verified";
   if (order.verificationStatus === "quick_verified") return "quick_verified";
@@ -228,7 +256,7 @@ export default function OrderDetail() {
                 Post your Story,<br />unlock your next discount.
               </h2>
               <p className="text-[#E6F8F0] font-medium text-sm mb-6 max-w-[260px]">
-                Showcase your new purchase and tag {rawHandle ? `@${rawHandle}` : "the brand"} in a public Story to unlock more discounts from your favourite stores.
+                Showcase your new purchase and tag {rawHandle ? <BrandHandle handle={rawHandle} /> : "the brand"} in a public Story to unlock more discounts from your favourite stores.
               </p>
 
               {rawHandle ? (
@@ -355,11 +383,7 @@ export default function OrderDetail() {
                   <AlertDialogTitle>Confirm you've received it?</AlertDialogTitle>
                   <AlertDialogDescription>
                     Once you've got it, post an Instagram Story tagging{" "}
-                    {rawHandle ? (
-                      <span className="font-bold underline">@{rawHandle}</span>
-                    ) : (
-                      "the brand"
-                    )}{" "}
+                    {rawHandle ? <BrandHandle handle={rawHandle} /> : "the brand"}{" "}
                     to unlock your next discount.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
