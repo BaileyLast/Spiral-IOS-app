@@ -1,0 +1,331 @@
+# Spiral In-Store / Service Business Flow (V1)
+
+## Overview
+
+Spiral is a social-powered discount and attribution platform for brick-and-mortar and service-based businesses.
+
+Merchants offer customers personalised discounts in exchange for verified social exposure (Instagram Story/post tagging the business).
+
+Spiral does NOT process payments.
+
+Customers continue paying through the merchant’s existing checkout/POS system (cash, card, Apple Pay, etc).
+
+Spiral’s role is:
+
+* customer verification
+* discount calculation
+* redemption tracking
+* social verification
+* analytics/attribution
+
+---
+
+# Merchant Onboarding Flow
+
+Merchant signs up to Spiral and selects:
+
+* Retail Store
+* Service Business
+* Restaurant/Café
+
+Merchant then:
+
+1. Connects Instagram Business Account
+2. Configures discount settings:
+
+   * follower tiers
+   * max discount %
+   * max £ discount cap
+   * campaign settings
+3. Adds services/products manually:
+
+   * name
+   * price
+   * category
+4. Spiral generates:
+
+   * permanent merchant QR code
+   * merchant code (manual fallback if customer camera broken)
+   * printable Spiral branding assets/signage
+
+IMPORTANT:
+The QR code should remain permanent and should NOT regenerate when:
+
+* prices change
+* services change
+* discount rules change
+
+QR should simply point to the merchant’s live Spiral environment/merchant ID.
+
+---
+
+# Shopper Flow
+
+## During Service / In Store
+
+Customer scans merchant QR code or enters merchant code manually.
+
+Spiral app opens merchant session.
+
+Customer sees:
+
+* merchant branding
+* estimated discount available
+* their follower tier
+* current eligibility status
+
+Example:
+“You qualify for up to 15% off today at Joe’s Barbers.”
+
+Spiral creates an active session tied to:
+
+* shopper account
+* merchant
+* timestamp
+* location/session ID
+
+Customer does NOT need to post immediately.
+
+---
+
+# Merchant Redemption Flow
+
+At checkout/payment:
+
+Merchant opens Spiral merchant confirmation screen.
+
+Merchant scans the shopper’s Spiral QR code.
+
+Shopper profile/session appears instantly.
+
+Merchant sees:
+
+* shopper username
+* profile image
+* follower count
+* discount %
+* verification state
+
+Merchant selects:
+
+* products/services customer received
+
+Example:
+
+* Haircut
+* Beard Trim
+
+Spiral automatically calculates:
+
+* subtotal
+* discount amount
+* final payable amount
+
+Merchant presses:
+
+# “Confirm Redemption”
+
+This creates a confirmed redemption order/session.
+
+Customer then pays normally using:
+
+* cash
+* card
+* Apple Pay
+* existing POS system
+
+Spiral does NOT handle payments.
+
+---
+
+# Post Verification Flow
+
+After redemption is confirmed:
+
+Shopper account enters:
+
+# “Pending Verification” state
+
+Shopper must upload a verified Instagram Story/post tagging the merchant.
+
+Verification requirements:
+
+* must be public
+* must contain valid merchant tag/mention
+* must remain detectable by Spiral verification/scraper system
+
+Close Friends Stories should fail verification because they are not publicly detectable.
+
+Once verified:
+
+* session marked complete
+* shopper account returns to Active state
+
+If shopper does NOT complete verification:
+
+* shopper remains locked from future Spiral discounts
+* shopper cannot start another redemption until previous one verified
+
+Potential future additions:
+
+* trust score
+* cooldowns
+* account quality scoring
+
+---
+
+# Merchant UX Principles
+
+Merchant flow must be:
+
+* extremely fast
+* minimal taps
+* no typing
+* visually obvious
+
+Merchant screen should be optimized for:
+
+* tablets
+* iPads
+* counter displays
+
+The experience should feel similar to:
+
+* loyalty redemption
+* student discount validation
+* coupon confirmation
+
+NOT payment processing.
+
+---
+
+# Key Product Decisions
+
+## Spiral is NOT:
+
+* a payment processor
+* a POS replacement
+* a fintech product
+
+## Spiral IS:
+
+* a verified social-to-sale attribution platform
+* a social-powered discount layer
+* a customer exposure/reach engine
+
+---
+
+# Important Operational Decisions
+
+## QR Code
+
+Permanent and stable.
+
+Should not regenerate for:
+
+* pricing changes
+* campaign edits
+* service updates
+
+Only regenerate for:
+
+* security reset
+* fraud concerns
+* manual merchant request
+* multi-location/campaign variants
+
+---
+
+# Recommended Early Merchant Categories
+
+Best launch categories:
+
+* barbers
+* salons
+* tattoo studios
+* gyms
+* cafés
+* aesthetics clinics
+* fashion boutiques
+* car detailing
+
+These naturally generate social content.
+
+Restaurants are possible but operationally more complex due to:
+
+* split bills
+* group tables
+* shared meals
+* multi-person attribution
+
+---
+
+# Suggested Merchant Signage
+
+Spiral signage should be subtle and premium.
+
+Examples:
+
+* mirror decals
+* menu icons
+* countertop displays
+* “Spiral Accepted Here”
+
+Avoid overly influencer-style branding.
+
+Goal:
+Make Spiral feel like modern loyalty/rewards infrastructure rather than “post for discounts.”
+
+---
+
+# Core System Objects
+
+## Merchant
+
+* merchant_id
+* business info
+* Instagram account
+* pricing/services
+* discount rules
+
+## Shopper
+
+* shopper_id
+* linked social accounts
+* follower count
+* verification status
+* pending redemption status
+
+## Redemption Session
+
+* session_id
+* merchant_id
+* shopper_id
+* selected products/services
+* subtotal
+* discount amount
+* final payable amount
+* redeemed timestamp
+* verification status
+
+## Social Verification
+
+* story/post detected
+* merchant tag validated
+* visibility confirmed
+* timestamp
+* verification result
+
+---
+
+# Key UX Insight
+
+Spiral sessions should ideally begin DURING the experience, not only at checkout.
+
+Examples:
+
+* barber mentions Spiral during haircut
+* diner notices Spiral logo on menu before food arrives
+* customer takes photo during service experience
+
+This creates more natural social posting behaviour.
