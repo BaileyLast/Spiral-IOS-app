@@ -47,6 +47,7 @@ export interface IStorage {
   getStoreSettings(): Promise<StoreSettings | undefined>;
   updateStoreSettings(settings: InsertStoreSettings): Promise<StoreSettings>;
   updateSpiralSettings(settings: Partial<InsertStoreSettings>): Promise<StoreSettings>;
+  upsertStoreSettingsByDomain(shopDomain: string, patch: Partial<InsertStoreSettings>): Promise<StoreSettings>;
   updateMinFollowers(minFollowers: number): Promise<StoreSettings>;
   getDiscountTiers(): Promise<DiscountTier[]>;
   createDiscountTier(tier: InsertDiscountTier): Promise<DiscountTier>;
@@ -211,6 +212,27 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return created;
     }
+  }
+
+  async upsertStoreSettingsByDomain(shopDomain: string, patch: Partial<InsertStoreSettings>): Promise<StoreSettings> {
+    if (!patch.storeName || !patch.instagramHandle) {
+      throw new Error("upsertStoreSettingsByDomain: storeName and instagramHandle are required");
+    }
+
+    const [row] = await db
+      .insert(storeSettings)
+      .values({
+        ...patch,
+        shopDomain,
+        storeName: patch.storeName,
+        instagramHandle: patch.instagramHandle,
+      })
+      .onConflictDoUpdate({
+        target: storeSettings.shopDomain,
+        set: patch,
+      })
+      .returning();
+    return row;
   }
 
   async updateSpiralSettings(settings: Partial<InsertStoreSettings>): Promise<StoreSettings> {

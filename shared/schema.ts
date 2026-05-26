@@ -31,11 +31,14 @@ export const storeSettings = pgTable("store_settings", {
   instagramPageId: text("instagram_page_id"),
   instagramUsername: text("instagram_username"),
   instagramAccessToken: text("instagram_access_token"),
+  instagramProfilePictureUrl: text("instagram_profile_picture_url"),
   spiralEnabled: boolean("spiral_enabled").notNull().default(false),
   productSelectionType: text("product_selection_type").notNull().default("all"),
   webhookSubscriptionStatus: text("webhook_subscription_status").default("inactive"),
   lastWebhookReceivedAt: timestamp("last_webhook_received_at"),
-});
+}, (table) => ({
+  shopDomainUnique: uniqueIndex("store_settings_shop_domain_unique").on(table.shopDomain),
+}));
 
 export const discountTiers = pgTable("discount_tiers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

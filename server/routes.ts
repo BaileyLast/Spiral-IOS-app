@@ -4398,6 +4398,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Internal endpoint: upsert a merchant's store_settings row keyed on shopDomain.
+  // Called server-to-server by the merchant dashboard whenever a merchant connects
+  // (or reconnects) Instagram. Without this row, story_mention webhooks can't
+  // match the merchant and orders end up with no merchant handle.
+  // Guarded by the shared SPIRAL_INTERNAL_KEY header — never expose without it.
+  app.post("/api/merchants/register", async (req, res) => {
+    try {
+      const internalKey = req.header("x-spiral-internal-key");
+      if (!internalKey || internalKey !== process.env.SPIRAL_INTERNAL_KEY) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const bodySchema = z.object({
+        shopDomain: z.string().min(1),
+        storeName: z.string().min(1),
+        instagramHandle: z.string().min(1),
+        instagramBusinessAccountId: z.string().min(1),
+        instagramPageId: z.string().min(1),
+        instagramAccessToken: z.string().min(1),
+        instagramProfilePictureUrl: z.string().url().optional(),
+      });
+
+      const parsed = bodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ success: false, error: "invalid_body", details: parsed.error.flatten() });
+      }
+
+      const { shopDomain: rawDomain, storeName, instagramHandle, instagramBusinessAccountId, instagramPageId, instagramAccessToken, instagramProfilePictureUrl } = parsed.data;
+      const shopDomain = rawDomain.trim().toLowerCase();
+      const normalizedHandle = `@${instagramHandle.replace(/^@/, "")}`;
+
+      await storage.upsertStoreSettingsByDomain(shopDomain, {
+        storeName,
+        instagramHandle: normalizedHandle,
+        instagramUsername: instagramHandle.replace(/^@/, ""),
+        instagramBusinessAccountId,
+        instagramPageId,
+        instagramAccessToken,
+        instagramProfilePictureUrl,
+        tokenActive: true,
+        webhookSubscriptionStatus: "active",
+      });
+
+      console.log(`[MERCHANT-REGISTER] domain=${shopDomain} handle=${normalizedHandle} igBizId=${instagramBusinessAccountId}`);
+      return res.status(200).json({ success: true });
+    } catch (err) {
+      console.error("[MERCHANT-REGISTER] failed:", err);
+      return res.status(500).json({ success: false, error: "internal" });
+    }
+  });
+
   // Internal admin endpoint: mark an order delivered (called by ops tooling or future
   // Shopify fulfillment_events.create webhook for `delivered` events).
   // Internal endpoint: re-register every Shopify webhook for the currently
