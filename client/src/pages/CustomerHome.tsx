@@ -39,7 +39,6 @@ export default function CustomerHome() {
     ordersCompleted: number;
     discountPercent: number;
     pendingVerificationCount: number;
-    pendingOrders: { id: string; storeName: string | null; shopifyOrderId: string }[];
   }>({
     queryKey: ["/api/customer/stats"],
   });
@@ -56,11 +55,6 @@ export default function CustomerHome() {
     return false;
   });
   const pendingCount = owedOrders.length;
-  const pendingOrders = owedOrders.map((o) => ({
-    id: o.id,
-    storeName: o.storeName ?? null,
-    shopifyOrderId: o.shopifyOrderId,
-  }));
 
   const greetingName = profile?.name?.split(" ")[0] || profile?.instagramHandle;
   const hasStats =
@@ -174,39 +168,33 @@ export default function CustomerHome() {
                 <Lock className="w-7 h-7" />
               </div>
               <h2
-                className="text-xl font-black mb-2 leading-tight"
+                className="text-2xl font-black mb-2 leading-tight"
                 data-testid="text-soft-ban-heading"
               >
-                Your next discount is on hold
+                Keep the spiral going
               </h2>
               <p
-                className="text-[#E6F8F0] font-medium text-sm mb-5 max-w-[300px]"
+                className="text-[#E6F8F0] font-medium text-sm mb-5 max-w-[320px]"
                 data-testid="text-soft-ban-body"
               >
                 {profile?.softBannedReason === "inherited_from_instagram"
-                  ? "Your Instagram account owes a Story from a previous Spiral order. Post that Story tagging the brand to unlock your next Spiral discount."
+                  ? "Your Instagram owes a Story from an earlier Spiral order. Post it tagging the brand to keep earning discounts."
                   : pendingCount > 1
-                    ? `Post a Story tagging the brand for your ${pendingCount} pending orders to unlock your next Spiral discount.`
-                    : "Post a Story tagging the brand for your pending order to unlock your next Spiral discount."}
+                    ? `You've got ${pendingCount} orders waiting on a Story. Post one for your latest purchase to keep earning discounts with Spiral.`
+                    : "You've got a Story to post. Share your latest purchase tagging the brand to keep earning discounts with Spiral."}
               </p>
 
-              {pendingOrders.length > 0 && (
-                <div className="space-y-2">
-                  {pendingOrders.map((o) => (
-                    <Link key={o.id} href={`/orders/${o.id}`}>
-                      <div
-                        className="glass-pill flex items-center justify-between gap-2 px-4 py-3 rounded-2xl bg-white/90 cursor-pointer hover-elevate"
-                        data-testid={`link-pending-order-${o.id}`}
-                      >
-                        <span className="text-sm font-bold text-gray-900 truncate">
-                          {o.storeName || `Order #${o.shopifyOrderId.slice(-6)}`}
-                        </span>
-                        <ChevronRight className="w-4 h-4 text-[#4ECCA3] flex-shrink-0" />
-                      </div>
-                    </Link>
-                  ))}
+              <Link href="/discounts">
+                <div
+                  className="glass-pill flex items-center justify-between gap-2 px-4 py-3 rounded-2xl bg-white/90 cursor-pointer hover-elevate"
+                  data-testid="link-see-pending-orders"
+                >
+                  <span className="text-sm font-bold text-gray-900">
+                    See pending orders
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-[#4ECCA3] flex-shrink-0" />
                 </div>
-              )}
+              </Link>
             </div>
           </div>
         )}

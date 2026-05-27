@@ -412,22 +412,22 @@ export default function Orders() {
 
         {isSoftBanned && (
           <div
-            className="p-4 rounded-2xl bg-orange-50 border border-orange-200 flex items-start gap-3"
+            className="p-4 rounded-2xl bg-[#E6F8F0] border border-[#4ECCA3]/30 flex items-start gap-3"
             data-testid="banner-soft-banned"
           >
-            <div className="w-9 h-9 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
-              <Lock className="w-4 h-4 text-orange-600" />
+            <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center flex-shrink-0">
+              <Lock className="w-4 h-4 text-[#4ECCA3]" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-orange-900 text-sm" data-testid="text-soft-ban-heading">
-                Your next discount is on hold
+              <p className="font-semibold text-[#0F4F3C] text-sm" data-testid="text-soft-ban-heading">
+                Keep the spiral going
               </p>
-              <p className="text-xs text-orange-700 mt-0.5" data-testid="text-soft-ban-body">
+              <p className="text-xs text-[#155843] mt-0.5" data-testid="text-soft-ban-body">
                 {me?.softBannedReason === "inherited_from_instagram"
-                  ? "Your Instagram account owes a Story from a previous Spiral order. Post that Story tagging the brand to unlock your next Spiral discount."
+                  ? "Your Instagram owes a Story from an earlier Spiral order. Post it tagging the brand to keep earning discounts."
                   : owedCount > 1
-                    ? `Post a Story tagging the brand for your ${owedCount} pending orders to unlock your next Spiral discount.`
-                    : "Post a Story tagging the brand for your pending order to unlock your next Spiral discount."}
+                    ? `You've got ${owedCount} orders waiting on a Story. Post one for your latest purchase to keep earning discounts with Spiral.`
+                    : "You've got a Story to post. Share your latest purchase tagging the brand to keep earning discounts with Spiral."}
               </p>
             </div>
           </div>
