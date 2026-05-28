@@ -4595,6 +4595,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // One-shot admin: force-verify a single order. Marks its verification row
+  // verified, flips the order's verification_status, then re-evaluates the
+  // owner's soft-ban (auto-unbans if no other debt remains).
+  // TODO: remove after manual cleanup of test order 6701278429398.
+  app.post("/api/internal/admin/force-verify-order/:id", requireInternalKey, async (req, res) => {
+    try {
+      const orderId = req.params.id;
+      const order = await storage.getOrderById(orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      if (order.verificationId) {
+        await storage.markVerified(order.verificationId);
+      }
+      await storage.updateOrderVerificationStatus(orderId, "verified", order.verificationId ?? undefined);
+      if (order.spiralCustomerId) {
+        await maybeAutoUnbanCustomer(order.spiralCustomerId);
+      }
+      const customerAfter = order.spiralCustomerId
+        ? await storage.getSpiralCustomerById(order.spiralCustomerId)
+        : null;
+      res.json({
+        success: true,
+        orderId,
+        verificationId: order.verificationId ?? null,
+        customerStatus: customerAfter?.accountStatus ?? null,
+      });
+    } catch (err) {
+      console.error("[admin] force-verify-order failed:", err);
+      res.status(500).json({ error: "Failed to force-verify order" });
+    }
+  });
+
   // ────────────────────────────────────────────────────────────────────────
   // Universal Core API (Task #91)
   // Every endpoint under /api/internal/* is auth-gated by requireInternalKey
