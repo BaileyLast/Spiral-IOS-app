@@ -1,0 +1,36 @@
+#147 - Spiral Core API Client + Migrations
+What & Why
+The iOS customer app now exposes a Universal Core API (/api/internal/* on https://spiral-app-1.replit.app) as the single source of truth for Spiral customer identity, eligibility, and push delivery. The dashboard currently duplicates several of these responsibilities: it calls the Graph API directly for identity resolution, runs its own discount eligibility logic using RapidAPI follower counts, and has an unimplemented TODO for push notifications. This task creates a typed client for the core API and migrates the relevant dashboard surfaces onto it.
+
+Done looks like
+server/lib/spiralCoreApi.ts exists with Zod-typed wrappers for every endpoint used, all authenticated with SPIRAL_INTERNAL_KEY
+Story-mention identity resolution no longer calls the Graph API for username lookups; it calls POST /api/internal/identity/resolve instead
+The estimate-discount endpoint uses POST /api/internal/discount/calculate for known Spiral customers (existing handle match), keeping RapidAPI only for unknown handles
+The delivery-reminder push notification TODO at ~line 2974 is replaced with a real POST /api/internal/push/send call (kind: "delivery-reminder")
+Local recordNonSpiralScopedId writes are removed from processStoryMentionMsg — the core API self-heals identity at signup time so a local negative cache is no longer needed; the clearNonSpiralCacheByInstagramId calls added in task #145 are also removed
+Out of scope
+Discount tier display in the dashboard UI — dashboard reads its own DB (confirmed: dashboard writes, core API reads)
+Soft-ban status badge in dashboard UI — soft-ban data already arrives in the customer app auth response; no separate call needed
+GET /api/internal/identity/:globalUserId/verifications — verification history view doesn't exist in the dashboard yet
+GET /api/internal/customers/by-instagram shopper lookup — no standalone shopper lookup screen exists in the current dashboard UI
+quick-fail / final-fail pushes — posting window expiry logic is not yet implemented; those push kinds are a follow-up
+Steps
+Create server/lib/spiralCoreApi.ts — typed client with Zod schemas and fetch wrappers for: identityResolve, discountCalculate, and pushSend. All calls use SPIRAL_INTERNAL_KEY header and SPIRAL_CUSTOMER_APP_URL env var (same pattern as spiralCustomerApp.ts). 5s timeout. Log [SPIRAL-CORE] prefix on errors.
+
+Migrate identity resolution — In processStoryMentionMsg (~line 2236), replace the Graph API graph.facebook.com/v19.0/${senderId}?fields=username username-resolution block with a call to identityResolve({ merchantInstagramBusinessId, senderScopedId }). Use the returned instagramUserId + instagramGlobalUserId to look up the verification. Remove the two recordNonSpiralScopedId calls in that function (lines 2212 and 2257) — the core API manages the negative cache internally.
+
+Migrate estimate-discount — In POST /api/checkout/estimate-discount (~line 3209), after fetching the RapidAPI follower count and finding an existing Spiral customer via getSpiralCustomerByHandle, call POST /api/internal/discount/calculate with { customerId } to get the authoritative eligibility (uses live follower count + spiralEnabled from core API). Fall back to local tier math if the core API is unreachable.
+
+Wire delivery-reminder push — Replace the TODO comment at ~line 2974 (in the fulfillment delivery webhook handler) with a fire-and-forget call to pushSend({ customerId, kind: "delivery-reminder", brandName }). Retrieve customerId from the order record (already fetched at that point). Never await — non-fatal if the push fails.
+
+Remove now-dead local negative cache code — Delete recordNonSpiralScopedId calls in processStoryMentionMsg (covered in step 2). Remove clearNonSpiralCacheByInstagramId calls added in task #145 from the two createVerification sites (~lines 2842 and 3394) since the core API self-heals at signup. Update the schema comment on merchant_scoped_user_map to reflect that isSpiral=false rows are no longer written (the table remains for positive-cache isSpiral=true rows).
+
+Relevant files
+server/lib/spiralCustomerApp.ts — pattern to follow for the new client
+server/routes.ts:2174-2260 — processStoryMentionMsg (identity resolution + negative cache writes)
+server/routes.ts:2965-2982 — fulfillment delivery handler (push TODO)
+server/routes.ts:3209-3278 — estimate-discount endpoint
+server/routes.ts:2839-2845 — createVerification negative cache clear (order webhook)
+server/routes.ts:3390-3398 — createVerification negative cache clear (confirm-discount)
+server/storage.ts:1133-1155 — recordNonSpiralScopedId implementation
+shared/schema.ts:215-229 — merchant_scoped_user_map schema comment

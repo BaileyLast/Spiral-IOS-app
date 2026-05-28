@@ -2,239 +2,178 @@
 
 ## Overview
 
-Spiral is a customer-facing mobile application that allows shoppers to earn instant discounts at checkout by agreeing to post one Instagram Story after delivery. The app handles login & identity, Instagram connection, follower verification, order tracking, and automated story verification. Designed with minimal, calm, trust-led principles inspired by Klarna and Apple.
+Spiral lets shoppers earn an instant checkout discount in exchange for posting one Instagram Story after delivery. This repo is the iOS customer app + the **single source of truth** for Spiral identity, customer state, verifications, discount eligibility, soft-ban, tier config, and push. The merchant dashboard and any future ecomm adapters call our `/api/internal/*` surface instead of duplicating state.
 
 ## User Preferences
 
-Preferred communication style: Simple, everyday language.
+Simple, everyday language. No emojis.
 
-## Server & Deployment Notes
+## Server & Deployment
 
-- Server listener uses `Number(process.env.PORT) || 3000` — no hardcoded port 5000.
-- In development, the workflow sets `PORT=5000` via the command (`PORT=5000 npm run dev`).
-- Deployment target: Reserved VM (`deploymentTarget = "vm"`).
-- Production commands: `npm run build` then `npm run start`.
-- The `/health` endpoint returns "ok" at 200 for health checks.
-- All incoming requests are logged with `[INCOMING]` prefix.
+- Listener: `Number(process.env.PORT) || 3000`. Dev workflow sets `PORT=5000`.
+- Deployment target: Reserved VM. Prod commands: `npm run build` then `npm run start`.
+- `/health` returns `ok` (200). Requests logged with `[INCOMING]` prefix.
 
-## System Architecture
+## Stack
 
-### Frontend
-- **Framework**: React 18 with TypeScript, Vite for build and development.
-- **UI/UX**: Mobile-first design with shadcn/ui components, Tailwind CSS. Minimal, calm aesthetic with trust-led interactions.
-- **Layout**: Bottom navigation bar with Home, Marketplace, Discounts, Profile tabs. Single-column mobile layouts.
-- **State Management**: React Query for server state, localStorage for customer session.
-- **Theming**: HSL-based color system with CSS custom properties, branded purple primary color, soft status colors for order states.
-- **Design**: Rounded cards (rounded-2xl), generous padding, soft shadows, mobile-safe areas.
+- **Frontend**: React 18 + TypeScript + Vite, shadcn/ui + Tailwind. Mobile-first, single-column. HSL CSS variables, branded purple. Bottom nav: Home / Marketplace / Discounts / Profile. React Query for server state, localStorage for session.
+- **Backend**: Express + Drizzle ORM + Neon serverless Postgres. TypeScript strict, ESNext.
+- **Build**: Vite (client), esbuild (server prod), tsx (dev).
 
-### Pages
-- **Onboarding** (`/`): Welcome screen explaining value proposition with Get Started CTA
-- **Login** (`/login`): Email/password authentication with signup toggle
-- **Instagram Connect** (`/connect-instagram`): Connect Instagram to verify follower count
-- **Home** (`/home`): Dashboard with stats, pending actions, recent orders
-- **Marketplace** (`/marketplace`): Browse participating brands
-- **Discounts** (`/discounts`): List of all orders with status badges
-- **Order Detail** (`/orders/:id`): Progress timeline, discount info, posting instructions
-- **Profile** (`/profile`): Account info, Instagram status, settings, logout
-- **Manage Account** (`/manage-account`): Instagram disconnect card with profile pic, editable account info (email, name, date of birth, address)
+## Data Models (`shared/schema.ts`)
 
-### Backend
-- **Server**: Express.js with middleware for request handling, logging, and JSON body parsing.
-- **Data Layer**: Drizzle ORM with PostgreSQL (Neon serverless) for type-safe operations.
-- **Data Models**:
-    - `store_settings`: Shopify and Instagram OAuth data, store configuration, webhook health monitoring.
-    - `discount_tiers`: Follower ranges mapped to discount percentages.
-    - `verifications`: Story post verification records with webhook metadata.
-    - `spiral_customers`: Customer accounts with Instagram credentials.
-    - `orders`: Order tracking with discount info and verification status.
-    - `merchant_scoped_user_map`: Maps merchant-scoped Instagram sender IDs to Spiral customers.
-    - `spiral_codes`: DM-based Instagram verification codes for account linking.
+- `store_settings` — Shopify + Instagram OAuth, store config, webhook health (single row; single-tenant today).
+- `discount_tiers` — Follower ranges → discount %. Written by merchant dashboard, read by this repo.
+- `verifications` — Story post verification records with webhook metadata.
+- `spiral_customers` — Customer accounts + Instagram identity.
+- `orders` — Order tracking with discount + verification status. Keeps IG identity columns so deletion-safe lookups still work.
+- `merchant_scoped_user_map` — Caches scoped IG sender id → customer (positive AND negative cache; see Story Verification).
+- `spiral_codes` — DM-based IG verification codes.
 
-### Customer API Endpoints
-- `POST /api/customer/signup`: Create new customer account
-- `POST /api/customer/login`: Authenticate customer
-- `POST /api/customer/logout`: End session
-- `GET /api/customer/me`: Get current customer profile
-- `POST /api/customer/spiral-code`: Generate or get existing verification code
-- `GET /api/customer/spiral-code/status`: Poll for verification status
-- `POST /api/customer/spiral-code/regenerate`: Generate a new code (invalidates old)
-- `POST /api/customer/disconnect-instagram`: Unlink Instagram account
-- `PATCH /api/customer/profile`: Update customer profile (name, dateOfBirth, address)
-- `GET /api/customer/orders`: Get customer's orders
-- `GET /api/customer/orders/:id`: Get single order details
-- `GET /api/customer/stats`: Get total saved and orders completed
+## Pages
 
-### Universal Core API (Internal, Server-to-Server)
-All endpoints under `/api/internal/*` are auth-gated by the shared
-`requireInternalKey` middleware (header `x-spiral-internal-key`) and intended
-for use by the merchant dashboard and future ecommerce adapters
-(WooCommerce, BigCommerce, …). This repo is the single source of truth for
-Instagram identity, customer state, verifications, discount eligibility,
-soft-ban status, tier config, and push — adapters MUST call these endpoints
-instead of duplicating state. **Callers MUST NOT cache negative identity
-results locally** — every call is a single indexed lookup on the cache-hit
-path, and stale local caches will shadow our own self-healing path at
-signup / DM-verify time.
+| Path | Purpose |
+|---|---|
+| `/` | Welcome / value prop |
+| `/login` | Email/password (signup toggle) |
+| `/connect-instagram` | IG connect to verify follower count |
+| `/home` | Stats, pending actions, recent orders |
+| `/marketplace` | Browse participating brands |
+| `/discounts` | All orders with status badges |
+| `/orders/:id` | Progress timeline, discount, posting instructions |
+| `/profile` | Account info, IG status, settings, logout |
+| `/manage-account` | IG disconnect + editable account info |
 
-- `POST /api/internal/identity/resolve` — body `{merchantInstagramBusinessId, senderScopedId}`. Resolves a page-scoped IG sender id to a Spiral customer (or a confirmed non-Spiral result). Same logic as the story_mention webhook (`resolveScopedSender` helper). Returns `{resolution, isSpiral, customerId, instagramHandle, instagramUserId, instagramGlobalUserId, followerCount}`.
-- `GET /api/internal/customers/by-instagram?handle=&userId=&globalUserId=` — find Spiral customers by IG identity. Returns an array (same IG identity can map to multiple Spiral rows; soft-ban inheritance is built on this).
-- `GET /api/internal/identity/:globalUserId/verifications?fallbackUserId=` — every verification row attached to any order owned by this IG identity. Survives customer deletion (orders keep their IG identity columns). Pass `_` as the path param when only the page-scoped fallback id is known.
-- `POST /api/internal/discount/calculate` — body `{customerId}`. Pure eligibility + tier match (mirrors `/api/checkout/calculate-discount`, sans the soft-ban gate which is its own endpoint). Backed by the shared `calculateDiscountForCustomer` helper.
-- `GET /api/internal/customers/:customerId/soft-ban-status` — read-through soft-ban evaluator (`evaluateSoftBanForCheckout`). Self-heals stale state in both directions and returns the canonical on-hold payload (`softBanned, softBannedReason, pendingVerificationCount, brandName, owedOrderId, message`).
-- `GET /api/internal/merchants/:merchantInstagramBusinessId/discount-tiers` — tier config for a merchant, including `spiralEnabled` and `minFollowers` floor.
-- `POST /api/internal/push/send` — body `{customerId, kind, brandName?}`. Triggers one of three canonical iOS pushes: `delivery-reminder`, `quick-fail`, `final-fail`. Copy is fixed per kind (never accepted from the caller). Pushes are reminders/failures only — successes are surfaced in-app and MUST NOT be pushed.
+## API
 
-### Webhook Endpoints
-- `GET /webhooks/instagram-dm`: Webhook verification (Meta challenge)
-- `POST /webhooks/instagram-dm`: Receive DMs to @joinspiral for code verification AND story_mention events
-- `GET /webhooks/instagram`: Instagram webhook verification for merchant's connected account
-- `POST /webhooks/instagram`: Receive story_mention events on merchant's connected Instagram
+### Customer (session-gated)
+- `POST /api/customer/signup` · `POST /api/customer/login` · `POST /api/customer/logout` · `GET /api/customer/me`
+- `POST /api/customer/spiral-code` · `GET /api/customer/spiral-code/status` · `POST /api/customer/spiral-code/regenerate`
+- `POST /api/customer/disconnect-instagram` · `PATCH /api/customer/profile`
+- `GET /api/customer/orders` · `GET /api/customer/orders/:id` · `GET /api/customer/stats`
+- `POST /api/customer/orders/:id/mark-received` (alias `/mark-collected`)
+- `POST /api/customer/push-token` — `{ token: string | null }`, call on launch + on logout (null)
 
-### Instagram Integration
+### Checkout (public, used by Shopify widget)
+- `POST /api/checkout/authenticate` — login; response includes soft-ban payload (see below).
+- `POST /api/checkout/calculate-discount` — pay-now eligibility + tier match. Also includes soft-ban safety net.
+- `POST /api/checkout/confirm-discount` — record discount applied to a placed order.
+- `POST /api/checkout/estimate-discount` — pre-login estimate by IG handle.
 
-#### Account Verification (DM-based)
-- **Flow**: Customers verify Instagram ownership by DMing a unique code to @joinspiral
-- **How It Works**:
-  1. Customer gets a 6-character verification code (24-hour expiry)
-  2. Customer opens Instagram and DMs the code to @joinspiral
-  3. Webhook receives DM, extracts Instagram user ID from sender metadata
-  4. Code is matched and customer's Instagram is verified automatically
-- **Follower Lookup**: RapidAPI (Instagram API - Fast & Reliable Data Scraper) fetches follower count
-- **Code Table**: `spiral_codes` tracks verification sessions with status (pending/verified/expired)
+### Universal Core API (`/api/internal/*`, server-to-server)
 
-#### Story Verification (Automated via Story Mention Webhook)
-- **Architecture**: Fully automated using Instagram Messaging webhooks on the merchant's connected Instagram account
-- **How It Works**:
-  1. Customer posts Instagram Story and tags the merchant using @ mention sticker
-  2. Instagram sends a `story_mention` event to our webhook via the Messaging platform
-  3. Webhook extracts sender's scoped ID and story URL from the event payload
-  4. System resolves sender identity: checks `merchant_scoped_user_map` first, then falls back to Instagram Profile API to resolve username
-  5. Matches resolved customer to their pending order(s)
-  6. Creates scoped ID mapping for future lookups and marks order as verified
-  7. Sends confirmation DM to customer via Instagram API
-- **Merchant Dashboard Forward**: Every story_mention event received at `/webhooks/instagram-dm` is also forwarded fire-and-forget to the merchant dashboard at `POST https://spiral-merchant-dashboard.replit.app/api/instagram/story-mention` (auth header `x-spiral-internal-key: <SPIRAL_INTERNAL_KEY>`, body `{ messaging: [...] }`, 3s timeout, logged with `[STORY-FORWARD]` prefix) so the dashboard can hydrate its Promotions gallery from shopper Story images. Each messaging entry we successfully resolved to a Spiral customer is annotated inline with `instagramUserId` (the shopper's real global IG user ID, e.g. `2028598998`) so the dashboard can match the Story to its verification records without re-hitting the Graph API — Meta's `sender.id` is a per-app Instagram-Scoped User ID (IGSID) and never matches the global ID stored on verification records. Annotation is best-effort: when we can't resolve the sender (random non-Spiral shopper) or our handler throws, the raw entry still ships without the field and the dashboard falls back to its own Graph API lookup. DM verification-code messages are not forwarded.
-- **Scoped ID Mapping (with negative cache)**: Instagram sends merchant-scoped sender IDs (not global user IDs). The `merchant_scoped_user_map` table caches scoped ID → Spiral customer mappings (`isSpiral=true`, with cached `instagramUserId` as canonical identity) AND confirmed non-Spiral senders (`isSpiral=false`, `spiralCustomerId=null`) so subsequent story_mentions from random shoppers exit in a single indexed lookup with no Profile API call. Backend matching always uses the immutable `instagramUserId`; `instagramHandle` is display-only and refreshed on the customer record whenever the Profile API returns a new username for the same scoped ID.
-- **OAuth Scopes Required**: `instagram_basic`, `instagram_manage_messages`, `pages_show_list`, `pages_read_engagement`, `pages_manage_metadata`
-- **Webhook Subscription**: Automatically subscribed to `messages` and `messaging_postbacks` fields on the Facebook Page after merchant connects Instagram
+All routes gated by `requireInternalKey` (header `x-spiral-internal-key`). Used by the merchant dashboard and future Woo/BigCommerce adapters. **Callers MUST NOT cache negative identity results locally** — every call is a single indexed lookup on cache hits, and stale local caches will shadow our self-healing path at signup/DM-verify.
 
-### Meta App Configuration
-- **Spiral app** (ID: 1348945556722394): Business type app with "Facebook Login for Business". Used for Instagram OAuth, DM webhooks, and token generation. Has "Manage messaging & content on Instagram" use case configured.
-  - Webhook configured at `/webhooks/instagram-dm` with verify token `spiral_verify_token`
-  - Token generated via Meta Dashboard "Generate access tokens" for @joinspiral
-- **SPIRAL APP** (ID: 1261954155779121): Consumer type app. Originally used for webhooks but limited by app type restrictions.
+| Endpoint | Purpose |
+|---|---|
+| `POST /identity/resolve` | `{merchantInstagramBusinessId, senderScopedId}` → Spiral identity (or confirmed non-Spiral). Same logic as the story-mention webhook (`resolveScopedSender` helper). |
+| `GET /customers/by-instagram?handle=&userId=&globalUserId=` | Find Spiral customers by IG identity. Returns array (siblings can share a handle). |
+| `GET /identity/:globalUserId/verifications?fallbackUserId=` | Story history for an IG identity. Survives customer deletion. Pass `_` for the path param if only fallback id is known. |
+| `POST /discount/calculate` | `{customerId}` → eligibility + tier match (mirrors `/api/checkout/calculate-discount`, sans soft-ban gate). Backed by `calculateDiscountForCustomer`. |
+| `GET /customers/:customerId/soft-ban-status` | Read-through soft-ban evaluator (`evaluateSoftBanForCheckout`). Self-heals stale state. |
+| `GET /merchants/:merchantInstagramBusinessId/discount-tiers` | Tier config + `spiralEnabled` + `minFollowers`. |
+| `POST /push/send` | `{customerId, kind, brandName?}`; `kind ∈ {delivery-reminder, quick-fail, final-fail}`. Copy is fixed per kind. Reminders/failures only — successes are in-app. |
+| `POST /orders/:id/mark-delivered` | Transition order → delivered, fire reminder push. |
+| `POST /shopify/backfill-webhooks` | Re-register Shopify webhook topics for an already-connected store. |
+| `POST /merchants/register` · `PATCH /customers/:id` | Existing merchant/customer admin hooks. |
 
-### Required Secrets
-- `RAPIDAPI_KEY`: For fetching Instagram follower counts
-- `FACEBOOK_APP_ID` / `FACEBOOK_APP_SECRET`: Spiral app (1348945556722394) credentials
-- `INSTAGRAM_APP_ID` / `INSTAGRAM_APP_SECRET`: Spiral app's Instagram Basic Display credentials
-- `INSTAGRAM_REDIRECT_URI`: OAuth callback URL (`https://spiral-app-1.replit.app/instagram/callback`)
-- `SPIRAL_INSTAGRAM_ACCESS_TOKEN`: Access token for @joinspiral (generated via Meta Dashboard, non-expiring)
-- `SPIRAL_INSTAGRAM_BUSINESS_ID`: Facebook Page ID for @joinspiral (797294296809569) — used for sending DMs and subscribing webhooks
-- `INSTAGRAM_WEBHOOK_VERIFY_TOKEN`: Webhook verification token (`spiral_verify_token`)
+### Webhooks
+- `GET/POST /webhooks/instagram-dm` — DMs to @joinspiral (spiral-code verification) + story_mention events.
+- `GET/POST /webhooks/instagram` — Story mentions on merchant's connected IG.
+- `/webhooks/shopify/orders-create` · `/fulfillments-create` · `/fulfillments-update` · `/fulfillment-events-create` — registered automatically during Shopify OAuth.
 
-### Order Status Flow
-1. **Ordered** - Order placed, waiting for fulfillment
-2. **Fulfilled/Shipped** - Fulfillment created. App displays the raw Shopify `shipment_status` (e.g. "On the way", "Out for delivery", "Ready for pickup") via `orders.shopifyTrackingStatus`, which is mirrored from every `fulfillment_events/create` and `fulfillments/update` webhook.
-3. **Delivered** - Triggers "Post Your Story" prompt. Reached via, in order of preference:
-   - `fulfillment_events/create` with `status=delivered` (carrier-tracked)
-   - `fulfillments/update` with `shipment_status=delivered` (backup path some accounts use)
-   - Customer taps "I've received this order" (or "I've collected it" on the pickup card) in the app → `POST /api/customer/orders/:id/mark-received` (gate: order must be `fulfilled` and not yet `delivered`). Back-compat alias `/mark-collected` is still mounted.
-   - Background fallback (`runDeliveryFallbackJob`, every 30 min):
-     - 24h after first `ready_for_pickup` → auto-marked as collected (click-and-collect safety net)
-     - 7d after `fulfilled` with no tracking event ever received → auto-marked delivered (manual/no-carrier-integration safety net)
-4. **Verified** - Story mention detected via webhook, discount confirmed
+## Instagram Integration
 
-All delivery paths funnel into the same idempotent `transitionOrderToDelivered` helper, so duplicate signals from different sources are safe.
+### Account Verification (DM-based)
+1. Customer gets a 6-char code (24h expiry).
+2. Customer DMs the code to @joinspiral.
+3. Webhook extracts IG user id from sender metadata, matches the code, links IG to the Spiral customer.
 
-### Shopify Webhook Topics Registered
-Registered during the Shopify OAuth callback. Re-register for already-connected stores by calling `POST /api/internal/shopify/backfill-webhooks` with header `x-spiral-internal-key`.
-- `orders/create` → `/webhooks/shopify/orders-create`
-- `fulfillments/create` → `/webhooks/shopify/fulfillments-create`
-- `fulfillments/update` → `/webhooks/shopify/fulfillments-update`
-- `fulfillment_events/create` → `/webhooks/shopify/fulfillment-events-create`
+Follower count: **RapidAPI** (Instagram API - Fast & Reliable Data Scraper).
 
-### Verification Lifecycle
-1. **pending**: Order placed/delivered, awaiting customer to post Story tagging merchant. Locks future discount.
-2. **awaiting_review**: Story mention webhook received, quick publicity check pending (~3 min). Locks future discount.
-3. **quick_verified**: Quick check passed (Story is public). UNLOCKS future discount; awaiting 10h final check.
-4. **verified**: Final check passed, discount confirmed. UNLOCKS future discount.
-5. **not_public**: Quick check failed (Close Friends or already deleted). Locks future discount until shopper reposts.
-6. **taken_down_early**: Final check failed (Story disappeared <24h). Locks future discount until shopper reposts.
+### Story Verification (Automated)
+1. Customer posts an IG Story tagging the merchant.
+2. `story_mention` event hits our webhook.
+3. `resolveScopedSender(settings, senderScopedId)` resolves the sender:
+   - **Positive cache hit** → return customer, touch `lastSeenAt`.
+   - **Negative cache hit** → exit early (no Profile API call).
+   - **Miss** → IG Profile API (username) + RapidAPI (global numeric pk) → match against Spiral customers by handle → write positive mapping OR negative-cache row.
+   - **Transient failure** (no token / Profile API down) → return `unresolvable`, **do not** negative-cache.
+4. Matches resolved customer to their pending order(s) and verifies.
+5. Backend matching uses immutable `instagramUserId`. `instagramHandle` is display-only and auto-refreshed when IG reports a new username for the same scoped id.
+6. **Self-healing**: when a Spiral customer DM-verifies, any stale negative-cache rows for their IG identity are cleared (`server/routes.ts:3361`).
 
-### Soft-Ban Model
-- Persisted on `spiral_customers` via `accountStatus` (`'active'` | `'soft_banned'`), `softBannedReason`, `softBannedAt`.
-- A shopper is soft-banned (blocked from new Spiral discounts at checkout) when they have any owed order. **Owed** = (a) delivered order in `pending`, `awaiting_review`, or `not_public`, OR (b) any order in `taken_down_early` regardless of delivery status (final-fail debt is independent of delivery; quick-fail debt only counts post-delivery since a shopper hasn't "owed" anything before delivery).
-- Set on: delivery (`delivery_pending`), quick-check fail (`not_public`), final-check fail (`taken_down_early`), Instagram inheritance at DM verification (`inherited_from_instagram`).
-- **Anchored to Instagram identity, not email.** Debt follows the Instagram account (matched by `instagramGlobalUserId` OR `instagramUserId`) across every Spiral customer that links the same IG profile. Inheritance is evaluated in two places: (1) at DM-verification time in the `/webhooks/instagram-dm` handler — if any sibling account sharing the just-resolved IG identity has owed orders, the new account is soft-banned with reason `inherited_from_instagram`; (2) at checkout in `/api/checkout/calculate-discount` — owed-orders count is the union of own-owed + sibling-IG-owed, so a shopper can't dodge debt by signing up with a new email but the same Instagram.
-- Cleared automatically by `maybeAutoUnbanCustomer` whenever the customer has zero own-owed AND zero sibling-IG-owed orders. The clear cascades: when this customer's own debt clears, every sibling account with the same IG identity is re-evaluated and unbanned if their inherited debt is now also gone.
-- Surfaced at checkout in two places via the shared `evaluateSoftBanForCheckout(customerId)` helper (self-heals account state in both directions and returns `{softBanned, softBannedReason, pendingVerificationCount, brandName, owedOrderId, message}`):
-  1. `/api/checkout/authenticate` — login still succeeds (`authenticated: true`), but the response carries `softBanned`, `softBannedReason`, `pendingVerificationCount`, `brandName`, `owedOrderId`, `softBanMessage`. The widget renders the on-hold screen on first paint after Sign in (no rug-pull flash), with a CTA targeting the universal link `https://spiral-app-1.replit.app/orders/{owedOrderId}` (which opens the mobile app via the `spiral://orders/{owedOrderId}` scheme when installed, and falls back to the App Store listing otherwise — fallback is handled widget-side).
-  2. `/api/checkout/calculate-discount` — pay-now safety net for the edge case where debt is incurred between login and pay-now. Returns `{ eligible: false, code: "soft_banned", softBanned: true, softBannedReason, reason, pendingVerificationCount, brandName, owedOrderId }`.
-  3. **Merchant storefront** — The Shopify theme app extension (separate repo) consumes the same `/api/checkout/authenticate` payload to render a persistent on-login banner, locked discount-badge variants on PDPs / collection tiles, and tooltips on those badges, all CTA'd to the universal-link order deep-link. No struck-through prices in cart, badges stay visible (locked, not hidden). Full visual + contract spec for the storefront repo lives in [`docs/storefront-softban-contract.md`](./docs/storefront-softban-contract.md).
-- Reposting an Instagram Story tagging the merchant re-triggers verification on `not_public`/`taken_down_early` orders, which then auto-unbans on quick pass.
-- Customer surfaces (this app): orange "Your next discount is on hold" banner shown on Home and Discounts pages whenever `accountStatus === 'soft_banned'`.
+### Dashboard story-mention forward
+Every story_mention received at `/webhooks/instagram-dm` is forwarded fire-and-forget to `POST https://spiral-merchant-dashboard.replit.app/api/instagram/story-mention` (header `x-spiral-internal-key`, 3s timeout, `[STORY-FORWARD]` prefix). Each messaging entry resolved to a Spiral customer is annotated inline with the shopper's real global `instagramUserId` so the dashboard can match without re-hitting the Graph API (Meta's `sender.id` is a per-app IGSID, not the global id). Unresolved entries ship without annotation; dashboard falls back to its own lookup. DM verification-code messages are not forwarded.
 
-### iOS Push Notifications
-- Used **only** for failures and reminders — **never** for successful verifications. Successes are surfaced in-app.
-- Push copy never threatens the discount on the order being notified about; only mentions impact on FUTURE discounts.
-- Wired via `@parse/node-apn`. APNs provider is built lazily on first send; if `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY`, or `APNS_BUNDLE_ID` is missing, pushes fall back to log-only mode (`[PUSH] (log-only, …)`) without crashing.
-- Push triggers: delivery reminder (when an order transitions to `delivered`), quick-check fail (`not_public`), final-check fail (`taken_down_early`).
-- Endpoint: `POST /api/customer/push-token` with `{ token: string | null }` — call on app launch and on logout (with null).
-- Internal endpoint: `POST /api/internal/orders/:id/mark-delivered` (header `x-spiral-internal-key`) transitions an order to `delivered`, soft-bans the customer (only if Story is still owed), and fires the reminder push.
-- Production trigger: Shopify `fulfillment_events/create` webhook at `/webhooks/shopify/fulfillment-events-create` calls the same `transitionOrderToDelivered` helper when the event `status === 'delivered'`. Webhook is registered automatically during the Shopify OAuth callback alongside `orders/create` and `fulfillments/create`.
+### OAuth scopes
+`instagram_basic`, `instagram_manage_messages`, `pages_show_list`, `pages_read_engagement`, `pages_manage_metadata`. After merchant connects, we subscribe to `messages` + `messaging_postbacks` on the FB Page.
 
-### In-App Status (Replaces Order/Story DMs)
+### Meta App
+- **Spiral app** (ID `1348945556722394`) — Business type, "Facebook Login for Business". OAuth, DM webhook, token gen. Webhook at `/webhooks/instagram-dm`, verify token `spiral_verify_token`. @joinspiral token generated via Meta Dashboard "Generate access tokens".
+
+## Order Lifecycle
+
+1. **Ordered** — placed, awaiting fulfillment.
+2. **Fulfilled/Shipped** — `orders.shopifyTrackingStatus` mirrors raw Shopify `shipment_status` from every `fulfillment_events/create` + `fulfillments/update` webhook.
+3. **Delivered** — triggers "Post Your Story" prompt. Reached via, in order of preference:
+   - `fulfillment_events/create` with `status=delivered` (carrier-tracked).
+   - `fulfillments/update` with `shipment_status=delivered` (backup).
+   - Customer taps "I've received this order" → `POST /api/customer/orders/:id/mark-received` (gate: must be `fulfilled` and not yet `delivered`).
+   - Background fallback (`runDeliveryFallbackJob`, every 30 min): 24h after first `ready_for_pickup` → auto-collected; 7d after `fulfilled` with no tracking event → auto-delivered.
+4. **Verified** — Story mention webhook fired, discount confirmed.
+
+All paths funnel into the idempotent `transitionOrderToDelivered` helper.
+
+## Verification Lifecycle
+
+| State | Meaning | Future discount |
+|---|---|---|
+| `pending` | Order placed/delivered, awaiting Story | Locked |
+| `awaiting_review` | Story mention received, quick check pending (~3 min) | Locked |
+| `quick_verified` | Quick check passed (Story is public) | **Unlocked**; awaiting 10h final check |
+| `verified` | Final check passed | **Unlocked** |
+| `not_public` | Quick fail (Close Friends or deleted) | Locked until repost |
+| `taken_down_early` | Final fail (Story disappeared <24h) | Locked until repost |
+
+## Soft-Ban Model
+
+- Persisted on `spiral_customers`: `accountStatus` (`active` | `soft_banned`), `softBannedReason`, `softBannedAt`.
+- **Owed** = (a) delivered order in `pending`/`awaiting_review`/`not_public`, OR (b) any order in `taken_down_early` regardless of delivery (final-fail debt is delivery-independent; quick-fail debt only counts post-delivery).
+- **Anchored to Instagram identity, not email** — debt follows the IG account (`instagramGlobalUserId` OR `instagramUserId`) across every Spiral customer linked to that profile. Evaluated at: (1) DM-verify time (sibling sweep, reason `inherited_from_instagram`); (2) checkout (union of own-owed + sibling-IG-owed).
+- Reasons: `delivery_pending`, `not_public`, `taken_down_early`, `inherited_from_instagram`.
+- `maybeAutoUnbanCustomer` clears when zero own-owed AND zero sibling-IG-owed. Cascades: clearing one account re-evaluates all siblings.
+- Shared evaluator `evaluateSoftBanForCheckout(customerId)` self-heals in both directions and returns `{softBanned, softBannedReason, pendingVerificationCount, brandName, owedOrderId, message}`. Used by:
+  1. `POST /api/checkout/authenticate` — login succeeds; widget renders on-hold screen on first paint, CTA → `https://spiral-app-1.replit.app/orders/{owedOrderId}` (universal link → `spiral://` scheme or App Store fallback).
+  2. `POST /api/checkout/calculate-discount` — pay-now safety net for debt incurred between login and pay-now. Returns `{eligible: false, code: "soft_banned", …}`.
+  3. `GET /api/internal/customers/:id/soft-ban-status` — for the merchant dashboard.
+- Reposting an IG Story tagging the merchant re-triggers verification on `not_public`/`taken_down_early`; quick pass auto-unbans.
+- In-app surface: orange "Your next discount is on hold" banner on Home + Discounts when `accountStatus === 'soft_banned'`.
+
+## iOS Push Notifications
+
+- **Failures + reminders only.** Never for successful verifications (those are in-app).
+- Copy never threatens the discount on the order being notified about — only mentions impact on FUTURE discounts.
+- Wired via `@parse/node-apn`. Lazy provider build; if `APNS_KEY_ID` / `APNS_TEAM_ID` / `APNS_PRIVATE_KEY` / `APNS_BUNDLE_ID` is missing, falls back to log-only (`[PUSH] (log-only, …)`).
+- Triggers: delivery reminder (order → `delivered`), quick fail (`not_public`), final fail (`taken_down_early`).
+- Token endpoint: `POST /api/customer/push-token`.
+
+## In-App Status (Replaces Order/Story DMs)
+
 All order/Story progress is shown live in the app. The five outbound DMs that used to ack story-received, celebrate verification, or warn about Close Friends / early takedown have been removed. Spiral-code account-linking DMs are unchanged.
 
-### Webhook Health Monitoring
-- `store_settings.webhookSubscriptionStatus`: Tracks whether messaging webhook is active/inactive/failed
-- `store_settings.lastWebhookReceivedAt`: Timestamp of most recent story mention received
-- Displayed on merchant Connections page with visual status indicators
+## Required Secrets
 
-### Development & Build
-- **TypeScript**: Strict mode, ESNext modules, path aliases.
-- **Build**: Vite for client, esbuild for server (production), tsx for development.
-- **Tools**: Replit-specific plugins, runtime error modal, Vite middleware for HMR.
-
-## External Dependencies
-
-### UI & Forms
-- **Radix UI**: Accessible component primitives
-- **Lucide React**: Icon library
-- **React Hook Form**: Form state management
-- **Zod**: Schema validation
-- **date-fns**: Date manipulation
-
-### Database & Backend
-- **Neon Serverless PostgreSQL**: Cloud-native PostgreSQL
-- **Drizzle ORM**: Type-safe database operations
+- `RAPIDAPI_KEY` — IG follower counts.
+- `FACEBOOK_APP_ID` / `FACEBOOK_APP_SECRET` — Spiral app (1348945556722394).
+- `INSTAGRAM_APP_ID` / `INSTAGRAM_APP_SECRET` — IG Basic Display.
+- `INSTAGRAM_REDIRECT_URI` — `https://spiral-app-1.replit.app/instagram/callback`.
+- `SPIRAL_INSTAGRAM_ACCESS_TOKEN` — @joinspiral token (Meta Dashboard, non-expiring).
+- `SPIRAL_INSTAGRAM_BUSINESS_ID` — FB Page id for @joinspiral (`797294296809569`).
+- `INSTAGRAM_WEBHOOK_VERIFY_TOKEN` — `spiral_verify_token`.
+- `SPIRAL_INTERNAL_KEY` — shared key for `/api/internal/*` + dashboard story-forward.
+- `APNS_*` (optional) — iOS push.
 
 ## Design Principles
 
-- **Minimal**: Clean layouts with generous white space
-- **Calm**: Soft transitions, no aggressive animations
-- **Trust-led**: Clear status indicators, honest language
-- **Mobile-first**: Touch-friendly targets, thumb-zone navigation
-- **Rewarding tone**: "You saved $12" not "Discount applied"
-
-## Key User Flows
-
-### First Launch / Onboarding
-1. Welcome screen with value proposition
-2. Continue to login/signup
-3. Connect Instagram (optional, can skip)
-4. Land on home dashboard
-
-### Checkout Deep Link Flow
-1. Customer taps "Check your Spiral discount" at checkout
-2. App opens with checkout session token
-3. Displays brand name and maximum discount
-4. After confirmation, returns calculated discount to checkout
-
-### Post-Delivery Verification (Automated)
-1. Delivery notification triggers "Post Your Story" prompt in app
-2. Customer posts Instagram Story tagging merchant's Instagram handle
-3. Story mention webhook fires automatically to our server
-4. System identifies customer via scoped ID mapping or profile API lookup
-5. Order marked as verified, confirmation DM sent to customer
-6. Customer sees "You saved $X!" celebration in app
+Minimal · calm · trust-led · mobile-first · rewarding tone ("You saved $12", not "Discount applied").
