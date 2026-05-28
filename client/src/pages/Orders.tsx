@@ -30,7 +30,12 @@ export function formatDiscountPercent(raw: string | number | null | undefined): 
   if (raw == null) return null;
   const pct = typeof raw === "number" ? raw : parseFloat(raw);
   if (!Number.isFinite(pct) || pct <= 0) return null;
-  const formatted = Math.round(pct) === pct ? pct.toFixed(0) : pct.toFixed(1);
+  // Tiers are in 2.5% steps. Shopify rounds the applied discount down to whole
+  // cents, which shaves the realised % a hair below the tier (e.g. tier 10%
+  // on $16.99 → $1.69 → 9.94%). Snap to the nearest 0.5% so the display
+  // always reads back to the tier the merchant set.
+  const snapped = Math.round(pct * 2) / 2;
+  const formatted = Number.isInteger(snapped) ? snapped.toFixed(0) : snapped.toFixed(1);
   return `${formatted}% off`;
 }
 
