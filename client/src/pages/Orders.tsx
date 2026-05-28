@@ -87,8 +87,13 @@ function statusPillClasses(status: string) {
   }
 }
 
+function isGoogleFaviconUrl(src: string): boolean {
+  return /(^|\/\/)(www\.)?google\.com\/s2\/favicons/i.test(src);
+}
+
 function StoreBadgeImg({ src, name }: { src?: string | null; name?: string | null }) {
-  if (!src) {
+  const safeSrc = src && !isGoogleFaviconUrl(src) ? src : null;
+  if (!safeSrc) {
     return (
       <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center">
         <Store className="w-3 h-3 text-gray-400" />
@@ -97,7 +102,7 @@ function StoreBadgeImg({ src, name }: { src?: string | null; name?: string | nul
   }
   return (
     <img
-      src={src}
+      src={safeSrc}
       alt={name || "Store"}
       className="w-6 h-6 rounded-full bg-white object-contain"
       onError={(e) => {

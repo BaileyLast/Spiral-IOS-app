@@ -972,9 +972,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           credsForBackfill?.shopDomain ||
           settingsForBackfill?.shopDomain ||
           '';
-        const storeLogoForBackfill = shopDomainHeader
-          ? `https://www.google.com/s2/favicons?domain=${shopDomainHeader}&sz=64`
-          : null;
+        const storeLogoForBackfill = credsForBackfill?.storeLogoUrl ?? null;
         const merchantHandleForBackfill = shopDomainHeader
           ? await getBrandHandleForShopDomain(shopDomainHeader)
           : null;
@@ -1127,9 +1125,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         creds?.shopDomain ||
         settings?.shopDomain ||
         '';
-      const storeLogo = webhookShopDomain
-        ? `https://www.google.com/s2/favicons?domain=${webhookShopDomain}&sz=64`
-        : null;
+      const storeLogo = creds?.storeLogoUrl ?? null;
 
       // Snapshot the merchant's Instagram handle onto the order at creation
       // time so the shopper always sees the exact handle to tag — no read-time
@@ -1664,11 +1660,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ success: true });
       }
       
-      // Build store logo and line items for customer display
+      // Build store logo and line items for customer display.
+      // Prefer the request's shopDomain (per-call accuracy in a future
+      // multi-tenant world) and fall back to the singleton settings row.
       const confirmShopDomain = shopDomain || settings?.shopDomain || '';
-      const confirmStoreLogo = confirmShopDomain
-        ? `https://www.google.com/s2/favicons?domain=${confirmShopDomain}&sz=64`
-        : null;
+      const confirmCreds = confirmShopDomain
+        ? await getShopifyCredentials({ shopDomain: confirmShopDomain })
+        : await getShopifyCredentialsForSettings(settings);
+      const confirmStoreLogo = confirmCreds?.storeLogoUrl ?? null;
       let confirmLineItems: string | null = null;
       if (Array.isArray(rawLineItemsFromWidget) && rawLineItemsFromWidget.length > 0) {
         const normalizeHttpUrl = (value: unknown): string | null => {
