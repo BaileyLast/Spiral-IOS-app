@@ -1233,9 +1233,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         '0'
       );
       const shippingAmount = Number.isFinite(shippingRaw) && shippingRaw > 0 ? shippingRaw : null;
-      const discountPercent = orderTotal > 0
+      // Spiral tiers are 5% blocks (10/15/20/…/100). Shopify rounds the
+      // discount $ to cents, so back-calculating the % drifts slightly under
+      // the tier (e.g. 10% on $16.99 → $1.69 → reads as 9.95%). Snap to the
+      // nearest 5% so the displayed tier matches what the merchant configured.
+      const rawDiscountPercent = orderTotal > 0
         ? (discountAmount / orderTotal) * 100
         : 0;
+      const discountPercent = Math.round(rawDiscountPercent / 5) * 5;
       
       const settings = await storage.getStoreSettings();
 
