@@ -6,7 +6,7 @@ import net from "node:net";
 import { Resend } from "resend";
 import { storage } from "./storage";
 import { z } from "zod";
-import { insertStoreSettingsSchema, insertDiscountTierSchema, insertVerificationSchema, isOrderOwed, OWED_VERIFICATION_ANYDELIVERY, OWED_VERIFICATION_DELIVERED_ONLY } from "@shared/schema";
+import { insertStoreSettingsSchema, insertDiscountTierSchema, insertVerificationSchema, isOrderOwed, OWED_VERIFICATION_ANYDELIVERY, OWED_VERIFICATION_DELIVERED_ONLY, type StoreSettings, type SpiralCustomer } from "@shared/schema";
 import { fetchShopifyProducts, fetchShopifyCollections, fetchProductImages } from "./shopify";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -323,6 +323,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "We couldn't process your unsubscribe right now. Please try again in a moment, or reply to any Spiral email and we'll remove you manually.",
       }));
     }
+  };
+
+  // Shared auth gate for every internal server-to-server endpoint
+  // (universal core API). Callers (merchant dashboard, future Woo/BigCommerce
+  // adapters) must present the shared `x-spiral-internal-key` header that
+  // matches the SPIRAL_INTERNAL_KEY secret. Apply as a route middleware:
+  //   app.get("/api/internal/foo", requireInternalKey, async (req, res) => {…})
+  const requireInternalKey = (req: any, res: any, next: any) => {
+    const internalKey = req.header("x-spiral-internal-key");
+    if (!internalKey || internalKey !== process.env.SPIRAL_INTERNAL_KEY) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    next();
   };
 
   app.get("/api/unsubscribe", handleUnsubscribe);
@@ -1723,51 +1736,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Check minimum follower requirement
-      const followerCount = customer.followerCount || 0;
-      const minFollowers = settings?.minFollowers || 0;
-      
-      if (followerCount < minFollowers) {
-        return res.json({
-          eligible: false,
-          reason: `Minimum ${minFollowers.toLocaleString()} followers required`,
-          followerCount,
-          minFollowers,
-        });
-      }
-      
-      // Find matching tier
-      const matchingTier = tiers
-        .sort((a, b) => a.fromFollowers - b.fromFollowers)
-        .find(tier => {
-          const from = tier.fromFollowers;
-          const to = tier.toFollowers;
-          return followerCount >= from && (to === null || followerCount <= to);
-        });
-      
-      if (!matchingTier) {
-        return res.json({
-          eligible: false,
-          reason: 'No discount tier matches your follower count',
-          followerCount,
-        });
-      }
-      
-      // Calculate estimated impressions using power-law curve
-      const reachRate = Math.max(0.06, Math.min(0.30, 0.30 * Math.pow(followerCount / 500, -0.173)));
-      const estimatedImpressions = Math.round(followerCount * reachRate);
-      
-      res.json({
-        eligible: true,
-        discountPercent: parseFloat(matchingTier.discountPercent),
-        followerCount,
-        tier: {
-          from: matchingTier.fromFollowers,
-          to: matchingTier.toFollowers,
-        },
-        estimatedImpressions,
-        instagramHandle: customer.instagramHandle,
-      });
+      // Eligibility + tier match delegated to the shared calculator
+      // (also powers POST /api/internal/discount/calculate). Soft-ban gate
+      // already happened above; we don't re-run it here.
+      const result = await calculateDiscountForCustomer(customerId);
+      const { customerExists, ...payload } = result;
+      res.json(payload);
     } catch (error) {
       console.error('Discount calculation error:', error);
       res.status(500).json({ error: 'Failed to calculate discount' });
@@ -3642,6 +3616,147 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return handleStoryMention(merchantInstagramId, senderScopedId, storyUrl);
   }
 
+  // Single source of truth for "given a merchant + a page-scoped IG sender id,
+  // who is this shopper?". Performs the full lookup-or-resolve flow:
+  //   1. Scoped-id mapping hit → return cached identity (positive or negative).
+  //      Touches lastSeenAt on either hit.
+  //   2. Miss → Instagram Profile API (handle), RapidAPI (global numeric pk),
+  //      match against Spiral customers by handle.
+  //   3. On match → upsert positive mapping, backfill global id, refresh
+  //      display handle on the customer record if Instagram now reports a
+  //      different username for the same scoped id.
+  //   4. On confirmed non-customer → write a negative-cache row so future
+  //      story_mentions from this sender exit in one indexed lookup.
+  //   5. On transient resolution failure (no token / Profile API down) →
+  //      return `resolution: 'unresolvable'` WITHOUT writing a negative cache,
+  //      so the next event retries instead of permanently blacklisting a real
+  //      shopper.
+  //
+  // Used by:
+  //   - handleStoryMention (production webhook path)
+  //   - POST /api/internal/identity/resolve (universal core API)
+  //
+  // Mutating helper by design — every successful path either creates a mapping
+  // or refreshes lastSeenAt, which is exactly what the webhook needs anyway.
+  async function resolveScopedSender(settings: StoreSettings, senderScopedId: string): Promise<{
+    resolution: 'positive_cache' | 'negative_cache' | 'resolved_match' | 'resolved_no_match' | 'unresolvable';
+    customerId: string | null;
+    customer: SpiralCustomer | null;
+    instagramHandle: string | null;
+    instagramGlobalUserId: string | null;
+  }> {
+    // Step 1: scoped-id mapping (positive OR negative cache)
+    const mapping = await storage.getMerchantScopedUserMap(settings.id, senderScopedId);
+
+    if (mapping && mapping.isSpiral === false) {
+      await storage.touchMerchantScopedUserMap(mapping.id);
+      console.log(`[identity] Skipping non-Spiral sender ${senderScopedId} (negative cache hit)`);
+      return {
+        resolution: 'negative_cache',
+        customerId: null,
+        customer: null,
+        instagramHandle: mapping.instagramHandle ?? null,
+        instagramGlobalUserId: mapping.instagramGlobalUserId ?? null,
+      };
+    }
+
+    if (mapping && mapping.spiralCustomerId) {
+      // Repeat sighting from a known Spiral customer — touch lastSeenAt.
+      // Display-handle refresh happens at IG-connect time on the customer record.
+      await storage.touchMerchantScopedUserMap(mapping.id);
+      const cachedCustomer = await storage.getSpiralCustomerById(mapping.spiralCustomerId);
+      return {
+        resolution: 'positive_cache',
+        customerId: mapping.spiralCustomerId,
+        customer: cachedCustomer ?? null,
+        instagramHandle: cachedCustomer?.instagramHandle ?? mapping.instagramHandle ?? null,
+        instagramGlobalUserId: cachedCustomer?.instagramGlobalUserId ?? mapping.instagramGlobalUserId ?? null,
+      };
+    }
+
+    // Step 2: miss — resolve username via Instagram Profile API
+    console.log(`[identity] No scoped ID mapping for ${senderScopedId}, attempting profile lookup`);
+    let resolvedUsername = '';
+    try {
+      if (settings.instagramAccessToken) {
+        const profileUrl = `https://graph.instagram.com/v18.0/${senderScopedId}?fields=username&access_token=${settings.instagramAccessToken}`;
+        const profileRes = await fetch(profileUrl);
+        if (profileRes.ok) {
+          const profileData = await profileRes.json();
+          resolvedUsername = profileData.username || '';
+          console.log(`[identity] Resolved scoped ID ${senderScopedId} to @${resolvedUsername}`);
+        } else {
+          console.log(`[identity] Could not resolve profile for ${senderScopedId} (${profileRes.status})`);
+        }
+      }
+    } catch (err) {
+      console.error('[identity] Error resolving profile:', err);
+    }
+
+    // Transient failure — DON'T negative-cache. Next event will retry.
+    if (!resolvedUsername) {
+      return { resolution: 'unresolvable', customerId: null, customer: null, instagramHandle: null, instagramGlobalUserId: null };
+    }
+
+    // Step 3: resolve global numeric pk via RapidAPI (persisted on both
+    // positive and negative cache rows so future signups can invalidate
+    // negative rows reliably across merchants).
+    let resolvedGlobalUserId: string | null = null;
+    if (process.env.RAPIDAPI_KEY) {
+      resolvedGlobalUserId = await fetchInstagramGlobalUserIdByUsername(resolvedUsername, process.env.RAPIDAPI_KEY);
+    }
+
+    // Step 4: match against Spiral customers by handle
+    const customer = await storage.getSpiralCustomerByInstagramHandle(resolvedUsername);
+
+    if (customer) {
+      // Positive: cache mapping using the customer's IMMUTABLE Instagram user
+      // ID as canonical identity. Handle is display-only.
+      await storage.createMerchantScopedUserMap({
+        merchantId: settings.id,
+        senderScopedId,
+        spiralCustomerId: customer.id,
+        instagramUserId: customer.instagramUserId,
+        instagramGlobalUserId: resolvedGlobalUserId,
+        instagramHandle: resolvedUsername,
+        isSpiral: true,
+      });
+      // Backfill the customer's global ID if we have one and they don't.
+      if (resolvedGlobalUserId && !customer.instagramGlobalUserId) {
+        try {
+          await storage.updateSpiralCustomerGlobalUserId(customer.id, resolvedGlobalUserId);
+        } catch (err) {
+          console.error('[identity] Failed to backfill customer global IG user ID:', err);
+        }
+      }
+      // Refresh the customer's display handle if Instagram now reports a
+      // different username for the same immutable user ID.
+      if (customer.instagramHandle !== resolvedUsername) {
+        await storage.updateSpiralCustomerHandle(customer.id, resolvedUsername);
+        console.log(`[identity] Refreshed @${customer.instagramHandle} → @${resolvedUsername} for customer ${customer.id}`);
+      }
+      console.log(`[identity] Created scoped ID mapping: ${senderScopedId} -> customer ${customer.id} (@${resolvedUsername}, IG user id ${customer.instagramUserId ?? 'unknown'}, global IG id ${resolvedGlobalUserId ?? 'unknown'})`);
+      return {
+        resolution: 'resolved_match',
+        customerId: customer.id,
+        customer,
+        instagramHandle: resolvedUsername,
+        instagramGlobalUserId: resolvedGlobalUserId ?? customer.instagramGlobalUserId ?? null,
+      };
+    }
+
+    // Negative: confirmed non-Spiral shopper — negative-cache row.
+    await storage.recordNonSpiralScopedId(settings.id, senderScopedId, resolvedUsername, resolvedGlobalUserId);
+    console.log(`[identity] No Spiral customer for @${resolvedUsername} (global IG id ${resolvedGlobalUserId ?? 'unknown'}) — negative-cached scoped ID ${senderScopedId}`);
+    return {
+      resolution: 'resolved_no_match',
+      customerId: null,
+      customer: null,
+      instagramHandle: resolvedUsername,
+      instagramGlobalUserId: resolvedGlobalUserId,
+    };
+  }
+
   // Handle story_mention webhook: match sender to customer and verify their pending order.
   // Returns the resolved Spiral customer's global IG user ID (when known) so the
   // outer webhook handler can attach it to the merchant-dashboard forward.
@@ -3662,109 +3777,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return { resolved: false };
       }
 
-      // Step 1: Look up existing scoped ID mapping (positive OR negative cache).
-      // Backend identity is the immutable scoped/Instagram user ID — handles
-      // are display-only and can change at any time without affecting matching.
-      const mapping = await storage.getMerchantScopedUserMap(settings.id, senderScopedId);
-
-      // Negative-cache short-circuit: this scoped ID was previously confirmed
-      // as a non-Spiral shopper. Drop in a single indexed lookup — no Profile
-      // API call, no order matching, no DB churn.
-      if (mapping && mapping.isSpiral === false) {
-        await storage.touchMerchantScopedUserMap(mapping.id);
-        console.log(`Story mention: Skipping non-Spiral sender ${senderScopedId} (negative cache hit)`);
+      // Resolve sender via the shared identity helper (single source of truth
+      // for cache hits, Profile API + RapidAPI lookups, mapping upserts, and
+      // negative-caching). Same logic now powers POST /api/internal/identity/resolve.
+      const resolved = await resolveScopedSender(settings, senderScopedId);
+      if (resolved.resolution === 'negative_cache') {
         return { resolved: false };
       }
-
-      let customerId = mapping?.spiralCustomerId ?? undefined;
-
-      // Step 2: If no mapping exists, resolve username via Instagram Profile API
-      // and match against a known Spiral customer. We can only get username
-      // here (Meta doesn't expose the global IG user ID for scoped senders), so
-      // first-encounter matching is necessarily by username — but we cache the
-      // immutable scoped ID + the customer's instagramUserId in the mapping
-      // for all subsequent lookups, so this only happens once per shopper.
-      if (!mapping) {
-        console.log(`Story mention: No scoped ID mapping for ${senderScopedId}, attempting profile lookup`);
-
-        let resolvedUsername = '';
-        try {
-          if (settings.instagramAccessToken) {
-            const profileUrl = `https://graph.instagram.com/v18.0/${senderScopedId}?fields=username&access_token=${settings.instagramAccessToken}`;
-            const profileRes = await fetch(profileUrl);
-            if (profileRes.ok) {
-              const profileData = await profileRes.json();
-              resolvedUsername = profileData.username || '';
-              console.log(`Story mention: Resolved scoped ID ${senderScopedId} to @${resolvedUsername}`);
-            } else {
-              console.log(`Story mention: Could not resolve profile for ${senderScopedId} (${profileRes.status})`);
-            }
-          }
-        } catch (err) {
-          console.error('Story mention: Error resolving profile:', err);
-        }
-
-        if (resolvedUsername) {
-          // Resolve the account-wide Instagram numeric ID for this handle.
-          // We persist it on both positive and negative cache rows so future
-          // signups can invalidate negative rows reliably across merchants.
-          let resolvedGlobalUserId: string | null = null;
-          if (process.env.RAPIDAPI_KEY) {
-            resolvedGlobalUserId = await fetchInstagramGlobalUserIdByUsername(resolvedUsername, process.env.RAPIDAPI_KEY);
-          }
-
-          const customer = await storage.getSpiralCustomerByInstagramHandle(resolvedUsername);
-          if (customer) {
-            customerId = customer.id;
-            // Cache the mapping using the customer's IMMUTABLE Instagram user ID
-            // as the canonical identity. The handle is stored as a display-only
-            // snapshot; future webhooks key off scoped ID → user ID, never the
-            // handle.
-            await storage.createMerchantScopedUserMap({
-              merchantId: settings.id,
-              senderScopedId,
-              spiralCustomerId: customer.id,
-              instagramUserId: customer.instagramUserId,
-              instagramGlobalUserId: resolvedGlobalUserId,
-              instagramHandle: resolvedUsername,
-              isSpiral: true,
-            });
-            // Backfill the customer's global ID if we have one and they don't.
-            if (resolvedGlobalUserId && !customer.instagramGlobalUserId) {
-              try {
-                await storage.updateSpiralCustomerGlobalUserId(customer.id, resolvedGlobalUserId);
-              } catch (err) {
-                console.error('Failed to backfill customer global IG user ID:', err);
-              }
-            }
-            // Refresh the customer's display handle if Instagram now reports a
-            // different username for the same account (handles are mutable).
-            if (customer.instagramHandle !== resolvedUsername) {
-              await storage.updateSpiralCustomerHandle(customer.id, resolvedUsername);
-              console.log(`Story mention: Refreshed @${customer.instagramHandle} → @${resolvedUsername} for customer ${customer.id}`);
-            }
-            console.log(`Story mention: Created scoped ID mapping: ${senderScopedId} -> customer ${customer.id} (@${resolvedUsername}, IG user id ${customer.instagramUserId ?? 'unknown'}, global IG id ${resolvedGlobalUserId ?? 'unknown'})`);
-          } else {
-            // Confirmed non-Spiral shopper — write a negative-cache row so all
-            // future story_mentions from this scoped ID exit in one indexed
-            // lookup with no Profile API call.
-            await storage.recordNonSpiralScopedId(settings.id, senderScopedId, resolvedUsername, resolvedGlobalUserId);
-            console.log(`Story mention: No Spiral customer for @${resolvedUsername} (global IG id ${resolvedGlobalUserId ?? 'unknown'}) — negative-cached scoped ID ${senderScopedId}`);
-          }
-        }
-        // If we couldn't resolve a username at all (Profile API down/missing
-        // token/etc.), DON'T negative-cache — a transient failure shouldn't
-        // permanently blacklist a scoped ID that might belong to a real Spiral
-        // customer. Just drop this event; the next one will retry resolution.
-      } else {
-        // Repeat sighting from a known Spiral customer — touch lastSeenAt for
-        // observability. Display-handle refresh happens at IG-connect time on
-        // the customer record, so we don't refresh it on every story mention.
-        await storage.touchMerchantScopedUserMap(mapping.id);
-      }
-
+      const customerId = resolved.customerId ?? undefined;
       if (!customerId) {
-        console.log(`Story mention: Could not identify customer for scoped ID ${senderScopedId}`);
+        console.log(`Story mention: Could not identify customer for scoped ID ${senderScopedId} (resolution=${resolved.resolution})`);
         return { resolved: false };
       }
 
@@ -4242,6 +4264,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  // Pure discount-eligibility calculator. Returns the same shape consumed by
+  // the merchant plugin at checkout (/api/checkout/calculate-discount) and by
+  // the universal core API (/api/internal/discount/calculate). Does NOT
+  // include the soft-ban gate — callers are expected to call
+  // evaluateSoftBanForCheckout separately and short-circuit if the shopper
+  // is on hold, since the soft-ban shape is independent of discount tier
+  // matching and we want to be able to surface "you have a discount AND
+  // you're on hold" at different layers.
+  async function calculateDiscountForCustomer(customerId: string): Promise<{
+    eligible: boolean;
+    reason?: string;
+    discountPercent?: number;
+    followerCount?: number;
+    minFollowers?: number;
+    tier?: { from: number; to: number | null };
+    estimatedImpressions?: number;
+    instagramHandle?: string | null;
+    customerExists: boolean;
+  }> {
+    const customer = await storage.getSpiralCustomerById(customerId);
+    if (!customer) return { eligible: false, reason: 'Customer not found', customerExists: false };
+
+    const settings = await storage.getStoreSettings();
+    const tiers = await storage.getDiscountTiers();
+
+    if (!settings?.spiralEnabled) {
+      return { eligible: false, reason: 'Spiral discounts not enabled for this store', customerExists: true };
+    }
+
+    const followerCount = customer.followerCount || 0;
+    const minFollowers = settings?.minFollowers || 0;
+    if (followerCount < minFollowers) {
+      return {
+        eligible: false,
+        reason: `Minimum ${minFollowers.toLocaleString()} followers required`,
+        followerCount,
+        minFollowers,
+        customerExists: true,
+      };
+    }
+
+    const matchingTier = tiers
+      .sort((a, b) => a.fromFollowers - b.fromFollowers)
+      .find(tier => {
+        const from = tier.fromFollowers;
+        const to = tier.toFollowers;
+        return followerCount >= from && (to === null || followerCount <= to);
+      });
+
+    if (!matchingTier) {
+      return {
+        eligible: false,
+        reason: 'No discount tier matches your follower count',
+        followerCount,
+        customerExists: true,
+      };
+    }
+
+    // Power-law impressions curve (same as /api/checkout/calculate-discount).
+    const reachRate = Math.max(0.06, Math.min(0.30, 0.30 * Math.pow(followerCount / 500, -0.173)));
+    const estimatedImpressions = Math.round(followerCount * reachRate);
+
+    return {
+      eligible: true,
+      discountPercent: parseFloat(matchingTier.discountPercent),
+      followerCount,
+      tier: { from: matchingTier.fromFollowers, to: matchingTier.toFollowers },
+      estimatedImpressions,
+      instagramHandle: customer.instagramHandle,
+      customerExists: true,
+    };
+  }
+
   // Shared soft-ban evaluator for the checkout surfaces (login + pay-now).
   // Self-heals the persisted accountStatus / softBannedReason in BOTH directions:
   //   - stale ban with zero owed orders -> clears
@@ -4375,12 +4470,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // merchant-dashboard Repl during order webhook handling so it can mirror the
   // customer's Instagram identity (incl. the global pk) into its own DB.
   // Guarded by the shared SPIRAL_INTERNAL_KEY header — never expose this without it.
-  app.get("/api/customers/:id", async (req, res) => {
+  app.get("/api/customers/:id", requireInternalKey, async (req, res) => {
     try {
-      const internalKey = req.header("x-spiral-internal-key");
-      if (!internalKey || internalKey !== process.env.SPIRAL_INTERNAL_KEY) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
       const customer = await storage.getSpiralCustomerById(req.params.id);
       if (!customer) {
         return res.status(404).json({ error: "Customer not found" });
@@ -4403,13 +4494,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // (or reconnects) Instagram. Without this row, story_mention webhooks can't
   // match the merchant and orders end up with no merchant handle.
   // Guarded by the shared SPIRAL_INTERNAL_KEY header — never expose without it.
-  app.post("/api/merchants/register", async (req, res) => {
+  app.post("/api/merchants/register", requireInternalKey, async (req, res) => {
     try {
-      const internalKey = req.header("x-spiral-internal-key");
-      if (!internalKey || internalKey !== process.env.SPIRAL_INTERNAL_KEY) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-
       const bodySchema = z.object({
         shopDomain: z.string().min(1),
         storeName: z.string().min(1),
@@ -4457,12 +4543,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // knew to ping us about deliveries, so their orders sit on "ordered" forever.
   // Safe to call multiple times: Shopify rejects duplicate (topic, address)
   // pairs with a 422 we just log and move on from.
-  app.post("/api/internal/shopify/backfill-webhooks", async (req, res) => {
+  app.post("/api/internal/shopify/backfill-webhooks", requireInternalKey, async (req, res) => {
     try {
-      const internalKey = req.header("x-spiral-internal-key");
-      if (!internalKey || internalKey !== process.env.SPIRAL_INTERNAL_KEY) {
-        return res.status(403).json({ error: "Forbidden" });
-      }
       const settings = await storage.getStoreSettings();
       if (!settings?.shopDomain || !settings?.accessToken) {
         return res.status(400).json({ error: "No Shopify store connected" });
@@ -4503,17 +4585,269 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/internal/orders/:id/mark-delivered", async (req, res) => {
+  app.post("/api/internal/orders/:id/mark-delivered", requireInternalKey, async (req, res) => {
     try {
-      const internalKey = req.header("x-spiral-internal-key");
-      if (!internalKey || internalKey !== process.env.SPIRAL_INTERNAL_KEY) {
-        return res.status(403).json({ error: "Forbidden" });
-      }
       await transitionOrderToDelivered(req.params.id);
       res.json({ success: true });
     } catch (err) {
       console.error("[delivery] mark-delivered failed:", err);
       res.status(500).json({ error: "Failed to mark delivered" });
+    }
+  });
+
+  // ────────────────────────────────────────────────────────────────────────
+  // Universal Core API (Task #91)
+  // Every endpoint under /api/internal/* is auth-gated by requireInternalKey
+  // and intended for server-to-server use by the merchant dashboard and any
+  // future ecommerce adapter (Woo, BigCommerce, …). Callers MUST NOT cache
+  // negative identity results locally — every call is fast (single indexed
+  // lookup on the cache hit path), and a stale local negative cache will
+  // shadow our own self-healing path at signup/DM-verify time.
+  // ────────────────────────────────────────────────────────────────────────
+
+  // 1. POST /api/internal/identity/resolve
+  // Given a merchant IG business account id + a page-scoped IG sender id,
+  // return the canonical Spiral identity for that shopper (or a confirmed
+  // non-Spiral result). Same logic as the story_mention webhook path so the
+  // dashboard never has to re-implement scoped-id → customer resolution.
+  app.post("/api/internal/identity/resolve", requireInternalKey, async (req, res) => {
+    try {
+      const bodySchema = z.object({
+        merchantInstagramBusinessId: z.string().min(1),
+        senderScopedId: z.string().min(1),
+      });
+      const parsed = bodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() });
+      }
+      const { merchantInstagramBusinessId, senderScopedId } = parsed.data;
+
+      const settings = await storage.getStoreSettingsByInstagramBusinessId(merchantInstagramBusinessId);
+      if (!settings) {
+        return res.status(404).json({ error: "merchant_not_found" });
+      }
+
+      const resolved = await resolveScopedSender(settings, senderScopedId);
+      return res.json({
+        resolution: resolved.resolution,
+        isSpiral: resolved.customerId !== null,
+        customerId: resolved.customerId,
+        instagramHandle: resolved.instagramHandle,
+        instagramUserId: resolved.customer?.instagramUserId ?? null,
+        instagramGlobalUserId: resolved.instagramGlobalUserId,
+        followerCount: resolved.customer?.followerCount ?? null,
+      });
+    } catch (err) {
+      console.error("[internal] identity/resolve failed:", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+  // 2. GET /api/internal/customers/by-instagram?handle=…&userId=…&globalUserId=…
+  // Find Spiral customers by any one (or combination) of IG identity fields.
+  // Returns an array because the same IG identity can map to multiple Spiral
+  // customer rows (the soft-ban inheritance model is built on this).
+  app.get("/api/internal/customers/by-instagram", requireInternalKey, async (req, res) => {
+    try {
+      const handle = typeof req.query.handle === "string" ? req.query.handle.trim().replace(/^@/, "") : null;
+      const userId = typeof req.query.userId === "string" ? req.query.userId.trim() : null;
+      const globalUserId = typeof req.query.globalUserId === "string" ? req.query.globalUserId.trim() : null;
+
+      if (!handle && !userId && !globalUserId) {
+        return res.status(400).json({ error: "must_provide_one_of_handle_userId_globalUserId" });
+      }
+
+      const seen = new Map<string, SpiralCustomer>();
+      if (userId || globalUserId) {
+        const byId = await storage.getCustomersByInstagramIdentity({
+          instagramGlobalUserId: globalUserId,
+          instagramUserId: userId,
+        });
+        for (const c of byId) seen.set(c.id, c);
+      }
+      if (handle) {
+        // Handle is non-unique (siblings can share). Use the multi-row lookup
+        // so inheritance-related queries return every match, not just the first.
+        const byHandle = await storage.getSpiralCustomersByInstagramHandle(handle);
+        for (const c of byHandle) seen.set(c.id, c);
+      }
+
+      const customers = Array.from(seen.values()).map(c => ({
+        id: c.id,
+        email: c.email,
+        firstName: c.firstName,
+        lastName: c.lastName,
+        instagramHandle: c.instagramHandle ?? null,
+        instagramUserId: c.instagramUserId ?? null,
+        instagramGlobalUserId: c.instagramGlobalUserId ?? null,
+        followerCount: c.followerCount ?? 0,
+        accountStatus: c.accountStatus,
+        softBannedReason: c.softBannedReason ?? null,
+      }));
+      return res.json({ customers });
+    } catch (err) {
+      console.error("[internal] customers/by-instagram failed:", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+  // 3. GET /api/internal/identity/:globalUserId/verifications
+  // Every verification row attached to any order owned by this Instagram
+  // identity. Survives spiral_customers deletion (orders are anonymized but
+  // keep their IG identity columns). Lets the merchant dashboard render a
+  // Story-history timeline keyed off IG identity, not customer id.
+  // Accepts either the global numeric pk OR the page-scoped IG user id via
+  // ?fallbackUserId= — global is preferred but not always available.
+  app.get("/api/internal/identity/:globalUserId/verifications", requireInternalKey, async (req, res) => {
+    try {
+      const globalUserId = req.params.globalUserId === "_" ? null : req.params.globalUserId;
+      const fallbackUserId = typeof req.query.fallbackUserId === "string" ? req.query.fallbackUserId.trim() : null;
+      if (!globalUserId && !fallbackUserId) {
+        return res.status(400).json({ error: "must_provide_globalUserId_or_fallbackUserId" });
+      }
+      const verifications = await storage.getVerificationsByInstagramIdentity({
+        instagramGlobalUserId: globalUserId,
+        instagramUserId: fallbackUserId,
+      });
+      return res.json({
+        verifications: verifications.map(v => ({
+          id: v.id,
+          orderId: v.orderId,
+          orderStatus: v.orderStatus,
+          orderVerificationStatus: v.orderVerificationStatus,
+          status: v.status,
+          instagramHandle: v.instagramHandle,
+          instagramUserId: v.instagramUserId,
+          storyMediaId: v.storyMediaId ?? null,
+          storyUrl: v.storyUrl ?? null,
+          storyDetectedAt: v.storyDetectedAt ?? null,
+          verifiedAt: v.verifiedAt ?? null,
+          createdAt: v.createdAt,
+        })),
+      });
+    } catch (err) {
+      console.error("[internal] identity/verifications failed:", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+  // 4. POST /api/internal/discount/calculate
+  // Pure eligibility + tier match for a given customer. Mirrors the
+  // /api/checkout/calculate-discount payload (sans soft-ban gate — that's a
+  // separate endpoint). Lets storefront adapters compute discounts from
+  // their server without re-implementing the tier-matching curve.
+  app.post("/api/internal/discount/calculate", requireInternalKey, async (req, res) => {
+    try {
+      const bodySchema = z.object({ customerId: z.string().min(1) });
+      const parsed = bodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() });
+      }
+      const result = await calculateDiscountForCustomer(parsed.data.customerId);
+      if (!result.customerExists) {
+        return res.status(404).json({ error: "customer_not_found" });
+      }
+      const { customerExists, ...payload } = result;
+      return res.json(payload);
+    } catch (err) {
+      console.error("[internal] discount/calculate failed:", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+  // 5. GET /api/internal/customers/:customerId/soft-ban-status
+  // Read-through soft-ban evaluator. Self-heals stale state in both
+  // directions (clears expired bans, re-applies bans with refreshed reasons)
+  // and returns the canonical payload the checkout widget renders the
+  // "on hold" screen from. Safe to call as often as needed.
+  app.get("/api/internal/customers/:customerId/soft-ban-status", requireInternalKey, async (req, res) => {
+    try {
+      const ban = await evaluateSoftBanForCheckout(req.params.customerId);
+      return res.json(ban);
+    } catch (err) {
+      console.error("[internal] soft-ban-status failed:", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+  // 6. GET /api/internal/merchants/:merchantInstagramBusinessId/discount-tiers
+  // Tier config for a merchant. Includes the merchant's minFollowers floor +
+  // whether Spiral discounts are currently enabled, so storefront adapters
+  // have the full picture in one call.
+  //
+  // NOTE: Spiral is single-tenant today — `store_settings` is a single row and
+  // `discount_tiers` is global. We still validate the merchant by IG business
+  // ID so callers get a 404 for unknown merchants (and so this endpoint stays
+  // forward-compatible: when tiers gain a merchantId column, only the storage
+  // call here and inside `calculateDiscountForCustomer` need to change).
+  app.get("/api/internal/merchants/:merchantInstagramBusinessId/discount-tiers", requireInternalKey, async (req, res) => {
+    try {
+      const settings = await storage.getStoreSettingsByInstagramBusinessId(req.params.merchantInstagramBusinessId);
+      if (!settings) {
+        return res.status(404).json({ error: "merchant_not_found" });
+      }
+      const tiers = await storage.getDiscountTiers();
+      return res.json({
+        merchantId: settings.id,
+        storeName: settings.storeName,
+        instagramHandle: settings.instagramHandle,
+        spiralEnabled: settings.spiralEnabled,
+        minFollowers: settings.minFollowers ?? 0,
+        tiers: tiers
+          .sort((a, b) => a.fromFollowers - b.fromFollowers)
+          .map(t => ({
+            id: t.id,
+            fromFollowers: t.fromFollowers,
+            toFollowers: t.toFollowers,
+            discountPercent: parseFloat(t.discountPercent),
+          })),
+      });
+    } catch (err) {
+      console.error("[internal] discount-tiers failed:", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+  // 7. POST /api/internal/push/send
+  // Trigger one of the three canonical iOS pushes (delivery-reminder,
+  // quick-fail, final-fail) for a specific customer. Copy is fixed per kind
+  // (never accepted from the caller) to keep brand voice + App Store rules
+  // consistent. Pushes are reminders/failures only — successes are surfaced
+  // in-app and MUST NOT be pushed.
+  app.post("/api/internal/push/send", requireInternalKey, async (req, res) => {
+    try {
+      const bodySchema = z.object({
+        customerId: z.string().min(1),
+        kind: z.enum(["delivery-reminder", "quick-fail", "final-fail"]),
+        brandName: z.string().min(1).optional(),
+      });
+      const parsed = bodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() });
+      }
+      const { customerId, kind, brandName } = parsed.data;
+      const brandPart = brandName ? ` from ${brandName}` : "";
+      let title = "";
+      let body = "";
+      switch (kind) {
+        case "delivery-reminder":
+          title = "Your order's here";
+          body = `Post your Story${brandPart} to unlock your next Spiral discount.`;
+          break;
+        case "quick-fail":
+          title = "We couldn't see your Story";
+          body = `Looks like your Story was Close Friends or already gone. Repost it publicly${brandPart} to unlock your next discount.`;
+          break;
+        case "final-fail":
+          title = "Your Story came down early";
+          body = `Stories need to stay up for 24h. Repost${brandPart} to unlock your next discount.`;
+          break;
+      }
+      const sent = await sendIosPushToCustomer(customerId, title, body);
+      return res.json({ sent });
+    } catch (err) {
+      console.error("[internal] push/send failed:", err);
+      return res.status(500).json({ error: "internal" });
     }
   });
 

@@ -64,6 +64,26 @@ Preferred communication style: Simple, everyday language.
 - `GET /api/customer/orders/:id`: Get single order details
 - `GET /api/customer/stats`: Get total saved and orders completed
 
+### Universal Core API (Internal, Server-to-Server)
+All endpoints under `/api/internal/*` are auth-gated by the shared
+`requireInternalKey` middleware (header `x-spiral-internal-key`) and intended
+for use by the merchant dashboard and future ecommerce adapters
+(WooCommerce, BigCommerce, …). This repo is the single source of truth for
+Instagram identity, customer state, verifications, discount eligibility,
+soft-ban status, tier config, and push — adapters MUST call these endpoints
+instead of duplicating state. **Callers MUST NOT cache negative identity
+results locally** — every call is a single indexed lookup on the cache-hit
+path, and stale local caches will shadow our own self-healing path at
+signup / DM-verify time.
+
+- `POST /api/internal/identity/resolve` — body `{merchantInstagramBusinessId, senderScopedId}`. Resolves a page-scoped IG sender id to a Spiral customer (or a confirmed non-Spiral result). Same logic as the story_mention webhook (`resolveScopedSender` helper). Returns `{resolution, isSpiral, customerId, instagramHandle, instagramUserId, instagramGlobalUserId, followerCount}`.
+- `GET /api/internal/customers/by-instagram?handle=&userId=&globalUserId=` — find Spiral customers by IG identity. Returns an array (same IG identity can map to multiple Spiral rows; soft-ban inheritance is built on this).
+- `GET /api/internal/identity/:globalUserId/verifications?fallbackUserId=` — every verification row attached to any order owned by this IG identity. Survives customer deletion (orders keep their IG identity columns). Pass `_` as the path param when only the page-scoped fallback id is known.
+- `POST /api/internal/discount/calculate` — body `{customerId}`. Pure eligibility + tier match (mirrors `/api/checkout/calculate-discount`, sans the soft-ban gate which is its own endpoint). Backed by the shared `calculateDiscountForCustomer` helper.
+- `GET /api/internal/customers/:customerId/soft-ban-status` — read-through soft-ban evaluator (`evaluateSoftBanForCheckout`). Self-heals stale state in both directions and returns the canonical on-hold payload (`softBanned, softBannedReason, pendingVerificationCount, brandName, owedOrderId, message`).
+- `GET /api/internal/merchants/:merchantInstagramBusinessId/discount-tiers` — tier config for a merchant, including `spiralEnabled` and `minFollowers` floor.
+- `POST /api/internal/push/send` — body `{customerId, kind, brandName?}`. Triggers one of three canonical iOS pushes: `delivery-reminder`, `quick-fail`, `final-fail`. Copy is fixed per kind (never accepted from the caller). Pushes are reminders/failures only — successes are surfaced in-app and MUST NOT be pushed.
+
 ### Webhook Endpoints
 - `GET /webhooks/instagram-dm`: Webhook verification (Meta challenge)
 - `POST /webhooks/instagram-dm`: Receive DMs to @joinspiral for code verification AND story_mention events

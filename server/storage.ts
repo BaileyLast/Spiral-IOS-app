@@ -133,6 +133,7 @@ export interface IStorage {
   updateStoreLastWebhookReceived(id: string): Promise<void>;
   // Customer lookup by Instagram handle
   getSpiralCustomerByInstagramHandle(handle: string): Promise<SpiralCustomer | undefined>;
+  getSpiralCustomersByInstagramHandle(handle: string): Promise<SpiralCustomer[]>;
   // Instagram connect reminder
   getCustomersNeedingInstagramReminder(createdBefore: Date): Promise<SpiralCustomer[]>;
   markInstagramReminderSent(id: string): Promise<void>;
@@ -183,6 +184,17 @@ export interface IStorage {
   // than spiral_customers.id — survives account deletion so a shopper can't
   // wipe their Story debt by deleting + re-signing-up with the same IG.
   getOwedOrdersByInstagramIdentity(identity: { instagramGlobalUserId?: string | null; instagramUserId?: string | null }): Promise<Order[]>;
+  // Lookup merchant by IG business account id. Used by the universal core
+  // internal API so callers (merchant dashboard, future Woo/BigCommerce
+  // adapters) can address a specific merchant rather than relying on the
+  // single-tenant getStoreSettings() shortcut.
+  getStoreSettingsByInstagramBusinessId(instagramBusinessAccountId: string): Promise<StoreSettings | undefined>;
+  // Every verification across every order owned by this Instagram identity.
+  // Includes verifications attached to orders whose spiral_customers row was
+  // later deleted (orders are anonymized but keep their IG identity columns),
+  // so the merchant dashboard can render a full Story-history timeline keyed
+  // off the IG account.
+  getVerificationsByInstagramIdentity(identity: { instagramGlobalUserId?: string | null; instagramUserId?: string | null }): Promise<Array<Verification & { orderId: string; orderStatus: string; orderVerificationStatus: string }>>;
   // Hard-delete a customer + all locally-owned related rows. Anonymizes orders
   // (sets spiralCustomerId to null) so historical analytics survive while the
   // account itself is gone. Required for App Store 5.1.1(v) account deletion.
@@ -868,6 +880,46 @@ export class DatabaseStorage implements IStorage {
     return rows;
   }
 
+  async getStoreSettingsByInstagramBusinessId(instagramBusinessAccountId: string): Promise<StoreSettings | undefined> {
+    const [row] = await db
+      .select()
+      .from(storeSettings)
+      .where(eq(storeSettings.instagramBusinessAccountId, instagramBusinessAccountId))
+      .limit(1);
+    return row || undefined;
+  }
+
+  async getVerificationsByInstagramIdentity(identity: {
+    instagramGlobalUserId?: string | null;
+    instagramUserId?: string | null;
+  }): Promise<Array<Verification & { orderId: string; orderStatus: string; orderVerificationStatus: string }>> {
+    const idConds: SQL[] = [];
+    if (identity.instagramGlobalUserId) {
+      idConds.push(eq(orders.instagramGlobalUserId, identity.instagramGlobalUserId));
+    }
+    if (identity.instagramUserId) {
+      idConds.push(eq(orders.instagramUserId, identity.instagramUserId));
+    }
+    if (idConds.length === 0) return [];
+    const idWhere = idConds.length === 1 ? idConds[0] : or(...idConds)!;
+    const rows = await db
+      .select({
+        verification: verifications,
+        orderStatus: orders.status,
+        orderVerificationStatus: orders.verificationStatus,
+      })
+      .from(verifications)
+      .innerJoin(orders, eq(orders.verificationId, verifications.id))
+      .where(idWhere)
+      .orderBy(desc(verifications.createdAt));
+    return rows.map(r => ({
+      ...r.verification,
+      orderId: r.verification.orderId,
+      orderStatus: r.orderStatus,
+      orderVerificationStatus: r.orderVerificationStatus,
+    }));
+  }
+
   async deleteSpiralCustomerCompletely(id: string): Promise<void> {
     // Atomic: wrap all four writes in a single transaction so a partial
     // failure can't leave dangling spiral_codes / scoped-id rows or an
@@ -1188,6 +1240,14 @@ export class DatabaseStorage implements IStorage {
     const normalizedHandle = handle.toLowerCase().replace('@', '');
     const allCustomers = await db.select().from(spiralCustomers);
     return allCustomers.find(c => 
+      c.instagramHandle?.toLowerCase().replace('@', '') === normalizedHandle
+    );
+  }
+
+  async getSpiralCustomersByInstagramHandle(handle: string): Promise<SpiralCustomer[]> {
+    const normalizedHandle = handle.toLowerCase().replace('@', '');
+    const allCustomers = await db.select().from(spiralCustomers);
+    return allCustomers.filter(c =>
       c.instagramHandle?.toLowerCase().replace('@', '') === normalizedHandle
     );
   }
