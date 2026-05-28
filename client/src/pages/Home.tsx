@@ -74,7 +74,9 @@ export default function Home() {
     );
   }
 
-  const isShopifyConnected = !!(settings?.accessToken && settings?.shopDomain);
+  // Shopify credentials are owned by the merchant dashboard; the server
+  // derives this flag from a live credential lookup.
+  const isShopifyConnected = !!(settings as any)?.shopifyConnected;
   const isInstagramConnected = !!(settings?.instagramBusinessAccountId && settings?.instagramAccessToken);
   
   // Calculate KPIs

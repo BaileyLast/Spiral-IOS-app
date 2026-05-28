@@ -1,22 +1,28 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { CreditCard, RefreshCw } from "lucide-react";
+import { CreditCard, ExternalLink } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { StoreSettings } from "@shared/schema";
 import { StatusBadge } from "@/components/StatusBadge";
 const shopifyIcon = "/shopify-icon.png";
 
+// Shopify is connected once on the merchant dashboard; the customer app
+// reads the live credentials from there. There is no in-app OAuth here.
+const MERCHANT_DASHBOARD_URL = "https://spiral-merchant-dashboard.replit.app";
+
+type SettingsResponse = StoreSettings & { shopifyConnected?: boolean };
+
 export default function Connections() {
-  const { data: settings, isLoading } = useQuery<StoreSettings>({
+  const { data: settings, isLoading } = useQuery<SettingsResponse>({
     queryKey: ["/api/settings"],
   });
 
-  const handleConnectShopify = () => {
-    window.location.href = '/auth/shopify';
+  const handleOpenDashboard = () => {
+    window.open(MERCHANT_DASHBOARD_URL, "_blank", "noopener,noreferrer");
   };
 
-  const isShopifyConnected = !!(settings?.accessToken && settings?.shopDomain);
+  const isShopifyConnected = !!settings?.shopifyConnected;
 
   if (isLoading) {
     return (
@@ -81,26 +87,33 @@ export default function Connections() {
                       {settings?.storeName}
                     </p>
                   </div>
-                  <Button 
-                    onClick={handleConnectShopify} 
+                  <p className="text-sm text-muted-foreground">
+                    Shopify is connected through your Spiral merchant dashboard. To
+                    reconnect or switch stores, open the dashboard.
+                  </p>
+                  <Button
+                    onClick={handleOpenDashboard}
                     variant="outline"
-                    data-testid="button-reconnect-shopify"
+                    data-testid="button-open-dashboard"
                   >
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Reconnect Store
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    Open Merchant Dashboard
                   </Button>
                 </div>
               ) : (
                 <div className="space-y-4">
                   <p className="text-sm text-muted-foreground">
-                    Connect your Shopify store to enable discount verification and management.
+                    Connect your Shopify store in the Spiral merchant dashboard.
+                    Once it's connected there, this app will pick it up
+                    automatically within a few minutes — no setup needed here.
                   </p>
-                  <Button 
-                    onClick={handleConnectShopify}
-                    data-testid="button-connect-shopify"
+                  <Button
+                    onClick={handleOpenDashboard}
+                    data-testid="button-open-dashboard"
                     className="bg-[#4ECCA3] text-white"
                   >
-                    Connect to Shopify
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    Open Merchant Dashboard
                   </Button>
                 </div>
               )}

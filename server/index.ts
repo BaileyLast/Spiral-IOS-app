@@ -84,6 +84,13 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
+  // Prewarm the Shopify credentials cache from the merchant dashboard so the
+  // first inbound webhook doesn't pay the cold-fetch latency. Fire-and-forget;
+  // failures are logged inside the helper.
+  void import("./shopifyCredentials").then((m) =>
+    m.prewarmShopifyCredentials(),
+  );
+
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";

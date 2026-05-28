@@ -8,6 +8,10 @@ import { storage } from "./storage";
 import { z } from "zod";
 import { insertStoreSettingsSchema, insertDiscountTierSchema, insertVerificationSchema, isOrderOwed, OWED_VERIFICATION_ANYDELIVERY, OWED_VERIFICATION_DELIVERED_ONLY, type StoreSettings, type SpiralCustomer } from "@shared/schema";
 import { fetchShopifyProducts, fetchShopifyCollections, fetchProductImages } from "./shopify";
+import {
+  getShopifyCredentials,
+  getShopifyCredentialsForSettings,
+} from "./shopifyCredentials";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -343,21 +347,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/unsubscribe", handleUnsubscribe);
 
   // Store Settings Routes
+  //
+  // SECURITY: Shopify `shopDomain` + `accessToken` are owned by the merchant
+  // dashboard. We never accept them on writes here and we never echo
+  // `accessToken` on reads — the credential helper fetches them live so the
+  // customer app never holds the secret in its own row. `shopDomain` is
+  // exposed read-only for display, sourced from the live dashboard reply
+  // when available so the UI shows the real connection state.
   app.get("/api/settings", async (req, res) => {
     try {
       const settings = await storage.getStoreSettings();
-      res.json(settings || null);
+      if (!settings) return res.json(null);
+      const creds = await getShopifyCredentialsForSettings(settings);
+      // Strip the Shopify access token regardless of how it got into the DB.
+      const { accessToken: _stripped, ...safe } = settings as any;
+      res.json({
+        ...safe,
+        shopDomain: creds?.shopDomain ?? settings.shopDomain ?? null,
+        storeName: creds?.storeName ?? settings.storeName ?? null,
+        shopifyConnected: !!creds,
+      });
     } catch (error) {
       console.error("Failed to fetch store settings:", error);
       res.status(500).json({ error: "Failed to fetch store settings" });
     }
   });
 
+  // PATCH /api/settings — never accept Shopify creds. They are owned by the
+  // dashboard; anything sent on these fields is silently dropped so a stale
+  // client can't repopulate them.
+  const patchStoreSettingsSchema = insertStoreSettingsSchema.omit({
+    accessToken: true,
+    shopDomain: true,
+  });
   app.patch("/api/settings", async (req, res) => {
     try {
-      const validated = insertStoreSettingsSchema.parse(req.body);
+      const validated = patchStoreSettingsSchema.parse(req.body);
       const settings = await storage.updateStoreSettings(validated);
-      res.json(settings);
+      const creds = await getShopifyCredentialsForSettings(settings);
+      const { accessToken: _stripped, ...safe } = settings as any;
+      res.json({
+        ...safe,
+        shopDomain: creds?.shopDomain ?? settings.shopDomain ?? null,
+        storeName: creds?.storeName ?? settings.storeName ?? null,
+        shopifyConnected: !!creds,
+      });
     } catch (error) {
       if (error instanceof Error && error.name === "ZodError") {
         res.status(400).json({ error: "Invalid store settings data" });
@@ -735,19 +769,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/shopify/sync", async (req, res) => {
     try {
       const settings = await storage.getStoreSettings();
-      
-      if (!settings?.shopDomain || !settings?.accessToken) {
+      const creds = await getShopifyCredentialsForSettings(settings);
+      if (!creds) {
         return res.status(400).json({ error: "Shopify not connected" });
       }
 
       const shopifyProducts = await fetchShopifyProducts({
-        shopDomain: settings.shopDomain,
-        accessToken: settings.accessToken,
+        shopDomain: creds.shopDomain,
+        accessToken: creds.accessToken,
       });
 
       const shopifyCollections = await fetchShopifyCollections({
-        shopDomain: settings.shopDomain,
-        accessToken: settings.accessToken,
+        shopDomain: creds.shopDomain,
+        accessToken: creds.accessToken,
       });
 
       const syncedProducts = await storage.syncProducts(
@@ -822,228 +856,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Shopify OAuth Routes
-  app.get("/auth/shopify", (req, res) => {
-    const shop = req.query.shop as string || 'spiral-test.myshopify.com';
-    const redirectUri = process.env.SHOPIFY_REDIRECT_URI;
-    const clientId = process.env.SHOPIFY_API_KEY;
-    const scopes = 'read_products,read_orders,write_discounts,read_fulfillments';
-
-    if (!redirectUri || !clientId) {
-      return res.status(500).json({ error: "Shopify credentials not configured" });
-    }
-
-    // Generate CSRF protection state nonce
-    const state = crypto.randomBytes(16).toString('hex');
-    req.session.oauthState = state;
-    req.session.oauthShop = shop;
-
-    const installUrl = `https://${shop}/admin/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${state}`;
-    res.redirect(installUrl);
+  // Shopify OAuth Routes — RETIRED.
+  // The Shopify connection is owned by the merchant dashboard. The customer
+  // app reads the shopDomain + access token via the dashboard's internal API
+  // (see `server/shopifyCredentials.ts`). Hitting these endpoints used to
+  // launch a second install of a separate Shopify app against the same store,
+  // which produced an empty store_settings row and broke product images +
+  // tracking. They now return 410 Gone so any old links fail loudly.
+  app.get("/auth/shopify", (_req, res) => {
+    res
+      .status(410)
+      .type("text/plain")
+      .send(
+        "Shopify connection is managed in the Spiral merchant dashboard. " +
+          "Connect your store there — the customer app reads it automatically.",
+      );
   });
 
-  app.get("/shopify/callback", async (req, res) => {
-    const { shop, code, state, hmac } = req.query;
-
-    if (!shop || !code || !state) {
-      return res.status(400).send("Missing required parameters");
-    }
-
-    // Validate state for CSRF protection
-    if (state !== req.session.oauthState || shop !== req.session.oauthShop) {
-      console.error("OAuth state mismatch - possible CSRF attack");
-      return res.status(403).send("Invalid state parameter - CSRF validation failed");
-    }
-
-    // Clear state from session after validation
-    delete req.session.oauthState;
-    delete req.session.oauthShop;
-
-    // Verify HMAC signature from Shopify (required for security)
-    if (!hmac) {
-      console.error("Missing HMAC parameter in callback");
-      return res.status(403).send("Missing HMAC signature");
-    }
-
-    const queryParams = { ...req.query };
-    delete queryParams.hmac;
-    delete queryParams.signature;
-
-    // Sort keys and build query string for HMAC validation
-    const sortedParams = Object.keys(queryParams)
-      .sort()
-      .map(key => `${key}=${queryParams[key]}`)
-      .join('&');
-
-    const computedHmac = crypto
-      .createHmac('sha256', process.env.SHOPIFY_API_SECRET!)
-      .update(sortedParams)
-      .digest('hex');
-
-    // Timing-safe comparison to prevent timing attacks
-    const hmacBuffer = Buffer.from(hmac as string, 'utf8');
-    const computedBuffer = Buffer.from(computedHmac, 'utf8');
-
-    if (hmacBuffer.length !== computedBuffer.length || 
-        !crypto.timingSafeEqual(hmacBuffer, computedBuffer)) {
-      console.error("HMAC verification failed - possible callback tampering");
-      return res.status(403).send("Invalid HMAC signature");
-    }
-
-    try {
-      const params = new URLSearchParams({
-        client_id: process.env.SHOPIFY_API_KEY!,
-        client_secret: process.env.SHOPIFY_API_SECRET!,
-        code: code as string,
-      });
-
-      const tokenResponse = await fetch(`https://${shop}/admin/oauth/access_token`, {
-        method: 'POST',
-        body: params,
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      });
-
-      if (!tokenResponse.ok) {
-        console.error("Failed to get Shopify access token:", await tokenResponse.text());
-        return res.status(500).send("Failed to authenticate with Shopify");
-      }
-
-      const data = await tokenResponse.json() as { access_token: string };
-      
-      // Get existing settings to preserve non-OAuth fields
-      const existingSettings = await storage.getStoreSettings();
-      
-      // Merge with existing settings instead of overwriting.
-      // Treat the seeded "My Store" placeholder as empty so a real shop name
-      // takes its place on (re-)install.
-      const existingStoreNameClean =
-        existingSettings?.storeName && existingSettings.storeName !== 'My Store'
-          ? existingSettings.storeName
-          : null;
-      await storage.updateStoreSettings({
-        storeName: existingStoreNameClean || (shop as string),
-        instagramHandle: existingSettings?.instagramHandle || '',
-        tokenActive: true,
-        shopDomain: shop as string,
-        accessToken: data.access_token,
-      });
-
-      console.log('Shopify access token obtained for shop:', shop);
-      
-      // Register webhooks for order tracking
-      // Use dedicated base URL or derive from redirect URI
-      const baseUrl = process.env.SHOPIFY_APP_BASE_URL || 
-        process.env.SHOPIFY_REDIRECT_URI?.replace('/shopify/callback', '');
-      
-      if (baseUrl) {
-        try {
-          // Register orders/create webhook
-          const ordersWebhookRes = await fetch(`https://${shop}/admin/api/2024-01/webhooks.json`, {
-            method: 'POST',
-            headers: {
-              'X-Shopify-Access-Token': data.access_token,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              webhook: {
-                topic: 'orders/create',
-                address: `${baseUrl}/webhooks/shopify/orders-create`,
-                format: 'json',
-              }
-            }),
-          });
-          
-          if (ordersWebhookRes.ok) {
-            console.log('Registered orders/create webhook');
-          } else {
-            const errorText = await ordersWebhookRes.text();
-            console.error('Failed to register orders/create webhook:', ordersWebhookRes.status, errorText);
-          }
-          
-          // Register fulfillments/create webhook
-          const fulfillmentsWebhookRes = await fetch(`https://${shop}/admin/api/2024-01/webhooks.json`, {
-            method: 'POST',
-            headers: {
-              'X-Shopify-Access-Token': data.access_token,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              webhook: {
-                topic: 'fulfillments/create',
-                address: `${baseUrl}/webhooks/shopify/fulfillments-create`,
-                format: 'json',
-              }
-            }),
-          });
-          
-          if (fulfillmentsWebhookRes.ok) {
-            console.log('Registered fulfillments/create webhook');
-          } else {
-            const errorText = await fulfillmentsWebhookRes.text();
-            console.error('Failed to register fulfillments/create webhook:', fulfillmentsWebhookRes.status, errorText);
-          }
-
-          // Register fulfillment_events/create webhook — needed for the "delivered" status
-          // event, which is what triggers the persisted soft-ban + delivery reminder push.
-          const deliveryWebhookRes = await fetch(`https://${shop}/admin/api/2024-01/webhooks.json`, {
-            method: 'POST',
-            headers: {
-              'X-Shopify-Access-Token': data.access_token,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              webhook: {
-                topic: 'fulfillment_events/create',
-                address: `${baseUrl}/webhooks/shopify/fulfillment-events-create`,
-                format: 'json',
-              }
-            }),
-          });
-          if (deliveryWebhookRes.ok) {
-            console.log('Registered fulfillment_events/create webhook');
-          } else {
-            const errorText = await deliveryWebhookRes.text();
-            console.error('Failed to register fulfillment_events/create webhook:', deliveryWebhookRes.status, errorText);
-          }
-
-          // Register fulfillments/update — backup delivery signal. Some Shopify
-          // accounts surface `delivered` via shipment_status on a fulfillment
-          // update rather than as a fulfillment_event. Listening to both means
-          // we don't miss the signal.
-          const fulfillmentsUpdateRes = await fetch(`https://${shop}/admin/api/2024-01/webhooks.json`, {
-            method: 'POST',
-            headers: {
-              'X-Shopify-Access-Token': data.access_token,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              webhook: {
-                topic: 'fulfillments/update',
-                address: `${baseUrl}/webhooks/shopify/fulfillments-update`,
-                format: 'json',
-              }
-            }),
-          });
-          if (fulfillmentsUpdateRes.ok) {
-            console.log('Registered fulfillments/update webhook');
-          } else {
-            const errorText = await fulfillmentsUpdateRes.text();
-            console.error('Failed to register fulfillments/update webhook:', fulfillmentsUpdateRes.status, errorText);
-          }
-        } catch (webhookError) {
-          console.error('Failed to register webhooks (non-fatal):', webhookError);
-        }
-      } else {
-        console.warn('No base URL configured for webhook registration');
-      }
-      
-      res.send('✅ Spiral successfully connected to your Shopify store! You can close this window and return to the dashboard.');
-    } catch (error) {
-      console.error("Error during Shopify OAuth:", error);
-      res.status(500).send("Failed to complete Shopify authentication");
-    }
+  app.get("/shopify/callback", (_req, res) => {
+    res
+      .status(410)
+      .type("text/plain")
+      .send(
+        "Shopify connection is managed in the Spiral merchant dashboard. " +
+          "Connect your store there — the customer app reads it automatically.",
+      );
   });
 
   // [Removed] Merchant /auth/instagram + /instagram/callback flow.
@@ -1129,8 +966,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? shippingRawExisting.toFixed(2)
           : null;
         const settingsForBackfill = await storage.getStoreSettings();
+        const credsForBackfill = await getShopifyCredentialsForSettings(settingsForBackfill);
         const shopDomainHeader =
           (req.headers['x-shopify-shop-domain'] as string | undefined) ||
+          credsForBackfill?.shopDomain ||
           settingsForBackfill?.shopDomain ||
           '';
         const storeLogoForBackfill = shopDomainHeader
@@ -1257,14 +1096,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .filter((id: any) => id != null);
 
       let productImageMap: Record<string, string> = {};
+      const creds = await getShopifyCredentialsForSettings(settings);
       const webhookShopDomainForImages =
         (req.headers['x-shopify-shop-domain'] as string | undefined) ||
+        creds?.shopDomain ||
         settings?.shopDomain ||
         '';
-      if (productIds.length > 0 && webhookShopDomainForImages && settings?.accessToken) {
+      if (productIds.length > 0 && webhookShopDomainForImages && creds?.accessToken) {
         productImageMap = await fetchProductImages({
           shopDomain: webhookShopDomainForImages,
-          accessToken: settings.accessToken,
+          accessToken: creds.accessToken,
           productIds,
         });
       }
@@ -1283,6 +1124,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // we stay correct once this app is wired to multiple merchants.
       const webhookShopDomain =
         (req.headers['x-shopify-shop-domain'] as string | undefined) ||
+        creds?.shopDomain ||
         settings?.shopDomain ||
         '';
       const storeLogo = webhookShopDomain
@@ -4551,8 +4393,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/internal/shopify/backfill-webhooks", requireInternalKey, async (req, res) => {
     try {
       const settings = await storage.getStoreSettings();
-      if (!settings?.shopDomain || !settings?.accessToken) {
-        return res.status(400).json({ error: "No Shopify store connected" });
+      const creds = await getShopifyCredentialsForSettings(settings);
+      if (!creds) {
+        return res.status(400).json({ error: "No Shopify store connected (dashboard returned no credentials)" });
       }
       const baseUrl = process.env.SHOPIFY_APP_BASE_URL ||
         process.env.SHOPIFY_REDIRECT_URI?.replace('/shopify/callback', '');
@@ -4567,10 +4410,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const results: Record<string, { ok: boolean; status: number; body?: string }> = {};
       for (const t of topics) {
         try {
-          const r = await fetch(`https://${settings.shopDomain}/admin/api/2024-01/webhooks.json`, {
+          const r = await fetch(`https://${creds.shopDomain}/admin/api/2024-01/webhooks.json`, {
             method: 'POST',
             headers: {
-              'X-Shopify-Access-Token': settings.accessToken,
+              'X-Shopify-Access-Token': creds.accessToken,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({ webhook: { topic: t.topic, address: t.address, format: 'json' } }),
@@ -4583,7 +4426,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error(`[shopify-backfill] ${t.topic} failed:`, e);
         }
       }
-      res.json({ shop: settings.shopDomain, results });
+      res.json({ shop: creds.shopDomain, results });
     } catch (err) {
       console.error("[shopify-backfill] failed:", err);
       res.status(500).json({ error: "Failed to backfill webhooks" });

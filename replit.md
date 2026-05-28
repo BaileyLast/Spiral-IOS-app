@@ -22,7 +22,7 @@ Simple, everyday language. No emojis.
 
 ## Data Models (`shared/schema.ts`)
 
-- `store_settings` — Shopify + Instagram OAuth, store config, webhook health (single row; single-tenant today).
+- `store_settings` — Instagram OAuth, store config, webhook health (single row; single-tenant today). **Shopify `shopDomain` + `accessToken` are owned by the merchant dashboard** and fetched live via `server/shopifyCredentials.ts` (see "Shopify Credentials" below). The columns exist in the schema as legacy/fallback only and may be NULL here.
 - `discount_tiers` — Follower ranges → discount %. Written by merchant dashboard, read by this repo.
 - `verifications` — Story post verification records with webhook metadata.
 - `spiral_customers` — Customer accounts + Instagram identity.
@@ -74,13 +74,27 @@ All routes gated by `requireInternalKey` (header `x-spiral-internal-key`). Used 
 | `GET /merchants/:merchantInstagramBusinessId/discount-tiers` | Tier config + `spiralEnabled` + `minFollowers`. |
 | `POST /push/send` | `{customerId, kind, brandName?}`; `kind ∈ {delivery-reminder, quick-fail, final-fail}`. Copy is fixed per kind. Reminders/failures only — successes are in-app. |
 | `POST /orders/:id/mark-delivered` | Transition order → delivered, fire reminder push. |
-| `POST /shopify/backfill-webhooks` | Re-register Shopify webhook topics for an already-connected store. |
+| `POST /shopify/backfill-webhooks` | Re-register Shopify webhook topics for an already-connected store. Reads credentials from the dashboard via `getShopifyCredentialsForSettings`. |
 | `POST /merchants/register` · `PATCH /customers/:id` | Existing merchant/customer admin hooks. |
 
 ### Webhooks
 - `GET/POST /webhooks/instagram-dm` — DMs to @joinspiral (spiral-code verification) + story_mention events.
 - `GET/POST /webhooks/instagram` — Story mentions on merchant's connected IG.
 - `/webhooks/shopify/orders-create` · `/fulfillments-create` · `/fulfillments-update` · `/fulfillment-events-create` — registered automatically during Shopify OAuth.
+
+## Shopify Credentials
+
+The customer app does **not** run its own Shopify OAuth and does **not** store a Shopify access token. The merchant connects Shopify once on the merchant dashboard; the customer app reads the live `shopDomain` + `accessToken` from the dashboard's internal API.
+
+- Helper: `server/shopifyCredentials.ts` exposes `getShopifyCredentials({shopDomain?, instagramBusinessAccountId?})` and `getShopifyCredentialsForSettings(settings)`. 5-minute in-memory cache; 5-second fetch timeout; misses (404) are negative-cached. `prewarmShopifyCredentials()` runs once at boot from `server/index.ts` to warm the cache.
+- Dashboard contract (must be implemented on `spiral-merchant-dashboard.replit.app`):
+  - `GET /api/internal/shopify/credentials?shop=<domain>&instagramBusinessAccountId=<id>`
+  - Auth: `x-spiral-internal-key` header (shared `SPIRAL_INTERNAL_KEY` secret).
+  - 200 response: `{ shopDomain: string, accessToken: string, storeName: string | null, storeLogoUrl: string | null }`. Either query param may identify the merchant; pass through whichever the caller has.
+  - 404 if no merchant matches. Caller treats 404 as "not connected (yet)".
+- Override base URL with `SPIRAL_MERCHANT_DASHBOARD_URL` (defaults to `https://spiral-merchant-dashboard.replit.app`).
+- Retired in this repo: `GET /auth/shopify` and `GET /shopify/callback` now return `410 Gone`. The customer app must never initiate its own Shopify install — doing so creates a second app installation, wipes the dashboard's token, and breaks product images + delivery tracking.
+- All sites that read Shopify credentials use the helper: `/api/shopify/sync`, the `orders/create` webhook (product images + store logo + shop-domain backfill), `/api/internal/shopify/backfill-webhooks`. The columns `store_settings.shopDomain` / `store_settings.accessToken` are kept in the schema as legacy/fallback only and may be NULL.
 
 ## Instagram Integration
 
