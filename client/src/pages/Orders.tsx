@@ -358,12 +358,6 @@ export default function Orders() {
   const historyOrders = orders.filter((o) => isCompleted(o));
   const hasRealOrders = orders.length > 0;
   const isSoftBanned = me?.accountStatus === "soft_banned";
-  const owedCount = orders.filter((o) => {
-    const v = o.verificationStatus;
-    if (v === "taken_down_early") return true;
-    if (o.status === "delivered" && (v === "pending" || v === "awaiting_review" || v === "not_public")) return true;
-    return false;
-  }).length;
 
   const inProgressCount = activeOrders.length;
 
@@ -415,19 +409,15 @@ export default function Orders() {
             className="p-4 rounded-2xl bg-[#E6F8F0] border border-[#4ECCA3]/30 flex items-start gap-3"
             data-testid="banner-soft-banned"
           >
-            <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center flex-shrink-0">
-              <Lock className="w-4 h-4 text-[#4ECCA3]" />
+            <div className="w-10 h-10 rounded-full bg-white text-[#4ECCA3] shadow-lg flex items-center justify-center flex-shrink-0">
+              <Lock className="w-[18px] h-[18px]" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-[#0F4F3C] text-sm" data-testid="text-soft-ban-heading">
                 Keep the spiral going
               </p>
               <p className="text-xs text-[#155843] mt-0.5" data-testid="text-soft-ban-body">
-                {me?.softBannedReason === "inherited_from_instagram"
-                  ? "Your Instagram owes a Story from an earlier Spiral order. Post it tagging the brand to keep earning discounts."
-                  : owedCount > 1
-                    ? `You've got ${owedCount} orders waiting on a Story. Post one for your latest purchase to keep earning discounts with Spiral.`
-                    : "You've got a Story to post. Share your latest purchase tagging the brand to keep earning discounts with Spiral."}
+                Complete your pending Story post(s) to keep earning Spiral discounts.
               </p>
             </div>
           </div>
