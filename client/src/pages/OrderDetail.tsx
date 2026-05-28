@@ -322,24 +322,6 @@ export default function OrderDetail() {
           </div>
         )}
 
-        {status === "verified" && (
-          <div className="creator-card p-5 bg-[#E6F8F0] border border-[#A8F0D1]">
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center flex-shrink-0">
-                <CheckCircle className="w-5 h-5 text-[#1A996E]" />
-              </div>
-              <div>
-                <h3 className="font-black text-[#0E5C42] text-base">
-                  You saved ${Number(order.discountAmount).toFixed(2)}!
-                </h3>
-                <p className="text-sm text-[#1A996E] mt-1">
-                  Your Story was verified and your discount is confirmed
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {(status === "not_public" || status === "taken_down_early") && (
           <div className="creator-card p-5 bg-orange-50 border border-orange-200" data-testid={`card-${status}`}>
             <div className="flex items-start gap-4 mb-4">
