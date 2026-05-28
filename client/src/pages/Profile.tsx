@@ -124,24 +124,12 @@ export default function Profile() {
         {/* Stats card */}
         <div className="creator-card p-5 !bg-gray-900 text-white" data-testid="card-stats">
           <h3 className="font-black text-lg mb-4">Your savings</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-3xl font-black text-[#A8F0D1]" data-testid="text-total-saved">
-                {formatCurrency(Number(totalSaved), profile?.country)}
-              </p>
-              <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mt-1">
-                Total saved
-              </p>
-            </div>
-            <div>
-              <p className="text-3xl font-black text-[#A8F0D1]" data-testid="text-orders-completed">
-                {ordersCompleted}
-              </p>
-              <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mt-1">
-                Orders
-              </p>
-            </div>
-          </div>
+          <p className="text-4xl font-black text-[#A8F0D1]" data-testid="text-total-saved">
+            {formatCurrency(Number(totalSaved), profile?.country)}
+          </p>
+          <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mt-1">
+            Total saved
+          </p>
         </div>
 
         {/* Start saving CTA — IG connected but no orders yet */}

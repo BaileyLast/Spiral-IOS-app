@@ -2611,9 +2611,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const orders = await storage.getOrdersByCustomerId(customerId);
-      
+
+      // Total saved counts the discount the shopper has *already locked in*
+      // — i.e. every order they've placed where Spiral applied a discount,
+      // regardless of Story verification state. This keeps the headline
+      // figure stable from the moment of checkout instead of dropping to
+      // £0 while we wait for the Story → final-check window to close.
+      const totalSaved = orders.reduce((sum, o) => {
+        const n = parseFloat(o.discountAmount || "0");
+        return sum + (Number.isFinite(n) ? n : 0);
+      }, 0);
       const verifiedOrders = orders.filter(o => o.verificationStatus === "verified");
-      const totalSaved = verifiedOrders.reduce((sum, o) => sum + parseFloat(o.discountAmount || "0"), 0);
       const pendingOrders = await storage.getUnverifiedDeliveredOrdersByCustomerId(customerId);
       
       const customer = await storage.getSpiralCustomerById(customerId);
