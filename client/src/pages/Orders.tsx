@@ -406,17 +406,17 @@ export default function Orders() {
 
         {isSoftBanned && (
           <div
-            className="p-4 rounded-2xl bg-[#E6F8F0] border border-[#4ECCA3]/30 flex items-start gap-3"
+            className="creator-card story-bg-gradient p-4 text-white flex items-start gap-3"
             data-testid="banner-soft-banned"
           >
-            <div className="w-10 h-10 rounded-full bg-white text-[#4ECCA3] shadow-lg flex items-center justify-center flex-shrink-0">
-              <Lock className="w-[18px] h-[18px]" />
+            <div className="w-9 h-9 rounded-full bg-white text-[#4ECCA3] shadow-lg flex items-center justify-center flex-shrink-0">
+              <Lock className="w-4 h-4" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-[#0F4F3C] text-sm" data-testid="text-soft-ban-heading">
+              <p className="font-bold text-white text-base leading-tight" data-testid="text-soft-ban-heading">
                 Keep the spiral going
               </p>
-              <p className="text-xs text-[#155843] mt-0.5" data-testid="text-soft-ban-body">
+              <p className="text-xs text-[#E6F8F0] font-medium mt-1" data-testid="text-soft-ban-body">
                 Complete your pending Story post(s) to keep earning Spiral discounts.
               </p>
             </div>
