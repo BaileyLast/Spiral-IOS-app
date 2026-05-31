@@ -40,7 +40,7 @@ import {
   type InsertDashboardForwardQueue,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, inArray, and, or, lt, isNull, desc, sql, type SQL } from "drizzle-orm";
+import { eq, inArray, and, or, lt, isNull, asc, desc, sql, type SQL } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 export interface IStorage {
@@ -203,7 +203,17 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   async getStoreSettings(): Promise<StoreSettings | undefined> {
-    const [settings] = await db.select().from(storeSettings).limit(1);
+    // Single-tenant today, but a stray ghost row (blank shop_domain, written by
+    // the dashboard's old IG-OAuth bug) must never shadow the real merchant.
+    // Sort real (non-blank domain) rows first, then by id for stability.
+    const [settings] = await db
+      .select()
+      .from(storeSettings)
+      .orderBy(
+        sql`case when ${storeSettings.shopDomain} is null or ${storeSettings.shopDomain} = '' then 1 else 0 end`,
+        asc(storeSettings.id),
+      )
+      .limit(1);
     return settings || undefined;
   }
 
@@ -881,10 +891,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getStoreSettingsByInstagramBusinessId(instagramBusinessAccountId: string): Promise<StoreSettings | undefined> {
+    // Mirror getStoreSettings(): if a ghost row ever shares this IG business id,
+    // prefer the real (non-blank shop_domain) row, then stable by id.
     const [row] = await db
       .select()
       .from(storeSettings)
       .where(eq(storeSettings.instagramBusinessAccountId, instagramBusinessAccountId))
+      .orderBy(
+        sql`case when ${storeSettings.shopDomain} is null or ${storeSettings.shopDomain} = '' then 1 else 0 end`,
+        asc(storeSettings.id),
+      )
       .limit(1);
     return row || undefined;
   }

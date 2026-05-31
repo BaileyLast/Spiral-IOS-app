@@ -1,0 +1,26 @@
+#152 - Re-sync merchant data to Spiral customer app
+What & Why
+When the Instagram OAuth ghost-row bug fired (task #149), registerMerchantWithSpiral was called with shopDomain='' and storeName='My Store' — creating a ghost entry in the customer app's DB and never registering the real merchant. The fix in task #149 prevents future ghost-row writes, but the customer app's DB is now stale: Finley's Mugs (finleys-mugs-a.myshopify.com) is missing, and a junk row with an empty shop domain exists there instead.
+
+There's also no way to re-push merchant data to the customer app without redoing a full Shopify+Instagram OAuth flow. We need an admin endpoint for that.
+
+Additionally, registerMerchantWithSpiral doesn't include spiralEnabled in its payload, so the customer app can't honor the merchant's on/off switch.
+
+Done looks like
+New session-protected endpoint POST /api/admin/resync-to-customer-app — accepts { shop } in the body, reads current store_settings for that shop, and calls registerMerchantWithSpiral with complete current data (including spiralEnabled). Returns 400 if the store has no IG connection yet.
+registerMerchantWithSpiral (and the MerchantRegistration interface) gains a spiralEnabled boolean field, included in the payload sent to the customer app.
+The re-register webhooks page in the dashboard (or the Connections page) gains a "Re-sync to Spiral" button that calls the new endpoint — so merchants don't have to redo OAuth to recover a broken sync.
+After calling the endpoint for finleys-mugs-a.myshopify.com, the customer app correctly has Finley's registered under the right shop domain (this is the immediate unblock for the end-to-end story capture test).
+Out of scope
+Cleaning up the ghost row on the customer app side — that's the iOS team's work in their repo
+Changing spiral_enabled for any store — that's a separate merchant setting action
+Bulk re-sync of all stores (single-store only for now)
+Steps
+Extend MerchantRegistration — Add spiralEnabled: boolean to the interface and include it in the JSON body sent to the customer app in registerMerchantWithSpiral.
+Update all call sites — Pass spiralEnabled from store settings wherever registerMerchantWithSpiral is called (Instagram OAuth callback single-account path, multi-account select path, and Shopify OAuth reconnect path).
+Add POST /api/admin/resync-to-customer-app endpoint — Session-protected. Reads store_settings for the given shop, verifies IG connection exists, then calls registerMerchantWithSpiral. Returns success/error JSON.
+Add "Re-sync to Spiral" button — On the Connections page (or wherever the Instagram connection card lives), add a button that calls the new endpoint for the current store. Show a success toast or error message.
+Relevant files
+server/lib/spiralCustomerApp.ts
+server/routes.ts:1796-1815,2020-2050,2475-2510
+client/src/pages/Connections.tsx

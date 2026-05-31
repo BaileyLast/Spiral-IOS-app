@@ -4358,6 +4358,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         instagramPageId: z.string().min(1),
         instagramAccessToken: z.string().min(1),
         instagramProfilePictureUrl: z.string().url().optional(),
+        // Honors the merchant's on/off switch from the dashboard. Optional so
+        // older dashboard builds that don't send it leave the flag untouched.
+        spiralEnabled: z.boolean().optional(),
       });
 
       const parsed = bodySchema.safeParse(req.body);
@@ -4365,7 +4368,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ success: false, error: "invalid_body", details: parsed.error.flatten() });
       }
 
-      const { shopDomain: rawDomain, storeName, instagramHandle, instagramBusinessAccountId, instagramPageId, instagramAccessToken, instagramProfilePictureUrl } = parsed.data;
+      const { shopDomain: rawDomain, storeName, instagramHandle, instagramBusinessAccountId, instagramPageId, instagramAccessToken, instagramProfilePictureUrl, spiralEnabled } = parsed.data;
       const shopDomain = rawDomain.trim().toLowerCase();
       const normalizedHandle = `@${instagramHandle.replace(/^@/, "")}`;
 
@@ -4379,9 +4382,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         instagramProfilePictureUrl,
         tokenActive: true,
         webhookSubscriptionStatus: "active",
+        ...(spiralEnabled !== undefined ? { spiralEnabled } : {}),
       });
 
-      console.log(`[MERCHANT-REGISTER] domain=${shopDomain} handle=${normalizedHandle} igBizId=${instagramBusinessAccountId}`);
+      console.log(`[MERCHANT-REGISTER] domain=${shopDomain} handle=${normalizedHandle} igBizId=${instagramBusinessAccountId} spiralEnabled=${spiralEnabled ?? "(unchanged)"}`);
       return res.status(200).json({ success: true });
     } catch (err) {
       console.error("[MERCHANT-REGISTER] failed:", err);

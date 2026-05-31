@@ -1,0 +1,1 @@
+- [store_settings ghost rows](store-settings-ghost-rows.md) — single-tenant store_settings can have a blank-shop_domain ghost row; LIMIT 1 lookups must order non-blank first.
