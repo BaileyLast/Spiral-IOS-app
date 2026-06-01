@@ -98,9 +98,7 @@ The customer app does **not** run its own Shopify OAuth and does **not** store a
 
 ## Instagram Integration
 
-### Account Verification (DM-based) — currently parked
-> Parked: this flow used the deleted Spiral Meta app and needs its own separate Meta app (to be created later). It is inactive today. The steps below describe how it works once a replacement app is configured.
-
+### Account Verification (DM-based)
 1. Customer gets a 6-char code (24h expiry).
 2. Customer DMs the code to @joinspiral.
 3. Webhook extracts IG user id from sender metadata, matches the code, links IG to the Spiral customer.
@@ -126,9 +124,8 @@ Every story_mention received at `/webhooks/instagram-dm` is forwarded fire-and-f
 `instagram_basic`, `instagram_manage_messages`, `pages_show_list`, `pages_read_engagement`, `pages_manage_metadata`. After merchant connects, we subscribe to `messages` + `messaging_postbacks` on the FB Page.
 
 ### Meta App
-- **The original Spiral app (`1348945556722394`) was deleted.** Story-mention delivery now runs through the surviving Meta app **`1150430890573369`** (owned by the merchant dashboard). The dashboard points that app's Instagram webhook callback at our `/webhooks/instagram-dm` (verify token `spiral_verify_token`) and subscribes the merchant's connected page to the `messages` field. We receive `story_mention` events here, verify the matching order, and forward each event to the dashboard (see "Dashboard story-mention forward").
-- `INSTAGRAM_APP_SECRET` must hold app `1150430890573369`'s secret so incoming webhook signatures validate. If unset, signature checks are skipped (dev only); if set to a different app's secret, real webhooks are rejected with 403.
-- **DM-code account verification is parked.** It needs its own separate Meta app, to be created later; until then the spiral-code DM flow and shopper Instagram OAuth (`/api/customer/instagram/auth`, which used the deleted app) are inactive.
+- **Spiral app** (ID `1348945556722394`, name "Spiral") — Business type, "Facebook Login for Business". Owns shopper OAuth, the Instagram webhook, and @joinspiral token generation. Webhook lives at `/webhooks/instagram-dm` (verify token `spiral_verify_token`); `story_mention` events arrive here, we verify the matching order, and forward each event to the dashboard (see "Dashboard story-mention forward").
+- Incoming webhook signatures are validated with **this app's secret, stored as `FACEBOOK_APP_SECRET`**. The handlers prefer `FACEBOOK_APP_SECRET` and fall back to the legacy `INSTAGRAM_APP_SECRET` only if it is unset. If neither is set, signature checks are skipped (dev only); a wrong secret rejects real webhooks with 403.
 
 ## Order Lifecycle
 
@@ -183,13 +180,13 @@ All order/Story progress is shown live in the app. The five outbound DMs that us
 ## Required Secrets
 
 - `RAPIDAPI_KEY` — IG follower counts.
-- `INSTAGRAM_APP_SECRET` — app secret of the surviving Meta app (`1150430890573369`); validates incoming webhook signatures at `/webhooks/instagram-dm`. Must match the app the dashboard uses to deliver story mentions.
+- `FACEBOOK_APP_ID` / `FACEBOOK_APP_SECRET` — Spiral Meta app (`1348945556722394`). Used for shopper Instagram OAuth (`/api/customer/instagram/auth`), and `FACEBOOK_APP_SECRET` validates incoming webhook signatures at `/webhooks/instagram` + `/webhooks/instagram-dm`.
+- `INSTAGRAM_APP_SECRET` — legacy fallback for webhook signature verification; used only if `FACEBOOK_APP_SECRET` is unset.
+- `INSTAGRAM_APP_ID` / `INSTAGRAM_REDIRECT_URI` — legacy, not referenced in code (former IG Basic Display).
 - `INSTAGRAM_WEBHOOK_VERIFY_TOKEN` — webhook GET handshake token (defaults to `spiral_verify_token`).
 - `SPIRAL_INSTAGRAM_ACCESS_TOKEN` — @joinspiral token (Meta Dashboard, non-expiring); used for @joinspiral page operations.
 - `SPIRAL_INSTAGRAM_BUSINESS_ID` — FB Page id for @joinspiral (`797294296809569`).
 - `SPIRAL_INTERNAL_KEY` — shared key for `/api/internal/*` + dashboard story-forward.
-- `FACEBOOK_APP_ID` / `FACEBOOK_APP_SECRET` — shopper Instagram OAuth (`/api/customer/instagram/auth`). Belonged to the deleted Spiral app (`1348945556722394`); inactive until a replacement app is configured.
-- `INSTAGRAM_APP_ID` / `INSTAGRAM_REDIRECT_URI` — legacy, not referenced in code (former IG Basic Display). Safe to ignore until shopper OAuth is re-enabled.
 - `APNS_*` (optional) — iOS push.
 
 ## Design Principles

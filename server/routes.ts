@@ -1328,7 +1328,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Verify webhook signature using raw body (captured in express.json verify callback)
       const signature = req.headers['x-hub-signature-256'] as string;
-      const appSecret = process.env.INSTAGRAM_APP_SECRET;
+      // Meta signs the payload with the secret of the app that owns the webhook
+      // subscription — the Spiral app (FACEBOOK_APP_ID). Fall back to the legacy
+      // INSTAGRAM_APP_SECRET only if FACEBOOK_APP_SECRET is unset.
+      const appSecret = process.env.FACEBOOK_APP_SECRET || process.env.INSTAGRAM_APP_SECRET;
       
       // If app secret is configured, signature is REQUIRED
       if (appSecret) {
@@ -1363,7 +1366,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         console.log('Instagram webhook signature verified successfully');
       } else {
-        console.warn('INSTAGRAM_APP_SECRET not configured - skipping signature verification (DEV MODE)');
+        console.warn('FACEBOOK_APP_SECRET/INSTAGRAM_APP_SECRET not configured - skipping signature verification (DEV MODE)');
       }
 
       const body = req.body;
@@ -3019,7 +3022,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Verify webhook signature using app secret
       const signature = req.headers['x-hub-signature-256'] as string;
-      const appSecret = process.env.INSTAGRAM_APP_SECRET;
+      // Meta signs the payload with the secret of the app that owns the webhook
+      // subscription — the Spiral app (FACEBOOK_APP_ID). Fall back to the legacy
+      // INSTAGRAM_APP_SECRET only if FACEBOOK_APP_SECRET is unset.
+      const appSecret = process.env.FACEBOOK_APP_SECRET || process.env.INSTAGRAM_APP_SECRET;
       
       if (appSecret) {
         if (!signature) {
@@ -3050,7 +3056,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         console.log('Instagram DM webhook signature verified');
       } else {
-        console.warn('INSTAGRAM_APP_SECRET not configured - skipping signature verification (DEV MODE)');
+        console.warn('FACEBOOK_APP_SECRET/INSTAGRAM_APP_SECRET not configured - skipping signature verification (DEV MODE)');
       }
 
       console.log('Instagram DM webhook received:', JSON.stringify(req.body, null, 2));
