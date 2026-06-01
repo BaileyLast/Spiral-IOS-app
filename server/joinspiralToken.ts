@@ -82,6 +82,45 @@ export async function getJoinspiralToken(): Promise<string | null> {
   return row.accessToken;
 }
 
+// True when a Meta/Instagram error payload indicates the access token itself is
+// bad (expired, revoked, malformed) — as opposed to a transient/network error.
+// Used by hot paths to trigger recovery without clobbering a good token on a
+// blip.
+export function isInstagramAuthError(
+  err?: { code?: number; type?: string; message?: string } | null,
+): boolean {
+  if (!err) return false;
+  if (err.code === 190) return true;
+  if (err.type === "OAuthException") return true;
+  const m = (err.message || "").toLowerCase();
+  return m.includes("access token") || m.includes("session has expired");
+}
+
+// Called when a live Instagram call rejects the token. Flags the stored token as
+// expired so getJoinspiralToken/refresh will re-seed from the env secret (if an
+// operator has supplied a fresh one) and immediately attempts recovery. This is
+// what closes the "revoked-but-not-yet-expired" gap — a token can go bad before
+// its expiry, and only an actual auth failure reveals it.
+export async function markJoinspiralTokenInvalid(reason?: string): Promise<void> {
+  try {
+    await db
+      .update(serviceTokens)
+      .set({ expiresAt: new Date(0), updatedAt: new Date() })
+      .where(eq(serviceTokens.name, TOKEN_NAME));
+    cachedToken = null;
+    console.warn(
+      `[JOINSPIRAL-TOKEN] Token rejected by Instagram${reason ? ` (${reason})` : ""}; flagged for reseed/refresh`,
+    );
+    // Attempt immediate recovery rather than waiting for the 12h cycle.
+    void refreshOnce();
+  } catch (err) {
+    console.error(
+      "[JOINSPIRAL-TOKEN] Failed to flag token invalid:",
+      err instanceof Error ? err.message : err,
+    );
+  }
+}
+
 async function refreshOnce(): Promise<void> {
   let row: ServiceToken | null;
   try {

@@ -8,7 +8,7 @@ import { storage } from "./storage";
 import { z } from "zod";
 import { insertStoreSettingsSchema, insertDiscountTierSchema, insertVerificationSchema, isOrderOwed, OWED_VERIFICATION_ANYDELIVERY, OWED_VERIFICATION_DELIVERED_ONLY, type StoreSettings, type SpiralCustomer } from "@shared/schema";
 import { fetchShopifyProducts, fetchShopifyCollections, fetchProductImages } from "./shopify";
-import { getJoinspiralToken } from "./joinspiralToken";
+import { getJoinspiralToken, markJoinspiralTokenInvalid, isInstagramAuthError } from "./joinspiralToken";
 import {
   getShopifyCredentials,
   getShopifyCredentialsForSettings,
@@ -3363,12 +3363,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           const graphUrl = `https://graph.instagram.com/v21.0/${userId}?fields=name,username,profile_pic&access_token=${pageToken}`;
           const graphRes = await fetch(graphUrl);
-          const graphData = await graphRes.json() as { name?: string; username?: string; profile_pic?: string; error?: { message: string } };
+          const graphData = await graphRes.json() as { name?: string; username?: string; profile_pic?: string; error?: { message: string; code?: number; type?: string } };
           if (!graphData.error) {
             username = graphData.username || graphData.name || '';
             profilePicFromGraph = graphData.profile_pic || '';
           } else {
             console.error(`Graph API error:`, graphData.error.message);
+            if (isInstagramAuthError(graphData.error)) {
+              void markJoinspiralTokenInvalid(`sender lookup: ${graphData.error.message}`);
+            }
           }
         } catch (graphErr) {
           console.error('Graph API fetch error:', graphErr);
@@ -4902,6 +4905,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           metaErrorMessage: errorData?.error?.message,
           fbtraceId: errorData?.error?.fbtrace_id,
         });
+        if (isInstagramAuthError(errorData?.error)) {
+          void markJoinspiralTokenInvalid(`DM send code=${errorData?.error?.code ?? response.status}`);
+        }
         return {
           ok: false,
           reason: "meta_error",

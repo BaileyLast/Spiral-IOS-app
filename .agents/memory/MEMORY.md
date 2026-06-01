@@ -1,2 +1,3 @@
 - [store_settings ghost rows](store-settings-ghost-rows.md) — single-tenant store_settings can have a blank-shop_domain ghost row; LIMIT 1 lookups must order non-blank first.
 - [Meta webhook app secret](meta-webhook-app-secret.md) — webhook signatures validate with FACEBOOK_APP_SECRET (Spiral app), not INSTAGRAM_APP_SECRET; verify app liveness via Graph token exchange before assuming deletion.
+- [@joinspiral token expiry](joinspiral-token-expiry.md) — IGAA token expires ~60d and can't be refreshed once expired (regenerate); code-190 "session expired" ≠ deleted app. App now self-heals via service_tokens.
