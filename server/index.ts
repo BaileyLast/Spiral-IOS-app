@@ -91,6 +91,13 @@ app.use((req, res, next) => {
     m.prewarmShopifyCredentials(),
   );
 
+  // Keep the @joinspiral Instagram token alive: seed it from the env secret and
+  // auto-refresh it before its ~60-day expiry so DM verification and story
+  // lookups never silently break.
+  void import("./joinspiralToken").then((m) =>
+    m.startJoinspiralTokenRefresh(),
+  );
+
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";

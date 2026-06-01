@@ -8,6 +8,7 @@ import { storage } from "./storage";
 import { z } from "zod";
 import { insertStoreSettingsSchema, insertDiscountTierSchema, insertVerificationSchema, isOrderOwed, OWED_VERIFICATION_ANYDELIVERY, OWED_VERIFICATION_DELIVERED_ONLY, type StoreSettings, type SpiralCustomer } from "@shared/schema";
 import { fetchShopifyProducts, fetchShopifyCollections, fetchProductImages } from "./shopify";
+import { getJoinspiralToken } from "./joinspiralToken";
 import {
   getShopifyCredentials,
   getShopifyCredentialsForSettings,
@@ -2820,7 +2821,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/resubscribe-webhooks", async (_req, res) => {
     try {
       const pageId = process.env.SPIRAL_INSTAGRAM_BUSINESS_ID;
-      const accessToken = process.env.SPIRAL_INSTAGRAM_ACCESS_TOKEN;
+      const accessToken = await getJoinspiralToken();
 
       if (!pageId || !accessToken) {
         return res.status(400).json({ error: "Missing SPIRAL_INSTAGRAM_BUSINESS_ID or SPIRAL_INSTAGRAM_ACCESS_TOKEN env vars" });
@@ -3357,7 +3358,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let username = '';
       let profilePicFromGraph = '';
 
-      const pageToken = process.env.SPIRAL_INSTAGRAM_ACCESS_TOKEN;
+      const pageToken = await getJoinspiralToken();
       if (pageToken) {
         try {
           const graphUrl = `https://graph.instagram.com/v21.0/${userId}?fields=name,username,profile_pic&access_token=${pageToken}`;
@@ -4859,7 +4860,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   async function sendInstagramDM(recipientId: string, message: string): Promise<InstagramDmResult> {
     let endpoint: string | undefined;
     try {
-      const accessToken = process.env.SPIRAL_INSTAGRAM_ACCESS_TOKEN;
+      const accessToken = await getJoinspiralToken();
 
       if (!accessToken) {
         console.error('[IG DM] Skipping send — missing access token');

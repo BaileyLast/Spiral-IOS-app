@@ -319,6 +319,22 @@ export const dashboardForwardQueue = pgTable("dashboard_forward_queue", {
   nextAttemptIdx: index("dashboard_forward_queue_next_attempt_idx").on(t.nextAttemptAt),
 }));
 
+// Global service tokens that the app must rotate at runtime. The @joinspiral
+// Instagram Login token (IGAA…) expires ~every 60 days, so we persist it here
+// — not just in an env secret — and a background job refreshes it and writes
+// the renewed value back. Seeded from SPIRAL_INSTAGRAM_ACCESS_TOKEN on first
+// boot; `expires_at` is null until the first successful refresh sets it.
+export const serviceTokens = pgTable("service_tokens", {
+  name: varchar("name").primaryKey(),
+  accessToken: text("access_token").notNull(),
+  expiresAt: timestamp("expires_at"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertServiceTokenSchema = createInsertSchema(serviceTokens).omit({ updatedAt: true });
+export type InsertServiceToken = z.infer<typeof insertServiceTokenSchema>;
+export type ServiceToken = typeof serviceTokens.$inferSelect;
+
 export const insertStoreSettingsSchema = createInsertSchema(storeSettings).omit({ id: true });
 export const insertDiscountTierSchema = createInsertSchema(discountTiers)
   .omit({ id: true })

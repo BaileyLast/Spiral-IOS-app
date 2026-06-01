@@ -29,6 +29,7 @@ Simple, everyday language. No emojis.
 - `orders` — Order tracking with discount + verification status. Keeps IG identity columns so deletion-safe lookups still work.
 - `merchant_scoped_user_map` — Caches scoped IG sender id → customer (positive AND negative cache; see Story Verification).
 - `spiral_codes` — DM-based IG verification codes.
+- `service_tokens` — Runtime-rotatable service tokens (key `joinspiral` holds the @joinspiral Instagram Login token + `expires_at`). Seeded from `SPIRAL_INSTAGRAM_ACCESS_TOKEN`, then auto-refreshed (see "@joinspiral Token Auto-Refresh").
 
 ## Pages
 
@@ -127,6 +128,13 @@ Every story_mention received at `/webhooks/instagram-dm` is forwarded fire-and-f
 - **Spiral app** (ID `1348945556722394`, name "Spiral") — Business type, "Facebook Login for Business". Owns shopper OAuth, the Instagram webhook, and @joinspiral token generation. Webhook lives at `/webhooks/instagram-dm` (verify token `spiral_verify_token`); `story_mention` events arrive here, we verify the matching order, and forward each event to the dashboard (see "Dashboard story-mention forward").
 - Incoming webhook signatures are validated with **this app's secret, stored as `FACEBOOK_APP_SECRET`**. The handlers prefer `FACEBOOK_APP_SECRET` and fall back to the legacy `INSTAGRAM_APP_SECRET` only if it is unset. If neither is set, signature checks are skipped (dev only); a wrong secret rejects real webhooks with 403.
 
+### @joinspiral Token Auto-Refresh
+- The @joinspiral Instagram Login token (`IGAA…`) is **long-lived but NOT permanent** — it expires ~60 days after issue and must be refreshed before then, or DM code verification and story-sender lookups silently break.
+- The token is stored in the `service_tokens` table (key `joinspiral`), not just the env secret, so the app can rotate it at runtime (an env secret can't be rewritten by the running process).
+- Helper `server/joinspiralToken.ts`: `getJoinspiralToken()` reads DB-first with a 60s in-memory cache, seeds from `SPIRAL_INSTAGRAM_ACCESS_TOKEN` on first boot, and re-seeds from the env var if the stored token is expired/unknown and the env value differs (operator recovery path). `startJoinspiralTokenRefresh()` runs at boot from `server/index.ts` and every 12h: it calls `graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token` when the token is within 10 days of expiry (or expiry is unknown) and writes the new token + `expires_at` back to the DB.
+- All token reads go through `getJoinspiralToken()` (`/api/admin/resubscribe-webhooks`, story-sender lookup, `sendInstagramDM`). No code reads the env var directly anymore.
+- **Recovery if it ever fully lapses** (app offline > ~60 days): generate a fresh @joinspiral token in the Meta dashboard, update the `SPIRAL_INSTAGRAM_ACCESS_TOKEN` secret, and restart — the helper re-seeds from the new env value. Instagram refuses to refresh a token younger than 24h; that case is logged as benign and resolves on a later run.
+
 ## Order Lifecycle
 
 1. **Ordered** — placed, awaiting fulfillment.
@@ -184,7 +192,7 @@ All order/Story progress is shown live in the app. The five outbound DMs that us
 - `INSTAGRAM_APP_SECRET` — legacy fallback for webhook signature verification; used only if `FACEBOOK_APP_SECRET` is unset.
 - `INSTAGRAM_APP_ID` / `INSTAGRAM_REDIRECT_URI` — legacy, not referenced in code (former IG Basic Display).
 - `INSTAGRAM_WEBHOOK_VERIFY_TOKEN` — webhook GET handshake token (defaults to `spiral_verify_token`).
-- `SPIRAL_INSTAGRAM_ACCESS_TOKEN` — @joinspiral token (Meta Dashboard, non-expiring); used for @joinspiral page operations.
+- `SPIRAL_INSTAGRAM_ACCESS_TOKEN` — @joinspiral Instagram Login token (`IGAA…`), generated in the Meta Dashboard. **Long-lived (~60 days), NOT permanent.** Used as the seed for the `service_tokens` store; once seeded, the app auto-refreshes it (see "@joinspiral Token Auto-Refresh"). Update this secret only to recover from a fully-lapsed token.
 - `SPIRAL_INSTAGRAM_BUSINESS_ID` — FB Page id for @joinspiral (`797294296809569`).
 - `SPIRAL_INTERNAL_KEY` — shared key for `/api/internal/*` + dashboard story-forward.
 - `APNS_*` (optional) — iOS push.
