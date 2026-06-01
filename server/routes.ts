@@ -13,6 +13,7 @@ import {
   getShopifyCredentials,
   getShopifyCredentialsForSettings,
 } from "./shopifyCredentials";
+import { uploadStoryMedia, classifyMedia, isS3Configured, sniffContentType, isGenericContentType } from "./s3";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -2897,7 +2898,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     | { ok: true }
     | { ok: false; reason: string; statusCode: number | null; retriable: boolean };
 
-  async function attemptDashboardForward(payload: { messaging: any[]; shopDomain?: string; instagramBusinessAccountId?: string }): Promise<ForwardAttemptResult> {
+  async function attemptDashboardForward(payload: { messaging: any[]; shopDomain?: string; instagramBusinessAccountId?: string; storyImageUrl?: string }): Promise<ForwardAttemptResult> {
     const internalKey = process.env.SPIRAL_INTERNAL_KEY;
     if (!internalKey) {
       if (!storyForwardKeyMissingWarned) {
@@ -2938,15 +2939,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   async function forwardStoryMentionToDashboard(
     messaging: any[],
     merchant?: { shopDomain?: string | null; instagramBusinessAccountId?: string | null },
+    storyImageUrl?: string | null,
   ): Promise<void> {
     // Include the matched merchant's stable identifiers so the dashboard can map
     // the Story to the right merchant without converting between Instagram's
     // app-scoped id (what the dashboard stores) and the webhook/global id (what
     // arrives in entry.id). shopDomain is the primary key; the business id is a
     // secondary fallback. Omit blank values rather than forward empty strings.
-    const payload: { messaging: any[]; shopDomain?: string; instagramBusinessAccountId?: string } = { messaging };
+    //
+    // storyImageUrl, when present, is the PERMANENT S3 link to the captured Story
+    // media (image or video — the .jpg/.mp4 extension distinguishes them). The
+    // dashboard stores it as-is and ignores the ephemeral link inside `messaging`.
+    // When media capture/upload couldn't run (S3 unconfigured or download failed)
+    // we omit it and the dashboard falls back to its existing behaviour.
+    const payload: { messaging: any[]; shopDomain?: string; instagramBusinessAccountId?: string; storyImageUrl?: string } = { messaging };
     if (merchant?.shopDomain) payload.shopDomain = merchant.shopDomain;
     if (merchant?.instagramBusinessAccountId) payload.instagramBusinessAccountId = merchant.instagramBusinessAccountId;
+    if (storyImageUrl) payload.storyImageUrl = storyImageUrl;
     const result = await attemptDashboardForward(payload);
     if (result.ok) {
       console.log(`[STORY-FORWARD] Forwarded ${messaging.length} event(s) to merchant dashboard`);
@@ -3009,7 +3018,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await storage.deleteDashboardForward(row.id);
           continue;
         }
-        const payload = row.payload as { messaging: any[]; shopDomain?: string; instagramBusinessAccountId?: string };
+        const payload = row.payload as { messaging: any[]; shopDomain?: string; instagramBusinessAccountId?: string; storyImageUrl?: string };
         const result = await attemptDashboardForward(payload);
         if (result.ok) {
           console.log(`[STORY-FORWARD] Retry succeeded for ${row.id} on attempt ${row.attempts + 1}`);
@@ -3361,6 +3370,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // can tell the dashboard which connected merchant the Story belongs to.
             let matchedShopDomain: string | null = null;
             let matchedMerchantBizId: string | null = null;
+            // Context for the media capture (download → S3 → permanent link). One
+            // story_mention per entry is the norm; the first one captured wins.
+            let storyMediaCtx: { globalUserId: string | null; webhookUrl: string; webhookReceivedAt: Date; verificationId: string | null } | null = null;
             console.log(`[STORY-DIAG] dm-webhook entry.id=${entry.id} entryKeys=${Object.keys(entry).join('|')} hasMessaging=${!!entry.messaging} hasChanges=${!!(entry as any).changes}`);
             if ((entry as any).changes) {
               try { console.log(`[STORY-DIAG] dm-webhook changes=${JSON.stringify((entry as any).changes).slice(0, 600)}`); } catch {}
@@ -3403,6 +3415,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       if (result.merchantInstagramBusinessId && !matchedMerchantBizId) {
                         matchedMerchantBizId = result.merchantInstagramBusinessId;
                       }
+                      // Capture context for the media pipeline (first story wins).
+                      // globalUserId drives the canonical media lookup; webhookUrl
+                      // is the fallback source; verificationId is where we persist
+                      // the permanent link. Set even when unresolved so we can still
+                      // download+upload the webhook media for spontaneous tags.
+                      if (!storyMediaCtx) {
+                        storyMediaCtx = {
+                          globalUserId: result.resolved ? (result.instagramUserId ?? null) : null,
+                          webhookUrl: storyUrl,
+                          webhookReceivedAt: new Date(),
+                          verificationId: result.resolved ? (result.verificationId ?? null) : null,
+                        };
+                      }
                     } catch (resolveErr) {
                       // Resolution failure must NEVER block the forward. The
                       // dashboard still gets the raw entry (without the
@@ -3425,10 +3450,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 const igUserId = senderScopedId ? resolvedBySender.get(senderScopedId) : undefined;
                 return igUserId ? { ...event, instagramUserId: igUserId } : event;
               });
-              void forwardStoryMentionToDashboard(annotated, {
+              const merchantForForward = {
                 shopDomain: matchedShopDomain,
                 instagramBusinessAccountId: matchedMerchantBizId,
-              });
+              };
+              // Capture the Story media (download → S3) and forward the permanent
+              // link. Fire-and-forget so the 200 ack to Meta is never blocked.
+              // Falls back to forwarding without a permanent link if capture can't
+              // run (no context, S3 unconfigured, or download/upload failure).
+              if (storyMediaCtx) {
+                void captureStoryMediaAndForward(annotated, merchantForForward, storyMediaCtx);
+              } else {
+                void forwardStoryMentionToDashboard(annotated, merchantForForward);
+              }
             }
           }
         }
@@ -3564,7 +3598,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // — the merchant dashboard uses this to match Stories to its verification
   // records without re-hitting the Graph API.
   type StoryMentionResolution =
-    | { resolved: true; instagramUserId: string | null; merchantShopDomain?: string | null; merchantInstagramBusinessId?: string | null }
+    | { resolved: true; instagramUserId: string | null; verificationId?: string | null; merchantShopDomain?: string | null; merchantInstagramBusinessId?: string | null }
     | { resolved: false; merchantShopDomain?: string | null; merchantInstagramBusinessId?: string | null };
 
   async function handleStoryMentionWebhook(merchantInstagramId: string, senderScopedId: string, storyUrl: string): Promise<StoryMentionResolution> {
@@ -3811,7 +3845,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // No DM — shopper will see status in-app; we don't spam non-customers either.
         // Still treat as resolved so the merchant dashboard can attribute the Story
         // to this shopper even when no Spiral order is owed (e.g. spontaneous tag).
-        return { resolved: true, instagramUserId: customerObj?.instagramGlobalUserId ?? null, ...merchantAttribution };
+        return { resolved: true, instagramUserId: customerObj?.instagramGlobalUserId ?? null, verificationId: null, ...merchantAttribution };
       }
 
       // Step 4: Verify the most recent pending order
@@ -3880,7 +3914,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`Story mention: Order ${orderToVerify.id} marked AWAITING_REVIEW; quick publicity check scheduled`);
 
       // No DM — shopper sees "Story received — confirming" status live in-app.
-      return { resolved: true, instagramUserId: customerObj?.instagramGlobalUserId ?? null, ...merchantAttribution };
+      return { resolved: true, instagramUserId: customerObj?.instagramGlobalUserId ?? null, verificationId, ...merchantAttribution };
     } catch (error) {
       console.error('Error handling story mention:', error);
       return { resolved: false };
@@ -4025,6 +4059,202 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (Number.isFinite(d)) return Math.floor(d / 1000);
     }
     return null;
+  }
+
+  // ============================================
+  // Story media capture (image OR video) → S3
+  // ============================================
+  // When a shopper posts a Story tagging the merchant, Instagram's media URL is
+  // short-lived. This app owns the media pipeline: while the Story is live we
+  // download the real media (photo or video) and upload a permanent copy to the
+  // shared S3 bucket, then forward only the permanent link to the dashboard.
+
+  const STORY_MEDIA_TAKEN_AT_TOLERANCE_SEC = 30 * 60; // 30 min wiggle vs webhook time
+  const STORY_MEDIA_DOWNLOAD_TIMEOUT_MS = 15 * 1000;
+  const STORY_MEDIA_MAX_BYTES = 60 * 1024 * 1024; // 60 MB guard (videos)
+
+  interface ResolvedStoryMedia {
+    mediaUrl: string;
+    mediaType: 'image' | 'video';
+  }
+
+  // Pull the best downloadable media URL + type out of a single story item.
+  // media_type: 1 = image, 2 = video. Video items still carry an image cover, so
+  // prefer the video stream when present.
+  function extractMediaFromStoryItem(item: Record<string, unknown>): ResolvedStoryMedia | null {
+    const videoVersions = item.video_versions;
+    if (Array.isArray(videoVersions) && videoVersions.length > 0) {
+      const first = videoVersions[0] as Record<string, unknown>;
+      const url = typeof first?.url === 'string' ? first.url : null;
+      if (url) return { mediaUrl: url, mediaType: 'video' };
+    }
+    const iv2 = item.image_versions2 as Record<string, unknown> | undefined;
+    const candidates = iv2?.candidates;
+    if (Array.isArray(candidates) && candidates.length > 0) {
+      const first = candidates[0] as Record<string, unknown>;
+      const url = typeof first?.url === 'string' ? first.url : null;
+      if (url) return { mediaUrl: url, mediaType: 'image' };
+    }
+    return null;
+  }
+
+  // Reuse the RapidAPI stories listing (same source as the publicity check) to
+  // resolve the canonical media for a just-posted Story. Indexed by GLOBAL IG id.
+  // Picks the story item closest to the webhook time within tolerance. Returns
+  // null on any failure so the caller falls back to Instagram's webhook URL.
+  async function resolveStoryMediaForUpload(
+    instagramGlobalUserId: string | null,
+    webhookReceivedAt: Date,
+  ): Promise<ResolvedStoryMedia | null> {
+    const rapidApiKey = process.env.RAPIDAPI_KEY;
+    const lookupUserId = instagramGlobalUserId && instagramGlobalUserId.trim();
+    if (!rapidApiKey || !lookupUserId) return null;
+    const host = 'instagram-api-fast-reliable-data-scraper.p.rapidapi.com';
+    try {
+      const listUrl = `https://${host}/stories?user_id=${encodeURIComponent(lookupUserId)}`;
+      const listRes = await fetch(listUrl, {
+        method: 'GET',
+        headers: { 'x-rapidapi-key': rapidApiKey, 'x-rapidapi-host': host },
+      });
+      if (!listRes.ok) return null;
+      const items = extractStoryItems(await listRes.json());
+      if (!items || items.length === 0) return null;
+
+      const webhookSec = Math.floor(webhookReceivedAt.getTime() / 1000);
+      // Prefer the in-window story closest to the webhook time; if none fall in
+      // the window, use the most recent item as a best effort.
+      let best: { item: Record<string, unknown>; distance: number } | null = null;
+      let newest: { item: Record<string, unknown>; taken: number } | null = null;
+      for (const it of items) {
+        const taken = extractTakenAtSec(it);
+        if (taken === null) continue;
+        if (!newest || taken > newest.taken) newest = { item: it, taken };
+        const distance = Math.abs(taken - webhookSec);
+        if (distance <= STORY_MEDIA_TAKEN_AT_TOLERANCE_SEC && (!best || distance < best.distance)) {
+          best = { item: it, distance };
+        }
+      }
+      const chosen = best?.item ?? newest?.item ?? items[0];
+      return extractMediaFromStoryItem(chosen);
+    } catch (err) {
+      console.warn(`[STORY-MEDIA] stories lookup failed: ${err instanceof Error ? err.message : String(err)}`);
+      return null;
+    }
+  }
+
+  // Download media from a (short-lived) URL. Aborts on timeout and rejects
+  // oversized payloads. Returns the bytes plus the server-reported content type.
+  async function downloadStoryMedia(url: string): Promise<{ buffer: Buffer; contentType: string | null } | null> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), STORY_MEDIA_DOWNLOAD_TIMEOUT_MS);
+    try {
+      // SSRF guard. The source URL comes from webhook/RapidAPI data, so validate
+      // it (protocol + private-IP rejection) before fetching, and re-validate
+      // every redirect hop so a 30x can't bounce us to an internal address.
+      let currentUrl = url;
+      let res: Response | null = null;
+      for (let hop = 0; hop < 4; hop++) {
+        if (!(await isSafeProbeUrl(currentUrl))) {
+          console.warn('[STORY-MEDIA] download blocked: URL failed SSRF safety check');
+          return null;
+        }
+        res = await fetch(currentUrl, { signal: controller.signal, redirect: 'manual' });
+        if (res.status >= 300 && res.status < 400) {
+          const location = res.headers.get('location');
+          if (!location) {
+            console.warn('[STORY-MEDIA] download failed: redirect without location');
+            return null;
+          }
+          currentUrl = new URL(location, currentUrl).toString();
+          continue;
+        }
+        break;
+      }
+      if (!res) {
+        console.warn('[STORY-MEDIA] download failed: too many redirects');
+        return null;
+      }
+      if (!res.ok) {
+        console.warn(`[STORY-MEDIA] download failed: HTTP ${res.status}`);
+        return null;
+      }
+      const contentType = res.headers.get('content-type');
+      const lenHeader = res.headers.get('content-length');
+      if (lenHeader && Number(lenHeader) > STORY_MEDIA_MAX_BYTES) {
+        console.warn(`[STORY-MEDIA] download skipped: content-length ${lenHeader} exceeds cap`);
+        return null;
+      }
+      const arrayBuf = await res.arrayBuffer();
+      if (arrayBuf.byteLength > STORY_MEDIA_MAX_BYTES) {
+        console.warn(`[STORY-MEDIA] download skipped: ${arrayBuf.byteLength} bytes exceeds cap`);
+        return null;
+      }
+      return { buffer: Buffer.from(arrayBuf), contentType };
+    } catch (err) {
+      console.warn(`[STORY-MEDIA] download error: ${err instanceof Error ? err.message : String(err)}`);
+      return null;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  // Orchestrates the full capture: resolve canonical media (fallback to webhook
+  // URL) → download → upload to S3 → persist on the verification → forward to the
+  // dashboard with the permanent link. Fire-and-forget; never throws. If S3 is
+  // unconfigured or any step fails, the forward still goes out without
+  // storyImageUrl (the raw entry still carries Instagram's link as before).
+  async function captureStoryMediaAndForward(
+    annotated: any[],
+    merchant: { shopDomain?: string | null; instagramBusinessAccountId?: string | null },
+    ctx: { globalUserId: string | null; webhookUrl: string; webhookReceivedAt: Date; verificationId: string | null },
+  ): Promise<void> {
+    let permanentUrl: string | null = null;
+    let mediaTypeForRecord: 'image' | 'video' = 'image';
+    try {
+      if (!isS3Configured()) {
+        // Skip the extra RapidAPI/download work when we can't store anything.
+        console.warn('[STORY-MEDIA] S3 not configured — forwarding Story without permanent link');
+      } else {
+        const resolved = await resolveStoryMediaForUpload(ctx.globalUserId, ctx.webhookReceivedAt);
+        const sourceUrl = resolved?.mediaUrl || ctx.webhookUrl;
+        if (!sourceUrl) {
+          console.warn('[STORY-MEDIA] no media URL available (no resolved media and no webhook URL)');
+        } else {
+          const downloaded = await downloadStoryMedia(sourceUrl);
+          if (downloaded) {
+            // Decide the real media type in priority order:
+            //   1. The HTTP content type, when it's specific (not octet-stream).
+            //   2. Magic-byte sniffing of the downloaded bytes (catches the case
+            //      where Instagram serves video as application/octet-stream — a
+            //      header content type alone would misclassify it as a photo).
+            //   3. The resolved media_type hint from the stories listing.
+            const hintContentType = resolved?.mediaType === 'video' ? 'video/mp4' : undefined;
+            const effectiveContentType = !isGenericContentType(downloaded.contentType)
+              ? downloaded.contentType
+              : (sniffContentType(downloaded.buffer) || hintContentType);
+            const { mediaType, ext, contentType } = classifyMedia(effectiveContentType);
+            mediaTypeForRecord = mediaType;
+            permanentUrl = await uploadStoryMedia(downloaded.buffer, contentType, ext);
+            if (permanentUrl) {
+              console.log(`[STORY-MEDIA] Uploaded ${mediaType} to ${permanentUrl}`);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error(`[STORY-MEDIA] capture/upload failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    // Persist the permanent link on the verification record (best effort).
+    if (permanentUrl && ctx.verificationId) {
+      try {
+        await storage.setVerificationStoryMedia(ctx.verificationId, permanentUrl, mediaTypeForRecord);
+      } catch (err) {
+        console.error(`[STORY-MEDIA] failed to persist media on verification ${ctx.verificationId}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    await forwardStoryMentionToDashboard(annotated, merchant, permanentUrl);
   }
 
   let publicityCheckBusy = false;

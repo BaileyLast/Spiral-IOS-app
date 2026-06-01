@@ -63,6 +63,13 @@ export const verifications = pgTable("verifications", {
   status: text("status").notNull().default("pending"),
   storyMediaId: text("story_media_id"),
   storyUrl: text("story_url"),
+  // Permanent S3 URL of the captured Story media (image or video). Set after we
+  // download Instagram's short-lived media and upload it to our bucket. Unlike
+  // storyUrl (the ephemeral Instagram CDN link), this never expires.
+  storyMediaUrl: text("story_media_url"),
+  // "image" | "video" — distinguishes the captured media so consumers can render
+  // the right element. Derived from the uploaded file's content type.
+  storyMediaType: text("story_media_type"),
   storyDetectedAt: timestamp("story_detected_at"),
   verifiedAt: timestamp("verified_at"),
   webhookTimestamp: timestamp("webhook_timestamp"),

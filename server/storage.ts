@@ -62,6 +62,7 @@ export interface IStorage {
   getVerificationByInstagramUserId(instagramUserId: string, orderId: string): Promise<Verification | undefined>;
   getPendingVerificationsForCheck(): Promise<Verification[]>;
   markStoryDetected(verificationId: string, storyMediaId: string, storyUrl: string, senderScopedId?: string): Promise<Verification>;
+  setVerificationStoryMedia(verificationId: string, storyMediaUrl: string, storyMediaType: string): Promise<Verification | undefined>;
   markVerified(verificationId: string): Promise<Verification>;
   markStoryDetectedAndVerified(verificationId: string, storyUrl: string, senderScopedId: string): Promise<Verification>;
   // Orders
@@ -432,6 +433,15 @@ export class DatabaseStorage implements IStorage {
       .where(eq(verifications.id, verificationId))
       .returning();
     
+    return updated;
+  }
+
+  async setVerificationStoryMedia(verificationId: string, storyMediaUrl: string, storyMediaType: string): Promise<Verification | undefined> {
+    const [updated] = await db
+      .update(verifications)
+      .set({ storyMediaUrl, storyMediaType })
+      .where(eq(verifications.id, verificationId))
+      .returning();
     return updated;
   }
 
