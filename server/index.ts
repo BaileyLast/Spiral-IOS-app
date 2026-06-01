@@ -116,6 +116,6 @@ app.use((req, res, next) => {
   server.listen(PORT, "0.0.0.0", () => {
     console.log("Listening on", PORT);
     console.log("ENV PORT:", process.env.PORT);
-    console.log("[BOOT] build-marker=welcome-dm-fix-v2 (sendInstagramDM moved before side-effects, graph.facebook.com endpoint, structured Meta error logging)");
+    console.log("[BOOT] build-marker=story-merchant-dualid-fallback-v1 (single-tenant fallback for Instagram Login dual-id: story merchant check + getStoreSettingsByInstagramBusinessId)");
   });
 })();

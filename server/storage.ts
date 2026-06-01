@@ -45,6 +45,7 @@ import { randomBytes } from "crypto";
 
 export interface IStorage {
   getStoreSettings(): Promise<StoreSettings | undefined>;
+  getAllStoreSettings(): Promise<StoreSettings[]>;
   updateStoreSettings(settings: InsertStoreSettings): Promise<StoreSettings>;
   updateSpiralSettings(settings: Partial<InsertStoreSettings>): Promise<StoreSettings>;
   upsertStoreSettingsByDomain(shopDomain: string, patch: Partial<InsertStoreSettings>): Promise<StoreSettings>;
@@ -215,6 +216,10 @@ export class DatabaseStorage implements IStorage {
       )
       .limit(1);
     return settings || undefined;
+  }
+
+  async getAllStoreSettings(): Promise<StoreSettings[]> {
+    return db.select().from(storeSettings).orderBy(asc(storeSettings.id));
   }
 
   async updateStoreSettings(settings: InsertStoreSettings): Promise<StoreSettings> {
@@ -907,7 +912,22 @@ export class DatabaseStorage implements IStorage {
         asc(storeSettings.id),
       )
       .limit(1);
-    return row || undefined;
+    if (row) return row;
+
+    // Single-tenant fallback: Instagram Login delivers a different id in
+    // webhooks/dashboard calls (user_id, e.g. 17841…) than the app-scoped id
+    // (e.g. 27618…) the store may be registered under. We are single-tenant
+    // today, so if the id doesn't match but exactly one real store is
+    // connected (non-blank shop_domain), return it rather than 404'ing the
+    // dashboard's identity/resolve + soft-ban calls.
+    // TODO(multi-tenant): require an exact id match here.
+    const realStores = await db
+      .select()
+      .from(storeSettings)
+      .where(sql`${storeSettings.shopDomain} is not null and ${storeSettings.shopDomain} <> ''`)
+      .orderBy(asc(storeSettings.id));
+    if (realStores.length === 1) return realStores[0];
+    return undefined;
   }
 
   async getVerificationsByInstagramIdentity(identity: {

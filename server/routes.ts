@@ -3700,14 +3700,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateStoreLastWebhookReceived(settings.id);
 
       // Check if the merchant IG ID matches our store's connected Instagram.
-      // Instagram Login can surface the merchant under either the IG business
-      // account id or the IG-scoped page id, so accept either.
+      // Instagram Login surfaces TWO ids for one account: the app-scoped `id`
+      // (e.g. 27618…, what the dashboard may register) and the `user_id`
+      // (e.g. 17841…) that Instagram actually puts in webhook entry.id. If the
+      // store was registered under the app-scoped id, story webhooks arrive
+      // under the user_id and never match — silently killing every verification.
+      // We are single-tenant today (getStoreSettings returns the one connected
+      // store), so rather than drop the story, accept it for that store and log
+      // loudly. TODO(multi-tenant): look the merchant up by webhook id instead
+      // of relying on the single connected store.
       const merchantMatches =
         merchantInstagramId === settings.instagramBusinessAccountId ||
         merchantInstagramId === settings.instagramPageId;
       if (!merchantMatches) {
-        console.log(`Story mention: Merchant IG ${merchantInstagramId} does not match store IG biz=${settings.instagramBusinessAccountId} page=${settings.instagramPageId}`);
-        return { resolved: false };
+        // Guard the fallback: only the genuine dual-id case (the webhook id is
+        // recorded on NO store row) may pass. A story tagging a DIFFERENT known
+        // account — e.g. @joinspiral, which has its own store_settings row — must
+        // never verify this merchant's orders (that would be a verification
+        // bypass), so reject when the id belongs to any other store row.
+        const allStores = await storage.getAllStoreSettings();
+        const belongsToOtherAccount = allStores.some(s =>
+          s.id !== settings.id &&
+          (merchantInstagramId === s.instagramBusinessAccountId ||
+           merchantInstagramId === s.instagramPageId));
+        if (belongsToOtherAccount) {
+          console.log(`Story mention: merchant ${merchantInstagramId} belongs to a different connected account, not ${settings.id}; ignoring`);
+          return { resolved: false };
+        }
+        console.warn(`[STORY-MERCHANT] webhook merchant ${merchantInstagramId} != stored biz=${settings.instagramBusinessAccountId}/page=${settings.instagramPageId} and matches no other store; accepting for single connected store ${settings.id} (Instagram Login dual-id)`);
       }
 
       // Resolve sender via the shared identity helper (single source of truth
