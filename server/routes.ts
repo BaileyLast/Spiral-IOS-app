@@ -1327,45 +1327,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Webhook endpoint for receiving story mention notifications
   app.post("/webhooks/instagram", async (req, res) => {
     try {
-      // Verify webhook signature using raw body (captured in express.json verify callback)
-      const signature = req.headers['x-hub-signature-256'] as string;
+      // Verify webhook signature using raw body (captured in express.json verify callback).
       // Meta signs the payload with the secret of the app that owns the webhook
-      // subscription — the Spiral app (FACEBOOK_APP_ID). Fall back to the legacy
-      // INSTAGRAM_APP_SECRET only if FACEBOOK_APP_SECRET is unset.
-      const appSecret = process.env.FACEBOOK_APP_SECRET || process.env.INSTAGRAM_APP_SECRET;
-      
-      // If app secret is configured, signature is REQUIRED
-      if (appSecret) {
+      // subscription. The signing secret can be EITHER the top-level Spiral app
+      // secret (FACEBOOK_APP_SECRET) or the nested Instagram app secret
+      // (INSTAGRAM_APP_SECRET) depending on how the Instagram product webhook is
+      // wired — so we accept a match against either and log which one matched
+      // (label only, never the value). If neither matches, the configured prod
+      // secret value(s) are stale and must be re-copied from the Meta dashboard.
+      const signature = req.headers['x-hub-signature-256'] as string;
+      const candidateSecrets: { label: string; value: string }[] = [];
+      if (process.env.FACEBOOK_APP_SECRET) {
+        candidateSecrets.push({ label: 'FACEBOOK_APP_SECRET', value: process.env.FACEBOOK_APP_SECRET });
+      }
+      if (process.env.INSTAGRAM_APP_SECRET) {
+        candidateSecrets.push({ label: 'INSTAGRAM_APP_SECRET', value: process.env.INSTAGRAM_APP_SECRET });
+      }
+
+      // If an app secret is configured, signature is REQUIRED
+      if (candidateSecrets.length > 0) {
         if (!signature) {
           console.error('Instagram webhook missing required signature header');
           return res.status(403).json({ error: 'Missing signature' });
         }
-        
+
         const rawBody = (req as any).rawBody;
-        
+
         if (!rawBody) {
           console.error('Raw body not available for signature verification');
           return res.status(500).json({ error: 'Server configuration error' });
         }
-        
-        const expectedSignature = 'sha256=' + crypto
-          .createHmac('sha256', appSecret)
-          .update(rawBody)
-          .digest('hex');
-        
-        // Timing-safe comparison
+
         const signatureBuffer = Buffer.from(signature, 'utf8');
-        const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
-        
-        if (signatureBuffer.length !== expectedBuffer.length || 
-            !crypto.timingSafeEqual(signatureBuffer, expectedBuffer)) {
-          console.error('Invalid Instagram webhook signature');
-          console.error('  Received:', signature.substring(0, 30) + '...');
-          console.error('  Expected:', expectedSignature.substring(0, 30) + '...');
+        let matchedLabel: string | null = null;
+        for (const secret of candidateSecrets) {
+          const expectedSignature = 'sha256=' + crypto
+            .createHmac('sha256', secret.value)
+            .update(rawBody)
+            .digest('hex');
+          const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
+          if (signatureBuffer.length === expectedBuffer.length &&
+              crypto.timingSafeEqual(signatureBuffer, expectedBuffer)) {
+            matchedLabel = secret.label;
+            break;
+          }
+        }
+
+        if (!matchedLabel) {
+          console.error(`Invalid Instagram webhook signature (tried ${candidateSecrets.map(s => s.label).join(', ')} — none matched; prod secret value(s) likely stale)`);
           return res.status(403).json({ error: 'Invalid signature' });
         }
-        
-        console.log('Instagram webhook signature verified successfully');
+
+        console.log(`Instagram webhook signature verified using ${matchedLabel}`);
       } else {
         console.warn('FACEBOOK_APP_SECRET/INSTAGRAM_APP_SECRET not configured - skipping signature verification (DEV MODE)');
       }
@@ -3021,41 +3034,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Webhook endpoint for receiving DMs to @joinspiral
   app.post("/webhooks/instagram-dm", async (req, res) => {
     try {
-      // Verify webhook signature using app secret
-      const signature = req.headers['x-hub-signature-256'] as string;
+      // Verify webhook signature using app secret.
       // Meta signs the payload with the secret of the app that owns the webhook
-      // subscription — the Spiral app (FACEBOOK_APP_ID). Fall back to the legacy
-      // INSTAGRAM_APP_SECRET only if FACEBOOK_APP_SECRET is unset.
-      const appSecret = process.env.FACEBOOK_APP_SECRET || process.env.INSTAGRAM_APP_SECRET;
-      
-      if (appSecret) {
+      // subscription. For this Meta app the signing secret can be EITHER the
+      // top-level Spiral app secret (FACEBOOK_APP_SECRET) or the nested
+      // Instagram app secret (INSTAGRAM_APP_SECRET) depending on how the
+      // Instagram product webhook is wired — so we accept a match against
+      // either. We log which secret matched (label only, never the value) so a
+      // mismatch is diagnosable; if neither matches, the configured prod secret
+      // values are stale and must be re-copied from the Meta dashboard.
+      const signature = req.headers['x-hub-signature-256'] as string;
+      const candidateSecrets: { label: string; value: string }[] = [];
+      if (process.env.FACEBOOK_APP_SECRET) {
+        candidateSecrets.push({ label: 'FACEBOOK_APP_SECRET', value: process.env.FACEBOOK_APP_SECRET });
+      }
+      if (process.env.INSTAGRAM_APP_SECRET) {
+        candidateSecrets.push({ label: 'INSTAGRAM_APP_SECRET', value: process.env.INSTAGRAM_APP_SECRET });
+      }
+
+      if (candidateSecrets.length > 0) {
         if (!signature) {
           console.error('Instagram DM webhook missing required signature header');
           return res.status(403).json({ error: 'Missing signature' });
         }
-        
+
         const rawBody = (req as any).rawBody;
-        
+
         if (!rawBody) {
           console.error('Raw body not available for signature verification');
           return res.status(500).json({ error: 'Server configuration error' });
         }
-        
-        const expectedSignature = 'sha256=' + crypto
-          .createHmac('sha256', appSecret)
-          .update(rawBody)
-          .digest('hex');
-        
+
         const signatureBuffer = Buffer.from(signature, 'utf8');
-        const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
-        
-        if (signatureBuffer.length !== expectedBuffer.length || 
-            !crypto.timingSafeEqual(signatureBuffer, expectedBuffer)) {
-          console.error('Invalid Instagram DM webhook signature');
+        let matchedLabel: string | null = null;
+        for (const secret of candidateSecrets) {
+          const expectedSignature = 'sha256=' + crypto
+            .createHmac('sha256', secret.value)
+            .update(rawBody)
+            .digest('hex');
+          const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
+          if (signatureBuffer.length === expectedBuffer.length &&
+              crypto.timingSafeEqual(signatureBuffer, expectedBuffer)) {
+            matchedLabel = secret.label;
+            break;
+          }
+        }
+
+        if (!matchedLabel) {
+          console.error(`Invalid Instagram DM webhook signature (tried ${candidateSecrets.map(s => s.label).join(', ')} — none matched; prod secret value(s) likely stale)`);
           return res.status(403).json({ error: 'Invalid signature' });
         }
-        
-        console.log('Instagram DM webhook signature verified');
+
+        console.log(`Instagram DM webhook signature verified using ${matchedLabel}`);
       } else {
         console.warn('FACEBOOK_APP_SECRET/INSTAGRAM_APP_SECRET not configured - skipping signature verification (DEV MODE)');
       }

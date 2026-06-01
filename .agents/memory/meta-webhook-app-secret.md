@@ -5,21 +5,30 @@ description: Which secret validates incoming Instagram/Meta webhook signatures, 
 
 # Meta webhook signature secret
 
-Incoming Instagram/Meta webhook signatures (`x-hub-signature-256`) must be HMAC-validated
-with the App Secret of the **app that owns the webhook subscription** — for Spiral that is
-the Spiral app, whose credentials live in `FACEBOOK_APP_ID` / `FACEBOOK_APP_SECRET`.
+Incoming Instagram/Meta webhook signatures (`x-hub-signature-256`) are HMAC-validated with
+the App Secret of the app that owns the webhook subscription. Both webhook POST handlers
+(`/webhooks/instagram-dm` and `/webhooks/instagram`) now try **both** `FACEBOOK_APP_SECRET`
+and `INSTAGRAM_APP_SECRET` and accept the request if **either** HMAC matches; they log the
+matching label (never the value), and on failure log which labels were tried + "none
+matched". This removes the guesswork about which app's secret Meta signs with.
 
-The webhook handlers prefer `FACEBOOK_APP_SECRET` and fall back to the legacy
-`INSTAGRAM_APP_SECRET` only if the former is unset. A *wrong* secret rejects real
-webhooks with 403, silently dropping story mentions.
+**Why:** Story-mention capture was completely dead because production 403'd *every*
+incoming webhook at the signature step — proven by Meta's Webhooks "Test" button reaching
+prod (`[INCOMING] POST /webhooks/instagram-dm`) and getting `Invalid signature`. A rejected
+webhook never logs its body, so you can't tell a real story from a test until you stop
+rejecting — fix the signature gate first, then diagnose delivery/shape. Single-secret
+validation was the trap: the one preferred secret didn't match Meta's signer.
 
-**Why:** Story-mention capture was "broken" partly because verification used
-`INSTAGRAM_APP_SECRET` (a stale/other app's secret) while Meta signs with the Spiral
-app's secret. Swapping to `FACEBOOK_APP_SECRET` fixed it.
+**Gotcha:** prod runs the built bundle and `tsx` (dev) does NOT hot-reload — a code fix
+only takes effect after the workflow restart (dev) / redeploy (prod). If a local test still
+shows old log text after editing, restart before concluding anything.
 
-**How to apply:** When webhooks 403 on signature, confirm which Meta app delivers them
-and validate against that app's secret. To smoke-test: sign a payload locally with the
-secret and POST it — valid sig → 200, wrong sig → 403.
+**How to apply:** When webhooks 403 on signature, deploy the dual-secret check and read the
+log: a `verified using <LABEL>` line tells you the real signer; `none matched` means the
+*production* secret value(s) are stale and must be re-copied from the Meta dashboard
+(App → Settings → Basic → App Secret). Smoke-test by signing a payload locally with each
+candidate secret and POSTing — valid sig → 200, wrong sig → 403. Once the real signer is
+known, consider standardizing on it and rotating the unused legacy secret to re-tighten.
 
 # Confirming a Meta app is alive (not deleted)
 
