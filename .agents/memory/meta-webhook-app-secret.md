@@ -12,6 +12,14 @@ and `INSTAGRAM_APP_SECRET` and accept the request if **either** HMAC matches; th
 matching label (never the value), and on failure log which labels were tried + "none
 matched". This removes the guesswork about which app's secret Meta signs with.
 
+**CONFIRMED signer:** in production, Meta signs Instagram webhook deliveries with
+`INSTAGRAM_APP_SECRET` (the nested IG-product app secret), NOT `FACEBOOK_APP_SECRET`.
+Verified live: prod logged `signature verified using INSTAGRAM_APP_SECRET`. This overturns
+the earlier assumption that FACEBOOK_APP_SECRET is the signer — with the old single-secret
+(prefer-FACEBOOK) check, real webhooks 403'd permanently. Do NOT "standardize on
+FACEBOOK and rotate away INSTAGRAM_APP_SECRET" — INSTAGRAM_APP_SECRET is the one Meta
+actually uses for these deliveries. Keep the dual-secret acceptance.
+
 **Why:** Story-mention capture was completely dead because production 403'd *every*
 incoming webhook at the signature step — proven by Meta's Webhooks "Test" button reaching
 prod (`[INCOMING] POST /webhooks/instagram-dm`) and getting `Invalid signature`. A rejected
