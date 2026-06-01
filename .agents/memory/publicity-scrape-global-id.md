@@ -14,7 +14,7 @@ fails EVERY real story as `not_public`, which soft-bans the shopper.
 (`spiral_customers.instagramGlobalUserId`), NOT the app-scoped messaging-webhook id
 and NOT the `asset_id` from the Story CDN URL.
 
-**Why (verified live, shopper @baileylast global id 2028598998):**
+**Why (verified live against a real failing case):**
 - `/story?id=<asset_id>` → 404 always. The webhook URL's `asset_id` is NOT the story
   media pk; there's no way to correlate asset_id → pk, so this path is unusable.
 - `/stories?user_id=<app-scoped id>` → 400 "invalid target user".
