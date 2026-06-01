@@ -1390,8 +1390,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (body.object === 'instagram' && body.entry) {
         for (const entry of body.entry) {
           const recipientId = entry.id;
+          console.log(`[STORY-DIAG] ig-webhook entry.id=${entry.id} entryKeys=${Object.keys(entry).join('|')} hasMessaging=${!!entry.messaging} hasChanges=${!!entry.changes}`);
+          if (entry.changes) {
+            try { console.log(`[STORY-DIAG] ig-webhook changes=${JSON.stringify(entry.changes).slice(0, 600)}`); } catch {}
+          }
           if (entry.messaging) {
             for (const event of entry.messaging) {
+              try {
+                const attTypes = Array.isArray(event.message?.attachments)
+                  ? event.message.attachments.map((a: any) => a?.type).join(',')
+                  : '(none)';
+                console.log(`[STORY-DIAG] ig-webhook event sender=${event.sender?.id} recipient=${event.recipient?.id} eventKeys=${Object.keys(event).join('|')} msgKeys=${event.message ? Object.keys(event.message).join('|') : '-'} attTypes=${attTypes}`);
+                if (Array.isArray(event.message?.attachments)) {
+                  for (const a of event.message.attachments) {
+                    console.log(`[STORY-DIAG] ig-webhook attachment type=${a?.type} json=${JSON.stringify(a).slice(0, 400)}`);
+                  }
+                }
+              } catch (diagErr) {
+                console.log('[STORY-DIAG] ig-webhook log failed:', String(diagErr));
+              }
               if (event.message?.attachments) {
                 for (const attachment of event.message.attachments) {
                   if (attachment.type === 'story_mention') {
@@ -3329,7 +3346,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // can match the Story to its verification records without an extra
             // Graph API hop. Resolution happens inside handleStoryMention.
             const resolvedBySender = new Map<string, string>();
+            console.log(`[STORY-DIAG] dm-webhook entry.id=${entry.id} entryKeys=${Object.keys(entry).join('|')} hasMessaging=${!!entry.messaging} hasChanges=${!!(entry as any).changes}`);
+            if ((entry as any).changes) {
+              try { console.log(`[STORY-DIAG] dm-webhook changes=${JSON.stringify((entry as any).changes).slice(0, 600)}`); } catch {}
+            }
             for (const event of entry.messaging) {
+              try {
+                const attTypes = Array.isArray(event.message?.attachments)
+                  ? event.message.attachments.map((a: any) => a?.type).join(',')
+                  : '(none)';
+                console.log(`[STORY-DIAG] dm-webhook event sender=${event.sender?.id} recipient=${event.recipient?.id} eventKeys=${Object.keys(event).join('|')} msgKeys=${event.message ? Object.keys(event.message).join('|') : '-'} attTypes=${attTypes}`);
+                if (Array.isArray(event.message?.attachments)) {
+                  for (const a of event.message.attachments) {
+                    console.log(`[STORY-DIAG] dm-webhook attachment type=${a?.type} json=${JSON.stringify(a).slice(0, 400)}`);
+                  }
+                }
+              } catch (diagErr) {
+                console.log('[STORY-DIAG] dm-webhook log failed:', String(diagErr));
+              }
               if (event.message?.attachments) {
                 for (const attachment of event.message.attachments) {
                   if (attachment.type === 'story_mention') {
@@ -3665,9 +3699,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update last webhook received timestamp
       await storage.updateStoreLastWebhookReceived(settings.id);
 
-      // Check if the merchant IG ID matches our store's connected Instagram
-      if (settings.instagramBusinessAccountId !== merchantInstagramId) {
-        console.log(`Story mention: Merchant IG ${merchantInstagramId} does not match store IG ${settings.instagramBusinessAccountId}`);
+      // Check if the merchant IG ID matches our store's connected Instagram.
+      // Instagram Login can surface the merchant under either the IG business
+      // account id or the IG-scoped page id, so accept either.
+      const merchantMatches =
+        merchantInstagramId === settings.instagramBusinessAccountId ||
+        merchantInstagramId === settings.instagramPageId;
+      if (!merchantMatches) {
+        console.log(`Story mention: Merchant IG ${merchantInstagramId} does not match store IG biz=${settings.instagramBusinessAccountId} page=${settings.instagramPageId}`);
         return { resolved: false };
       }
 

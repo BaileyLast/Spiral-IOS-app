@@ -896,7 +896,12 @@ export class DatabaseStorage implements IStorage {
     const [row] = await db
       .select()
       .from(storeSettings)
-      .where(eq(storeSettings.instagramBusinessAccountId, instagramBusinessAccountId))
+      .where(
+        or(
+          eq(storeSettings.instagramBusinessAccountId, instagramBusinessAccountId),
+          eq(storeSettings.instagramPageId, instagramBusinessAccountId),
+        ),
+      )
       .orderBy(
         sql`case when ${storeSettings.shopDomain} is null or ${storeSettings.shopDomain} = '' then 1 else 0 end`,
         asc(storeSettings.id),
