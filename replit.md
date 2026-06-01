@@ -125,6 +125,7 @@ Every story_mention received at `/webhooks/instagram-dm` is forwarded fire-and-f
 `instagram_basic`, `instagram_manage_messages`, `pages_show_list`, `pages_read_engagement`, `pages_manage_metadata`. After merchant connects, we subscribe to `messages` + `messaging_postbacks` on the FB Page.
 
 ### Meta App
+- **One Meta app, with a nested Instagram ID** (NOT two separate apps). The top-level Meta app is the **Spiral app** (`1348945556722394`). When the Instagram product was added to it, Meta generated a separate child "Instagram App ID" (`1150430890573369`, stored in `INSTAGRAM_APP_ID`) that lives *inside* the Spiral app. The Instagram ID is a sub-identity of the Spiral app, not an independent app — and it is legacy/unused by current code (see Required Secrets).
 - **Spiral app** (ID `1348945556722394`, name "Spiral") — Business type, "Facebook Login for Business". Owns shopper OAuth, the Instagram webhook, and @joinspiral token generation. Webhook lives at `/webhooks/instagram-dm` (verify token `spiral_verify_token`); `story_mention` events arrive here, we verify the matching order, and forward each event to the dashboard (see "Dashboard story-mention forward").
 - Incoming webhook signatures are validated with **this app's secret, stored as `FACEBOOK_APP_SECRET`**. The handlers prefer `FACEBOOK_APP_SECRET` and fall back to the legacy `INSTAGRAM_APP_SECRET` only if it is unset. If neither is set, signature checks are skipped (dev only); a wrong secret rejects real webhooks with 403.
 
@@ -191,7 +192,7 @@ All order/Story progress is shown live in the app. The five outbound DMs that us
 - `RAPIDAPI_KEY` — IG follower counts.
 - `FACEBOOK_APP_ID` / `FACEBOOK_APP_SECRET` — Spiral Meta app (`1348945556722394`). Used for shopper Instagram OAuth (`/api/customer/instagram/auth`), and `FACEBOOK_APP_SECRET` validates incoming webhook signatures at `/webhooks/instagram` + `/webhooks/instagram-dm`.
 - `INSTAGRAM_APP_SECRET` — legacy fallback for webhook signature verification; used only if `FACEBOOK_APP_SECRET` is unset.
-- `INSTAGRAM_APP_ID` / `INSTAGRAM_REDIRECT_URI` — legacy, not referenced in code (former IG Basic Display).
+- `INSTAGRAM_APP_ID` (`1150430890573369`) / `INSTAGRAM_REDIRECT_URI` — legacy, not referenced in code (former IG Basic Display). This is the Instagram product ID nested *inside* the Spiral Meta app (`1348945556722394`), not a separate app.
 - `INSTAGRAM_WEBHOOK_VERIFY_TOKEN` — webhook GET handshake token (defaults to `spiral_verify_token`).
 - `SPIRAL_INSTAGRAM_ACCESS_TOKEN` — @joinspiral Instagram Login token (`IGAA…`), generated in the Meta Dashboard. **Long-lived (~60 days), NOT permanent.** Used as the seed for the `service_tokens` store; once seeded, the app auto-refreshes it (see "@joinspiral Token Auto-Refresh"). Update this secret only to recover from a fully-lapsed token.
 - `SPIRAL_INSTAGRAM_BUSINESS_ID` — FB Page id for @joinspiral (`797294296809569`).
