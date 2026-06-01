@@ -3923,13 +3923,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Hit the RapidAPI Instagram scraper to find out whether the customer's story
   // is currently visible on the public Story tray.
-  // Strategy:
-  //   - If we have a storyMediaId (extracted from the webhook URL), call /story?id=
-  //     for a direct lookup — cleanest signal, one call.
-  //   - Otherwise fall back to /stories?user_id= and check by timestamp window.
+  //
+  // The scraper indexes stories by the shopper's GLOBAL Instagram user id (the
+  // numeric profile pk) — NOT the app-scoped id that arrives on the messaging
+  // webhook, and NOT the `asset_id` embedded in the story CDN URL. Earlier code
+  // tried a direct `/story?id=<asset_id>` lookup and a `/stories?user_id=<scoped
+  // id>` fallback; both returned a hard 404 / "invalid target user" for every
+  // genuinely-public story, which then wrongly marked it not_public and soft-
+  // banned the shopper.
+  //
+  // Strategy: list the shopper's active stories by global id and confirm a public
+  // story exists inside the original webhook's time window. The scoped id is only
+  // a last-ditch fallback for the rare case where the global id is missing.
   async function performPublicityScrape(
-    instagramUserId: string,
-    storyMediaId: string | null,
+    instagramGlobalUserId: string | null,
+    instagramScopedUserId: string | null,
     webhookReceivedAt: Date,
   ): Promise<PublicityResult> {
     const rapidApiKey = process.env.RAPIDAPI_KEY;
@@ -3942,27 +3950,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       'x-rapidapi-host': host,
     };
 
-    try {
-      // Preferred path: direct story lookup by id.
-      if (storyMediaId) {
-        const url = `https://${host}/story?id=${encodeURIComponent(storyMediaId)}`;
-        const res = await fetch(url, { method: 'GET', headers });
-        // Hard "not found" → story is no longer publicly viewable (deleted/Close Friends/expired).
-        if (res.status === 404 || res.status === 410) return { kind: 'not_public' };
-        if (!res.ok) {
-          const text = await res.text();
-          return { kind: 'error', message: `scraper /story status ${res.status}: ${text.slice(0, 200)}` };
-        }
-        const data = (await res.json()) as unknown;
-        if (storyResponseLooksMissing(data)) return { kind: 'not_public' };
-        return { kind: 'verified' };
-      }
+    const lookupUserId =
+      (instagramGlobalUserId && instagramGlobalUserId.trim()) ||
+      (instagramScopedUserId && instagramScopedUserId.trim()) ||
+      null;
+    if (!lookupUserId) {
+      return { kind: 'error', message: 'no instagram user id available for publicity scrape' };
+    }
 
-      // Fallback: list user's active stories and verify a public story exists in the
+    try {
+      // List the shopper's active stories and verify a public story exists in the
       // expected time window of the original webhook.
-      const listUrl = `https://${host}/stories?user_id=${encodeURIComponent(instagramUserId)}`;
+      const listUrl = `https://${host}/stories?user_id=${encodeURIComponent(lookupUserId)}`;
       const listRes = await fetch(listUrl, { method: 'GET', headers });
+      // 404 → the scraper sees no active public stories for this user.
       if (listRes.status === 404) return { kind: 'not_public' };
+      // Any other non-OK status (rate limit, transient upstream error, bad id) is
+      // a retryable error — never an immediate "not public" soft-ban.
       if (!listRes.ok) {
         const text = await listRes.text();
         return { kind: 'error', message: `scraper /stories status ${listRes.status}: ${text.slice(0, 200)}` };
@@ -3985,22 +3989,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
-  // The /story?id= endpoint may return 200 with a body indicating the story was not found
-  // (some scrapers wrap errors in a 200 envelope). Detect those cases.
-  function storyResponseLooksMissing(data: unknown): boolean {
-    if (!data || typeof data !== 'object') return true;
-    const obj = data as Record<string, unknown>;
-    if (typeof obj.error === 'string' && obj.error.length > 0) return true;
-    if (obj.status === 'error' || obj.status === 'fail') return true;
-    if (obj.message && typeof obj.message === 'string' && /not.*found|private|unavailable|expired/i.test(obj.message)) return true;
-    // If the body is essentially empty or has no media url/id, treat as missing.
-    const hasContent = !!(obj.id || obj.pk || obj.media_id || obj.video_url || obj.image_url ||
-      (obj.user as Record<string, unknown> | undefined)?.username || Array.isArray(obj.items));
-    return !hasContent;
-  }
-
   function extractStoryItems(data: unknown): Array<Record<string, unknown>> | null {
     if (!data || typeof data !== 'object') return null;
+    // The fast-reliable scraper returns a bare top-level array of story items.
+    if (Array.isArray(data)) return data as Array<Record<string, unknown>>;
     const obj = data as Record<string, unknown>;
     const candidates: unknown[] = [
       obj.items, obj.stories, obj.data, obj.results,
@@ -4049,9 +4041,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       for (const check of due) {
         try {
+          const customerForCheck = await storage.getSpiralCustomerById(check.customerId);
           const result = await performPublicityScrape(
-            check.instagramUserId,
-            check.storyMediaId,
+            customerForCheck?.instagramGlobalUserId ?? null,
+            check.instagramUserId ?? null,
             check.webhookReceivedAt,
           );
           const stage = (check.stage as 'quick' | 'final') || 'quick';
