@@ -2897,7 +2897,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     | { ok: true }
     | { ok: false; reason: string; statusCode: number | null; retriable: boolean };
 
-  async function attemptDashboardForward(payload: { messaging: any[] }): Promise<ForwardAttemptResult> {
+  async function attemptDashboardForward(payload: { messaging: any[]; shopDomain?: string; instagramBusinessAccountId?: string }): Promise<ForwardAttemptResult> {
     const internalKey = process.env.SPIRAL_INTERNAL_KEY;
     if (!internalKey) {
       if (!storyForwardKeyMissingWarned) {
@@ -2935,8 +2935,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
-  async function forwardStoryMentionToDashboard(messaging: any[]): Promise<void> {
-    const payload = { messaging };
+  async function forwardStoryMentionToDashboard(
+    messaging: any[],
+    merchant?: { shopDomain?: string | null; instagramBusinessAccountId?: string | null },
+  ): Promise<void> {
+    // Include the matched merchant's stable identifiers so the dashboard can map
+    // the Story to the right merchant without converting between Instagram's
+    // app-scoped id (what the dashboard stores) and the webhook/global id (what
+    // arrives in entry.id). shopDomain is the primary key; the business id is a
+    // secondary fallback. Omit blank values rather than forward empty strings.
+    const payload: { messaging: any[]; shopDomain?: string; instagramBusinessAccountId?: string } = { messaging };
+    if (merchant?.shopDomain) payload.shopDomain = merchant.shopDomain;
+    if (merchant?.instagramBusinessAccountId) payload.instagramBusinessAccountId = merchant.instagramBusinessAccountId;
     const result = await attemptDashboardForward(payload);
     if (result.ok) {
       console.log(`[STORY-FORWARD] Forwarded ${messaging.length} event(s) to merchant dashboard`);
@@ -2999,7 +3009,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await storage.deleteDashboardForward(row.id);
           continue;
         }
-        const payload = row.payload as { messaging: any[] };
+        const payload = row.payload as { messaging: any[]; shopDomain?: string; instagramBusinessAccountId?: string };
         const result = await attemptDashboardForward(payload);
         if (result.ok) {
           console.log(`[STORY-FORWARD] Retry succeeded for ${row.id} on attempt ${row.attempts + 1}`);
@@ -3346,6 +3356,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // can match the Story to its verification records without an extra
             // Graph API hop. Resolution happens inside handleStoryMention.
             const resolvedBySender = new Map<string, string>();
+            // Per-entry merchant attribution (entry.id is one recipient/merchant
+            // for all its events). Captured from handleStoryMention so the forward
+            // can tell the dashboard which connected merchant the Story belongs to.
+            let matchedShopDomain: string | null = null;
+            let matchedMerchantBizId: string | null = null;
             console.log(`[STORY-DIAG] dm-webhook entry.id=${entry.id} entryKeys=${Object.keys(entry).join('|')} hasMessaging=${!!entry.messaging} hasChanges=${!!(entry as any).changes}`);
             if ((entry as any).changes) {
               try { console.log(`[STORY-DIAG] dm-webhook changes=${JSON.stringify((entry as any).changes).slice(0, 600)}`); } catch {}
@@ -3379,6 +3394,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       if (result.resolved && result.instagramUserId && senderScopedId) {
                         resolvedBySender.set(senderScopedId, result.instagramUserId);
                       }
+                      // Attribution is only set once the merchant guard passes,
+                      // so a Story tagging a different known account never names
+                      // this merchant. First non-blank value wins for the entry.
+                      if (result.merchantShopDomain && !matchedShopDomain) {
+                        matchedShopDomain = result.merchantShopDomain;
+                      }
+                      if (result.merchantInstagramBusinessId && !matchedMerchantBizId) {
+                        matchedMerchantBizId = result.merchantInstagramBusinessId;
+                      }
                     } catch (resolveErr) {
                       // Resolution failure must NEVER block the forward. The
                       // dashboard still gets the raw entry (without the
@@ -3401,7 +3425,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 const igUserId = senderScopedId ? resolvedBySender.get(senderScopedId) : undefined;
                 return igUserId ? { ...event, instagramUserId: igUserId } : event;
               });
-              void forwardStoryMentionToDashboard(annotated);
+              void forwardStoryMentionToDashboard(annotated, {
+                shopDomain: matchedShopDomain,
+                instagramBusinessAccountId: matchedMerchantBizId,
+              });
             }
           }
         }
@@ -3537,8 +3564,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // — the merchant dashboard uses this to match Stories to its verification
   // records without re-hitting the Graph API.
   type StoryMentionResolution =
-    | { resolved: true; instagramUserId: string | null }
-    | { resolved: false };
+    | { resolved: true; instagramUserId: string | null; merchantShopDomain?: string | null; merchantInstagramBusinessId?: string | null }
+    | { resolved: false; merchantShopDomain?: string | null; merchantInstagramBusinessId?: string | null };
 
   async function handleStoryMentionWebhook(merchantInstagramId: string, senderScopedId: string, storyUrl: string): Promise<StoryMentionResolution> {
     return handleStoryMention(merchantInstagramId, senderScopedId, storyUrl);
@@ -3730,17 +3757,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.warn(`[STORY-MERCHANT] webhook merchant ${merchantInstagramId} != stored biz=${settings.instagramBusinessAccountId}/page=${settings.instagramPageId} and matches no other store; accepting for single connected store ${settings.id} (Instagram Login dual-id)`);
       }
 
+      // The merchant guard passed (direct id match or accepted dual-id fallback),
+      // so this Story is attributed to `settings`. Carry the store's stable
+      // identifiers back to the webhook handler so the dashboard forward can name
+      // the merchant without converting between Instagram's id systems.
+      const merchantAttribution = {
+        merchantShopDomain: settings.shopDomain ?? null,
+        merchantInstagramBusinessId: settings.instagramBusinessAccountId ?? null,
+      };
+
       // Resolve sender via the shared identity helper (single source of truth
       // for cache hits, Profile API + RapidAPI lookups, mapping upserts, and
       // negative-caching). Same logic now powers POST /api/internal/identity/resolve.
       const resolved = await resolveScopedSender(settings, senderScopedId);
       if (resolved.resolution === 'negative_cache') {
-        return { resolved: false };
+        return { resolved: false, ...merchantAttribution };
       }
       const customerId = resolved.customerId ?? undefined;
       if (!customerId) {
         console.log(`Story mention: Could not identify customer for scoped ID ${senderScopedId} (resolution=${resolved.resolution})`);
-        return { resolved: false };
+        return { resolved: false, ...merchantAttribution };
       }
 
       // Step 3: Find orders that this Story can verify. Combines:
@@ -3775,7 +3811,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // No DM — shopper will see status in-app; we don't spam non-customers either.
         // Still treat as resolved so the merchant dashboard can attribute the Story
         // to this shopper even when no Spiral order is owed (e.g. spontaneous tag).
-        return { resolved: true, instagramUserId: customerObj?.instagramGlobalUserId ?? null };
+        return { resolved: true, instagramUserId: customerObj?.instagramGlobalUserId ?? null, ...merchantAttribution };
       }
 
       // Step 4: Verify the most recent pending order
@@ -3844,7 +3880,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`Story mention: Order ${orderToVerify.id} marked AWAITING_REVIEW; quick publicity check scheduled`);
 
       // No DM — shopper sees "Story received — confirming" status live in-app.
-      return { resolved: true, instagramUserId: customerObj?.instagramGlobalUserId ?? null };
+      return { resolved: true, instagramUserId: customerObj?.instagramGlobalUserId ?? null, ...merchantAttribution };
     } catch (error) {
       console.error('Error handling story mention:', error);
       return { resolved: false };
