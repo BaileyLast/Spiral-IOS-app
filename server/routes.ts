@@ -155,47 +155,6 @@ async function sendWelcomeEmail(customerId: string, email: string, firstName?: s
   }
 }
 
-async function sendInstagramConnectedEmail(customerId: string, email: string, firstName?: string | null, instagramHandle?: string | null): Promise<boolean> {
-  try {
-    const customer = await storage.getSpiralCustomerById(customerId);
-    if (customer?.marketingEmailOptOut) {
-      console.log(`[email] Skipping Instagram-connected email for opted-out customer ${customerId}`);
-      return false;
-    }
-    const unsubscribeUrl = await getUnsubscribeUrlForCustomer(customerId);
-    const result = await resend.emails.send({
-      from: "Spiral <noreply@joinspiral.app>",
-      to: email,
-      subject: "Instagram connected — you're ready to earn discounts",
-      headers: { "List-Unsubscribe": `<${unsubscribeUrl}>` },
-      html: `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
-          ${emailHeader()}
-          <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">Hey${firstName ? ` ${firstName}` : ""},</p>
-          <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">Your Instagram${instagramHandle ? ` <strong>@${instagramHandle}</strong>` : ""} is now connected to Spiral.</p>
-          <div style="background: linear-gradient(135deg, #A8F5E0 0%, #4ECCA3 100%); border-radius: 16px; padding: 32px; text-align: center; margin-bottom: 24px;">
-            <p style="color: #0f3d2e; font-size: 18px; font-weight: 600; margin: 0 0 8px 0;">You're all set</p>
-            <p style="color: #0f3d2e; opacity: 0.85; font-size: 14px; margin: 0;">Start receiving instant discounts at checkout on any Spiral-enabled store.</p>
-          </div>
-          <p style="color: #374151; font-size: 15px; line-height: 1.6; margin-bottom: 24px;">After your order arrives, post a quick Story tagging the brand and your discount is locked in. We'll handle the verification automatically.</p>
-          <p style="color: #6b7280; font-size: 14px;">Happy shopping.</p>
-          ${unsubscribeFooterHtml(unsubscribeUrl)}
-        </div>
-      `,
-    });
-    if (result?.error) {
-      const { reason, name: errName } = describeResendError(result.error);
-      await recordEmailFailure("instagram_connected", email, reason, errName);
-      return false;
-    }
-    return true;
-  } catch (error) {
-    const { reason, name: errName } = describeResendError(error);
-    await recordEmailFailure("instagram_connected", email, reason, errName);
-    return false;
-  }
-}
-
 async function sendInstagramReminderEmail(customerId: string, email: string, firstName?: string | null): Promise<boolean> {
   const appBaseUrl = getAppBaseUrl();
   const connectUrl = `${appBaseUrl}/connect-instagram`;
@@ -256,7 +215,6 @@ declare module 'express-session' {
   interface SessionData {
     oauthState?: string;
     oauthShop?: string;
-    instagramOauthState?: string;
     customerId?: string;
     pendingSignup?: {
       email: string;
@@ -888,9 +846,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // [Removed] Merchant /auth/instagram + /instagram/callback flow.
   // These were built on Meta's Instagram Basic Display API, which Meta shut
   // down at the end of 2024. The endpoints now return "Invalid platform app"
-  // and can never work again. The shopper-side OAuth at
-  // /api/customer/instagram/auth + /api/customer/instagram/callback is
-  // unaffected and continues to work via Instagram Login.
+  // and can never work again.
+  // [Removed] Shopper-side OAuth at /api/customer/instagram/auth +
+  // /api/customer/instagram/callback. It was dead code — shoppers connect
+  // Instagram only through the DM spiral-code flow (DM a code to @joinspiral),
+  // which sets their IG identity. Nothing in the app ever linked to the OAuth
+  // routes.
   // ============================================
   // Shopify Webhook Routes for Order Tracking
   // ============================================
@@ -2177,264 +2138,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Instagram avatar proxy error:", error);
       res.status(500).end();
-    }
-  });
-
-  // Helper to get fixed redirect URI
-  const getInstagramRedirectUri = (req: any): string => {
-    // Use configured base URL if available
-    const baseUrl = process.env.APP_BASE_URL;
-    if (baseUrl) {
-      return `${baseUrl}/api/customer/instagram/callback`;
-    }
-    
-    // In production, require APP_BASE_URL for security
-    if (process.env.NODE_ENV === "production") {
-      console.warn("APP_BASE_URL not set in production - using request host");
-    }
-    
-    // Development fallback: use request host
-    const host = req.get("host") || "localhost:5000";
-    const protocol = req.secure || host.includes("replit") || host.includes(".app") ? "https" : "http";
-    return `${protocol}://${host}/api/customer/instagram/callback`;
-  };
-
-  // Instagram OAuth - Initiate the Meta Login flow
-  app.get("/api/customer/instagram/auth", async (req, res) => {
-    try {
-      const customerId = req.session.customerId;
-      if (!customerId) {
-        return res.status(401).json({ error: "Not authenticated", requiresLogin: true });
-      }
-
-      const appId = process.env.FACEBOOK_APP_ID;
-      if (!appId) {
-        console.error("FACEBOOK_APP_ID not configured");
-        return res.status(503).json({ error: "Instagram connection not configured" });
-      }
-
-      // Generate state for CSRF protection (includes customerId for extra validation)
-      const stateData = `${crypto.randomBytes(16).toString("hex")}_${customerId}`;
-      req.session.instagramOauthState = stateData;
-
-      const redirectUri = getInstagramRedirectUri(req);
-
-      // Required permissions for Instagram data
-      const scopes = [
-        "instagram_basic",
-        "pages_show_list",
-        "pages_read_engagement",
-      ].join(",");
-
-      const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&state=${stateData}&response_type=code`;
-
-      console.log("Instagram OAuth initiated, redirect URI:", redirectUri);
-      res.json({ authUrl });
-    } catch (error) {
-      console.error("Instagram auth initiation error:", error);
-      res.status(500).json({ error: "Failed to initiate Instagram connection" });
-    }
-  });
-
-  // Instagram OAuth - Callback handler
-  app.get("/api/customer/instagram/callback", async (req, res) => {
-    console.log("=== INSTAGRAM CALLBACK START ===");
-    console.log("Query params:", JSON.stringify(req.query));
-    console.log("Session:", JSON.stringify({ customerId: req.session.customerId, hasState: !!req.session.instagramOauthState }));
-    
-    const redirectWithError = (error: string) => {
-      console.log("=== CALLBACK ERROR:", error, "===");
-      res.redirect(`/connect-instagram?instagram_error=${encodeURIComponent(error)}`);
-    };
-
-    try {
-      const customerId = req.session.customerId;
-      if (!customerId) {
-        console.log("FAIL: No customerId in session");
-        return redirectWithError("not_authenticated");
-      }
-      console.log("OK: customerId =", customerId);
-
-      const { code, state, error: oauthError, error_description } = req.query;
-
-      if (oauthError) {
-        console.error("Instagram OAuth error:", oauthError, error_description);
-        return redirectWithError(oauthError === "access_denied" ? "access_denied" : "oauth_failed");
-      }
-
-      if (!code || typeof code !== "string") {
-        console.log("FAIL: No code in query");
-        return redirectWithError("no_code_received");
-      }
-      console.log("OK: Got authorization code");
-
-      // Verify state for CSRF protection (includes customerId validation)
-      const expectedState = req.session.instagramOauthState;
-      console.log("State check - received:", state, "expected:", expectedState);
-      if (!expectedState || state !== expectedState) {
-        console.error("Instagram OAuth state mismatch - received:", state, "expected:", expectedState);
-        return redirectWithError("invalid_state");
-      }
-      
-      // Verify customerId in state matches session
-      const stateCustomerId = expectedState.toString().split("_").pop();
-      if (stateCustomerId !== customerId) {
-        console.error("Instagram OAuth customer mismatch - state:", stateCustomerId, "session:", customerId);
-        return redirectWithError("invalid_state");
-      }
-      console.log("OK: State validation passed");
-      delete req.session.instagramOauthState;
-
-      const appId = process.env.FACEBOOK_APP_ID;
-      const appSecret = process.env.FACEBOOK_APP_SECRET;
-      if (!appId || !appSecret) {
-        return redirectWithError("configuration_error");
-      }
-
-      const redirectUri = getInstagramRedirectUri(req);
-
-      // Exchange code for short-lived access token
-      console.log("Exchanging Instagram OAuth code for token...");
-      const tokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`;
-      
-      const tokenResponse = await fetch(tokenUrl);
-      const tokenData = await tokenResponse.json() as {
-        access_token?: string;
-        error?: { message: string };
-      };
-
-      if (!tokenData.access_token) {
-        console.error("Token exchange failed:", tokenData.error);
-        return redirectWithError("token_exchange_failed");
-      }
-
-      const shortLivedToken = tokenData.access_token;
-
-      // Exchange for long-lived token (valid for ~60 days)
-      console.log("Exchanging for long-lived token...");
-      const longLivedUrl = `https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${shortLivedToken}`;
-      const longLivedResponse = await fetch(longLivedUrl);
-      const longLivedData = await longLivedResponse.json() as {
-        access_token?: string;
-        expires_in?: number;
-        error?: { message: string };
-      };
-
-      const userAccessToken = longLivedData.access_token || shortLivedToken;
-      const tokenExpiresIn = longLivedData.expires_in || 3600; // Default 1 hour if short-lived
-
-      // Get user's Facebook Pages
-      console.log("Fetching user's Facebook Pages...");
-      const pagesUrl = `https://graph.facebook.com/v21.0/me/accounts?access_token=${userAccessToken}`;
-      const pagesResponse = await fetch(pagesUrl);
-      const pagesData = await pagesResponse.json() as {
-        data?: Array<{ id: string; name: string; access_token: string }>;
-        error?: { message: string };
-      };
-
-      if (!pagesData.data || pagesData.data.length === 0) {
-        console.error("No Facebook Pages found");
-        return redirectWithError("no_facebook_pages");
-      }
-
-      // Find a page with a connected Instagram account (Business or Creator)
-      let instagramAccountId: string | null = null;
-      let pageAccessToken: string | null = null;
-      let pageName: string | null = null;
-
-      for (const page of pagesData.data) {
-        // Check for instagram_business_account (works for both Business and Creator accounts linked to Pages)
-        const igUrl = `https://graph.facebook.com/v21.0/${page.id}?fields=instagram_business_account&access_token=${page.access_token}`;
-        const igResponse = await fetch(igUrl);
-        const igData = await igResponse.json() as {
-          instagram_business_account?: { id: string };
-          error?: { message: string };
-        };
-
-        if (igData.instagram_business_account) {
-          instagramAccountId = igData.instagram_business_account.id;
-          pageAccessToken = page.access_token;
-          pageName = page.name;
-          console.log(`Found Instagram account: ${instagramAccountId} on page "${page.name}"`);
-          break;
-        }
-      }
-
-      if (!instagramAccountId || !pageAccessToken) {
-        console.error("No Instagram account found linked to any Facebook Page");
-        return redirectWithError("no_instagram_account");
-      }
-
-      // Fetch Instagram account details (account_type requires instagram_manage_insights permission which we don't have)
-      console.log("Fetching Instagram account details...");
-      const igDetailsUrl = `https://graph.facebook.com/v21.0/${instagramAccountId}?fields=id,username,followers_count,profile_picture_url&access_token=${pageAccessToken}`;
-      const igDetailsResponse = await fetch(igDetailsUrl);
-      const igDetails = await igDetailsResponse.json() as {
-        id: string;
-        username: string;
-        followers_count?: number;
-        profile_picture_url?: string;
-        account_type?: string;
-        error?: { message: string };
-      };
-
-      if (igDetails.error) {
-        console.error("Failed to fetch Instagram details:", igDetails.error);
-        return redirectWithError("fetch_details_failed");
-      }
-
-      // If we got here via instagram_business_account, it's already a Business/Creator account
-      // Personal accounts cannot be linked to Facebook Pages this way
-      console.log("OK: Instagram account validated (linked to Facebook Page = Business/Creator)");
-
-      // Calculate token expiry (use long-lived expiry if available)
-      const tokenExpiry = new Date(Date.now() + tokenExpiresIn * 1000);
-
-      console.log("Saving Instagram data to database...");
-      console.log("Customer ID:", customerId);
-      console.log("Instagram data:", JSON.stringify({
-        username: igDetails.username,
-        id: igDetails.id,
-        followers: igDetails.followers_count,
-        accountType: igDetails.account_type,
-      }));
-
-      // Save the Instagram data
-      try {
-        await storage.updateSpiralCustomerInstagram(customerId, {
-          instagramHandle: igDetails.username,
-          instagramUserId: igDetails.id,
-          instagramAccessToken: pageAccessToken, // Page tokens don't expire if page is still linked
-          instagramTokenExpiry: tokenExpiry,
-          instagramProfilePicture: igDetails.profile_picture_url || null,
-          instagramAccountType: "BUSINESS", // Linked to Page = Business/Creator account
-          followerCount: igDetails.followers_count || null,
-        });
-        console.log("=== DATABASE SAVE SUCCESS ===");
-      } catch (dbError) {
-        console.error("=== DATABASE SAVE FAILED ===", dbError);
-        throw dbError;
-      }
-
-      console.log(`Connected Instagram @${igDetails.username} with ${igDetails.followers_count} followers via OAuth (page: ${pageName})`);
-
-      // Send Instagram-connected confirmation email (fully non-blocking — don't delay redirect)
-      const igHandleForEmail = igDetails.username;
-      void storage.getSpiralCustomerById(customerId)
-        .then((customer) => {
-          if (customer?.email) {
-            return sendInstagramConnectedEmail(customer.id, customer.email, customer.firstName, igHandleForEmail);
-          }
-        })
-        .catch((err) => {
-          console.error("Instagram connected email failed:", err);
-        });
-
-      // Redirect to success
-      res.redirect("/connect-instagram?instagram_connected=true");
-    } catch (error) {
-      console.error("Instagram OAuth callback error:", error);
-      redirectWithError("unknown_error");
     }
   });
 

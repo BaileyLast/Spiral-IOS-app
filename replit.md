@@ -100,6 +100,7 @@ The customer app does **not** run its own Shopify OAuth and does **not** store a
 ## Instagram Integration
 
 ### Account Verification (DM-based)
+Shoppers link Instagram **only** through this DM spiral-code flow. There is no shopper Instagram OAuth (the old `/api/customer/instagram/auth` + `/callback` routes were dead code and have been removed).
 1. Customer gets a 6-char code (24h expiry).
 2. Customer DMs the code to @joinspiral.
 3. Webhook extracts IG user id from sender metadata, matches the code, links IG to the Spiral customer.
@@ -126,7 +127,7 @@ Every story_mention received at `/webhooks/instagram-dm` is forwarded fire-and-f
 
 ### Meta App
 - **One Meta app, with a nested Instagram ID** (NOT two separate apps). The top-level Meta app is the **Spiral app** (`1348945556722394`). When the Instagram product was added to it, Meta generated a separate child "Instagram App ID" (`1150430890573369`, stored in `INSTAGRAM_APP_ID`) that lives *inside* the Spiral app. The Instagram ID is a sub-identity of the Spiral app, not an independent app — and it is legacy/unused by current code (see Required Secrets).
-- **Spiral app** (ID `1348945556722394`, name "Spiral") — Business type, "Facebook Login for Business". Owns shopper OAuth, the Instagram webhook, and @joinspiral token generation. Webhook lives at `/webhooks/instagram-dm` (verify token `spiral_verify_token`); `story_mention` events arrive here, we verify the matching order, and forward each event to the dashboard (see "Dashboard story-mention forward").
+- **Spiral app** (ID `1348945556722394`, name "Spiral") — Business type, "Facebook Login for Business". Owns the Instagram webhook and @joinspiral token generation. Webhook lives at `/webhooks/instagram-dm` (verify token `spiral_verify_token`); `story_mention` events arrive here, we verify the matching order, and forward each event to the dashboard (see "Dashboard story-mention forward").
 - Incoming webhook signatures are validated with **this app's secret, stored as `FACEBOOK_APP_SECRET`**. The handlers prefer `FACEBOOK_APP_SECRET` and fall back to the legacy `INSTAGRAM_APP_SECRET` only if it is unset. If neither is set, signature checks are skipped (dev only); a wrong secret rejects real webhooks with 403.
 
 ### @joinspiral Token Auto-Refresh
@@ -190,7 +191,7 @@ All order/Story progress is shown live in the app. The five outbound DMs that us
 ## Required Secrets
 
 - `RAPIDAPI_KEY` — IG follower counts.
-- `FACEBOOK_APP_ID` / `FACEBOOK_APP_SECRET` — Spiral Meta app (`1348945556722394`). Used for shopper Instagram OAuth (`/api/customer/instagram/auth`), and `FACEBOOK_APP_SECRET` validates incoming webhook signatures at `/webhooks/instagram` + `/webhooks/instagram-dm`.
+- `FACEBOOK_APP_ID` / `FACEBOOK_APP_SECRET` — Spiral Meta app (`1348945556722394`). `FACEBOOK_APP_SECRET` validates incoming webhook signatures at `/webhooks/instagram` + `/webhooks/instagram-dm` (a wrong/missing secret breaks Story capture). `FACEBOOK_APP_ID` is kept for the Meta app identity; the former shopper Instagram OAuth that consumed it has been removed (shoppers link IG via the DM spiral-code flow).
 - `INSTAGRAM_APP_SECRET` — legacy fallback for webhook signature verification; used only if `FACEBOOK_APP_SECRET` is unset.
 - `INSTAGRAM_APP_ID` (`1150430890573369`) / `INSTAGRAM_REDIRECT_URI` — legacy, not referenced in code (former IG Basic Display). This is the Instagram product ID nested *inside* the Spiral Meta app (`1348945556722394`), not a separate app.
 - `INSTAGRAM_WEBHOOK_VERIFY_TOKEN` — webhook GET handshake token (defaults to `spiral_verify_token`).
