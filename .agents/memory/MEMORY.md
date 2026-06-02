@@ -4,3 +4,4 @@
 - [Publicity scrape global id](publicity-scrape-global-id.md) — public-story check must query RapidAPI by GLOBAL IG id (not scoped/asset_id); /stories returns a bare array; DEV and PROD use separate DBs.
 - [Story-mention dual-id trap](instagram-story-mention-dualid.md) — Instagram Login merchants registered with app-scoped id but webhook delivers global user_id → merchant gate bails, nothing verifies. Fallback only when id matches no store row.
 - [Story media pipeline](story-media-pipeline.md) — THIS app captures IG Story media to shared S3 and forwards only the permanent link; degrade w/o link if S3/capture fails, decide media type by header→sniff→hint, SSRF-guard all fetched URLs.
+- [Quick publicity-check retries](publicity-quick-recheck.md) — quick (3-min) not_public must retry before soft-ban; key the terminal decision on elapsed time since webhook, NOT the shared attempts counter (errors would eat the budget).

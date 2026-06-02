@@ -3947,12 +3947,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const PUBLICITY_CHECK_RETRY_MS = 30 * 60 * 1000;          // 30 minutes between scraper-error retries
   const PUBLICITY_CHECK_QUICK_RETRY_MS = 2 * 60 * 1000;     // 2 minutes between quick-stage retries
   const PUBLICITY_CHECK_MAX_ATTEMPTS = 3;
+  // Keep retrying a quick-stage "not public" until this long after the original
+  // webhook, then finalize. Time-based (not attempt-count based) so prior
+  // scraper-error retries can never consume the not_public retry budget — a
+  // genuinely-public Story the scraper was just slow to index keeps getting looks.
+  const PUBLICITY_CHECK_QUICK_NOT_PUBLIC_WINDOW_MS = 12 * 60 * 1000; // ~12 min of grace from webhook
   const PUBLICITY_CHECK_INTERVAL_MS = 60 * 1000;            // poll every 1 min (quick checks need fast pickup)
   const PUBLICITY_CHECK_TIMESTAMP_TOLERANCE_MS = 30 * 60 * 1000; // 30 min wiggle vs webhook time
 
   type PublicityResult =
     | { kind: 'verified' }
-    | { kind: 'not_public' }
+    | { kind: 'not_public'; reason: 'http_404' | 'empty_story_list' | 'no_story_in_window'; detail: string }
     | { kind: 'error'; message: string };
 
   // Hit the RapidAPI Instagram scraper to find out whether the customer's story
@@ -3998,7 +4003,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const listUrl = `https://${host}/stories?user_id=${encodeURIComponent(lookupUserId)}`;
       const listRes = await fetch(listUrl, { method: 'GET', headers });
       // 404 → the scraper sees no active public stories for this user.
-      if (listRes.status === 404) return { kind: 'not_public' };
+      if (listRes.status === 404) {
+        return { kind: 'not_public', reason: 'http_404', detail: `queried user_id=${lookupUserId}; scraper returned 404 (no public stories / id not recognized)` };
+      }
       // Any other non-OK status (rate limit, transient upstream error, bad id) is
       // a retryable error — never an immediate "not public" soft-ban.
       if (!listRes.ok) {
@@ -4007,16 +4014,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const listData = (await listRes.json()) as unknown;
       const items = extractStoryItems(listData);
-      if (!items || items.length === 0) return { kind: 'not_public' };
+      if (!items || items.length === 0) {
+        return { kind: 'not_public', reason: 'empty_story_list', detail: `queried user_id=${lookupUserId}; scraper returned an empty story list (0 items)` };
+      }
 
       const webhookSec = Math.floor(webhookReceivedAt.getTime() / 1000);
       const lo = webhookSec - Math.floor(PUBLICITY_CHECK_TIMESTAMP_TOLERANCE_MS / 1000);
       const hi = webhookSec + Math.floor(PUBLICITY_CHECK_TIMESTAMP_TOLERANCE_MS / 1000);
-      const inWindow = items.some((it) => {
-        const taken = extractTakenAtSec(it);
-        return taken !== null && taken >= lo && taken <= hi;
-      });
-      return inWindow ? { kind: 'verified' } : { kind: 'not_public' };
+      const takenAts = items.map((it) => extractTakenAtSec(it));
+      const inWindow = takenAts.some((taken) => taken !== null && taken >= lo && taken <= hi);
+      if (inWindow) return { kind: 'verified' };
+      return {
+        kind: 'not_public',
+        reason: 'no_story_in_window',
+        detail: `queried user_id=${lookupUserId}; ${items.length} story(ies) returned but none in webhook window [${lo},${hi}] — taken_at=[${takenAts.join(',')}]`,
+      };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return { kind: 'error', message: msg };
@@ -4335,22 +4347,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const orderForBan = await storage.getOrderById(check.orderId);
             const isDelivered = orderForBan?.status === 'delivered';
             if (stage === 'quick') {
-              // Story isn't visible publicly — almost certainly Close Friends, or already deleted.
-              await storage.recordPublicityCheckAttempt(check.id, {
-                lastResult: 'deleted_or_close_friends',
-                completed: true,
-              });
-              await storage.updateOrderVerificationStatus(check.orderId, 'not_public');
-              if (isDelivered) {
-                await storage.setCustomerSoftBanned(check.customerId, 'not_public');
+              // A "not public" at the QUICK stage is NOT trusted on the first look:
+              // the scraper often hasn't indexed a brand-new Story 3 minutes after
+              // posting, which looks identical to a Close Friends / deleted Story.
+              // Keep re-checking on a short cadence until the grace window from the
+              // original webhook elapses, THEN finalize the soft-ban. Time-based so a
+              // genuinely-public Story that was just slow to index still passes, and
+              // so unrelated scraper-error retries never eat the not_public budget.
+              const elapsedMs = Date.now() - check.webhookReceivedAt.getTime();
+              if (elapsedMs < PUBLICITY_CHECK_QUICK_NOT_PUBLIC_WINDOW_MS) {
+                await storage.recordPublicityCheckAttempt(check.id, {
+                  lastResult: `not_public_retry:${result.reason}`,
+                  lastError: result.detail,
+                  rescheduleAt: new Date(Date.now() + PUBLICITY_CHECK_QUICK_RETRY_MS),
+                });
+                console.log(`[publicity-check] Order ${check.orderId} quick not_public (reason=${result.reason}) at ${Math.round(elapsedMs / 60000)}min — retrying in ${Math.round(PUBLICITY_CHECK_QUICK_RETRY_MS / 60000)}min (grace until ${Math.round(PUBLICITY_CHECK_QUICK_NOT_PUBLIC_WINDOW_MS / 60000)}min). ${result.detail}`);
+              } else {
+                // Grace window elapsed — the Story genuinely isn't publicly visible.
+                await storage.recordPublicityCheckAttempt(check.id, {
+                  lastResult: 'deleted_or_close_friends',
+                  lastError: result.detail,
+                  completed: true,
+                });
+                await storage.updateOrderVerificationStatus(check.orderId, 'not_public');
+                if (isDelivered) {
+                  await storage.setCustomerSoftBanned(check.customerId, 'not_public');
+                }
+                // Push (fails only). Copy never threatens the existing discount — only future access.
+                await sendIosPushToCustomer(
+                  check.customerId,
+                  'Story not public',
+                  `We couldn't see your Story. New Spiral discounts are paused — repost it publicly (Close Friends doesn't count) to unlock your next one.`,
+                );
+                console.log(`[publicity-check] Order ${check.orderId} NOT_PUBLIC at quick stage after ${Math.round(elapsedMs / 60000)}min of retries (reason=${result.reason})${isDelivered ? ' — customer soft-banned' : ' (not yet delivered, no soft-ban)'}. ${result.detail}`);
               }
-              // Push (fails only). Copy never threatens the existing discount — only future access.
-              await sendIosPushToCustomer(
-                check.customerId,
-                'Story not public',
-                `We couldn't see your Story. New Spiral discounts are paused — repost it publicly (Close Friends doesn't count) to unlock your next one.`,
-              );
-              console.log(`[publicity-check] Order ${check.orderId} NOT_PUBLIC at quick stage${isDelivered ? ' — customer soft-banned' : ' (not yet delivered, no soft-ban)'}`);
             } else {
               // Story passed quick check but is gone at the 10h mark — taken down early.
               // Per spec, final-check failure ALWAYS soft-bans (independent of delivered status).
