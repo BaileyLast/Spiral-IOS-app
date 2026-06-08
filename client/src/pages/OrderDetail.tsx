@@ -551,6 +551,7 @@ export default function OrderDetail() {
               const isVerifiedStep = step.id === "verified";
               const deliveredComplete = steps[2]?.complete ?? false;
               const teaseGoal = isVerifiedStep && deliveredComplete && !step.complete;
+              const isPostStoryStep = isVerifiedStep && !step.complete;
               return (
                 <div key={step.id} className={`flex gap-4 relative z-10 ${isLast ? "" : "pb-6"}`}>
                   <div className="relative shrink-0">
@@ -568,8 +569,19 @@ export default function OrderDetail() {
                       <Icon className="w-4 h-4" />
                     </div>
                   </div>
-                  <div className={`pt-1 ${step.complete ? "" : "opacity-50"}`}>
-                    <p className="font-bold text-gray-900 text-sm">{step.label}</p>
+                  <div className={`pt-1 ${step.complete || isPostStoryStep ? "" : "opacity-50"}`}>
+                    {isPostStoryStep ? (
+                      <button
+                        type="button"
+                        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                        className="font-bold text-gray-900 text-sm underline underline-offset-2 hover:opacity-80 active:opacity-70 text-left"
+                        data-testid="button-post-story-scroll-top"
+                      >
+                        {step.label}
+                      </button>
+                    ) : (
+                      <p className="font-bold text-gray-900 text-sm">{step.label}</p>
+                    )}
                   </div>
                 </div>
               );
