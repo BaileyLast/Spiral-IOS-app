@@ -75,6 +75,7 @@ All routes gated by `requireInternalKey` (header `x-spiral-internal-key`). Used 
 | `GET /merchants/:merchantInstagramBusinessId/discount-tiers` | Tier config + `spiralEnabled` + `minFollowers`. |
 | `POST /push/send` | `{customerId, kind, brandName?}`; `kind ∈ {delivery-reminder, quick-fail, final-fail}`. Copy is fixed per kind. Reminders/failures only — successes are in-app. |
 | `POST /orders/:id/mark-delivered` | Transition order → delivered, fire reminder push. |
+| `POST /stories/invalidate` | `{verificationId?, instagramHandle, shopDomain?}` — admin rejected a flagged Story. Resets the shopper's most-recent posted order to pre-post (verification → `pending`, Story artifacts cleared, in-flight publicity check cancelled), then re-runs `evaluateSoftBanForCheckout` so the now-owed order **re-bans via the derived model** (no manual ban). Lookup key = `instagramHandle` (caller's DB is separate; `verificationId` opaque/log-only, `shopDomain` advisory). Idempotent — already-reset = logged no-op, always returns `{success:true}`. **Known limitation:** handles are mutable, so a rename between post and reject can miss the lookup (logged warning); future fix is for the caller to send the global IG id. |
 | `POST /shopify/backfill-webhooks` | Re-register Shopify webhook topics for an already-connected store. Reads credentials from the dashboard via `getShopifyCredentialsForSettings`. |
 | `POST /merchants/register` · `PATCH /customers/:id` | Existing merchant/customer admin hooks. |
 

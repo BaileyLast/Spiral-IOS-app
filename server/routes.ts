@@ -3994,6 +3994,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
           const stage = (check.stage as 'quick' | 'final') || 'quick';
 
+          // Race guard: the scrape above is a slow network call, so an admin
+          // could have rejected this Story (story invalidation) while it ran —
+          // resetting the order to pending and cancelling this check. Re-read
+          // the row fresh; if it was completed/cancelled out from under us, skip
+          // every status write below so we don't revive an invalidated order.
+          const freshCheck = await storage.getPublicityCheckById(check.id);
+          if (!freshCheck || freshCheck.completedAt) {
+            console.log(`[publicity-check] Check ${check.id} (order ${check.orderId}) was completed/cancelled mid-flight (likely story invalidation) — skipping status write`);
+            continue;
+          }
+
           if (result.kind === 'verified') {
             if (stage === 'quick') {
               // Story is publicly visible — not Close Friends. Schedule the final 10h re-check.
@@ -4575,6 +4586,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (err) {
       console.error("[admin] force-verify-order failed:", err);
       res.status(500).json({ error: "Failed to force-verify order" });
+    }
+  });
+
+  // POST /api/internal/stories/invalidate
+  // The merchant dashboard (and, later, the CRM) calls this when an admin
+  // rejects a flagged Story. We reset the matching shopper's most-recent
+  // posted order back to its pre-post state (verification → pending, captured
+  // Story artifacts cleared) and re-run the soft-ban evaluator. Because the
+  // order becomes owed again, the shopper auto-re-bans via the existing
+  // DERIVED model — there is no manual ban command here.
+  //
+  // Lookup key is `instagramHandle` (the dashboard runs a separate database and
+  // does NOT send our immutable global IG id; `verificationId` is opaque to us
+  // and used for tracing only). `shopDomain` is advisory — single-tenant today.
+  //
+  // KNOWN LIMITATION: handles are mutable. If a shopper renamed their Instagram
+  // between posting and the reject, the handle lookup can miss; we log a clear
+  // warning and return success (best-effort caller, non-fatal). A future
+  // improvement is to have the caller include the global IG id as the key.
+  //
+  // Idempotent: invalidating an order that is already reset (no order in a
+  // posted state) is a logged no-op that still returns success.
+  app.post("/api/internal/stories/invalidate", requireInternalKey, async (req, res) => {
+    try {
+      const bodySchema = z.object({
+        verificationId: z.string().min(1).optional().nullable(),
+        instagramHandle: z.string().min(1),
+        shopDomain: z.string().min(1).optional().nullable(),
+      });
+      const parsed = bodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() });
+      }
+      const { verificationId, instagramHandle, shopDomain } = parsed.data;
+      const normalizedHandle = instagramHandle.toLowerCase().replace(/^@/, "");
+      console.log(`[story-invalidate] reject received for @${normalizedHandle} (verificationId=${verificationId ?? "none"}, shopDomain=${shopDomain ?? "none"})`);
+
+      // 1. Resolve shopper(s) by handle. Siblings can share a handle, so this
+      //    returns an array.
+      const customers = await storage.getSpiralCustomersByInstagramHandle(normalizedHandle);
+      if (customers.length === 0) {
+        console.warn(`[story-invalidate] No Spiral customer for @${normalizedHandle} — no-op. (Handle may have changed since posting; dashboard does not send the global IG id.)`);
+        return res.json({ success: true, invalidated: false, reason: "no_customer_match" });
+      }
+
+      // 2. Collect every order across the matched shoppers that is in a
+      //    Story-posted state (story detected / under review / verified), and
+      //    key each on when the Story was actually posted (storyDetectedAt),
+      //    not when the order was created — out-of-order delivery/posting means
+      //    order.createdAt is the wrong ordering signal for "most-recent post".
+      const POSTED_STATES = ["story_detected", "awaiting_review", "quick_verified", "verified"];
+      const candidates: { order: NonNullable<Awaited<ReturnType<typeof storage.getOrderById>>>; customerId: string; postedAt: number }[] = [];
+      for (const customer of customers) {
+        const customerOrders = await storage.getOrdersByCustomerId(customer.id);
+        for (const order of customerOrders) {
+          if (!POSTED_STATES.includes(order.verificationStatus)) continue;
+          let postedAt = new Date(order.createdAt).getTime();
+          if (order.verificationId) {
+            const v = await storage.getVerificationById(order.verificationId);
+            const ts = v?.storyDetectedAt ?? v?.webhookTimestamp ?? v?.verifiedAt;
+            if (ts) postedAt = new Date(ts).getTime();
+          }
+          candidates.push({ order, customerId: customer.id, postedAt });
+        }
+      }
+
+      if (candidates.length === 0) {
+        console.warn(`[story-invalidate] @${normalizedHandle} has no order in a posted state — already reset or never posted. Idempotent no-op.`);
+        return res.json({ success: true, invalidated: false, reason: "no_posted_order" });
+      }
+
+      // 3. Target the most recently posted order.
+      candidates.sort((a, b) => b.postedAt - a.postedAt);
+      const { order: targetOrder, customerId } = candidates[0];
+
+      // 4. Reset the verification + order to pre-post. Cancel ALL in-flight
+      //    publicity checks for this verification so a scheduled quick/final
+      //    check can't re-verify or re-fail the row we just reset (the worker
+      //    also re-reads each check fresh before writing, as a second guard).
+      if (targetOrder.verificationId) {
+        await storage.resetVerificationToPending(targetOrder.verificationId);
+        const cancelled = await storage.cancelIncompletePublicityChecksByVerification(
+          targetOrder.verificationId,
+          "invalidated_by_admin",
+        );
+        if (cancelled > 0) {
+          console.log(`[story-invalidate] Cancelled ${cancelled} in-flight publicity check(s) for order ${targetOrder.id}.`);
+        }
+      }
+      await storage.updateOrderVerificationStatus(targetOrder.id, "pending", targetOrder.verificationId ?? undefined);
+      console.log(`[story-invalidate] Order ${targetOrder.id} reset to pending (customer ${customerId}, @${normalizedHandle}).`);
+
+      // 5. Re-derive soft-ban. If the now-pending order is delivered it is owed
+      //    again, so the evaluator re-applies the soft-ban automatically.
+      const ban = await evaluateSoftBanForCheckout(customerId);
+
+      return res.json({
+        success: true,
+        invalidated: true,
+        orderId: targetOrder.id,
+        customerId,
+        softBanned: ban.softBanned,
+      });
+    } catch (err) {
+      console.error("[story-invalidate] failed:", err);
+      return res.status(500).json({ error: "internal" });
     }
   });
 

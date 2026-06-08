@@ -63,6 +63,7 @@ export interface IStorage {
   getPendingVerificationsForCheck(): Promise<Verification[]>;
   markStoryDetected(verificationId: string, storyMediaId: string, storyUrl: string, senderScopedId?: string): Promise<Verification>;
   setVerificationStoryMedia(verificationId: string, storyMediaUrl: string, storyMediaType: string): Promise<Verification | undefined>;
+  resetVerificationToPending(verificationId: string): Promise<Verification | undefined>;
   markVerified(verificationId: string): Promise<Verification>;
   markStoryDetectedAndVerified(verificationId: string, storyUrl: string, senderScopedId: string): Promise<Verification>;
   // Orders
@@ -153,6 +154,8 @@ export interface IStorage {
   createPublicityCheck(check: InsertPublicityCheck): Promise<PublicityCheck>;
   getDuePublicityChecks(now: Date): Promise<PublicityCheck[]>;
   getIncompletePublicityCheckByVerification(verificationId: string): Promise<PublicityCheck | undefined>;
+  getPublicityCheckById(id: string): Promise<PublicityCheck | undefined>;
+  cancelIncompletePublicityChecksByVerification(verificationId: string, lastResult: string): Promise<number>;
   getPublicityCheckByVerificationAndStage(verificationId: string, stage: string): Promise<PublicityCheck | undefined>;
   recordPublicityCheckAttempt(id: string, opts: { lastError?: string | null; lastResult?: string | null; rescheduleAt?: Date | null; completed?: boolean }): Promise<PublicityCheck>;
   // Dashboard forward retry queue (story_mention forwards to merchant dashboard)
@@ -440,6 +443,29 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db
       .update(verifications)
       .set({ storyMediaUrl, storyMediaType })
+      .where(eq(verifications.id, verificationId))
+      .returning();
+    return updated;
+  }
+
+  // Reset a verification back to its pre-post state and clear all captured
+  // Story artifacts. Used when an admin rejects a flagged Story (story
+  // invalidation): the order returns to "awaiting a Story" and, if delivered,
+  // the shopper re-incurs Story debt via the soft-ban evaluator. Idempotent —
+  // re-running on an already-reset row just re-sets the same null values.
+  async resetVerificationToPending(verificationId: string): Promise<Verification | undefined> {
+    const [updated] = await db
+      .update(verifications)
+      .set({
+        status: "pending",
+        storyMediaId: null,
+        storyUrl: null,
+        storyMediaUrl: null,
+        storyMediaType: null,
+        storyDetectedAt: null,
+        verifiedAt: null,
+        webhookTimestamp: null,
+      })
       .where(eq(verifications.id, verificationId))
       .returning();
     return updated;
@@ -1406,6 +1432,31 @@ export class DatabaseStorage implements IStorage {
       )
       .limit(1);
     return row;
+  }
+
+  async getPublicityCheckById(id: string): Promise<PublicityCheck | undefined> {
+    const [row] = await db
+      .select()
+      .from(publicityChecks)
+      .where(eq(publicityChecks.id, id));
+    return row;
+  }
+
+  // Bulk-complete every still-incomplete publicity check for a verification.
+  // Used by story invalidation so a scheduled quick/final check can't re-mutate
+  // an order we just reset. Returns how many rows were cancelled.
+  async cancelIncompletePublicityChecksByVerification(verificationId: string, lastResult: string): Promise<number> {
+    const updated = await db
+      .update(publicityChecks)
+      .set({ completedAt: new Date(), lastResult })
+      .where(
+        and(
+          eq(publicityChecks.verificationId, verificationId),
+          isNull(publicityChecks.completedAt),
+        ),
+      )
+      .returning();
+    return updated.length;
   }
 
   async getPublicityCheckByVerificationAndStage(verificationId: string, stage: string): Promise<PublicityCheck | undefined> {
