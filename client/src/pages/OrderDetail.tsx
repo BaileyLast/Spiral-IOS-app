@@ -156,6 +156,11 @@ export default function OrderDetail() {
   const isPickup = !!order.readyForPickupAt || order.shopifyTrackingStatus === "ready_for_pickup";
   const awaitingPickup = order.shopifyTrackingStatus === "ready_for_pickup" && order.status !== "delivered";
   const rawHandle = (order.merchantInstagramHandle || "").replace(/^@/, "");
+  const orderNumber = order.shopifyOrderId.slice(-4);
+  const storeLabel =
+    order.storeName && order.storeName.trim() && order.storeName.trim() !== "My Store"
+      ? order.storeName.trim()
+      : null;
 
   // Journey middle-step label is dynamic per delivery mode.
   // Pickup journey: Order placed → Almost ready → Ready for pickup (→ Collected) → Post a story
@@ -208,12 +213,22 @@ export default function OrderDetail() {
               <Store className="w-3 h-3 text-white/70" />
             </div>
           )}
-          <span
-            className="text-sm font-bold text-white truncate"
-            data-testid="text-order-id"
-          >
-            Order #{order.shopifyOrderId.slice(-4)}
-          </span>
+          {storeLabel && (
+            <span
+              className="text-sm font-bold text-white truncate"
+              data-testid="text-store-name"
+            >
+              {storeLabel}
+            </span>
+          )}
+          {lineItems.length === 0 && (
+            <span
+              className="text-sm font-bold text-white truncate"
+              data-testid="text-order-id"
+            >
+              Order #{orderNumber}
+            </span>
+          )}
         </div>
         <div className="w-10" />
       </header>
@@ -404,9 +419,17 @@ export default function OrderDetail() {
         {/* PRODUCTS */}
         {lineItems.length > 0 && (
           <div className="creator-card p-5" data-testid="card-items">
-            <div className="flex justify-between items-end mb-4">
-              <h3 className="font-black text-lg text-gray-900">Items</h3>
-              <span className="text-sm font-bold text-gray-400">{lineItems.length} item{lineItems.length === 1 ? "" : "s"}</span>
+            <div className="flex justify-between items-end mb-4 gap-3">
+              <div className="min-w-0">
+                <h3 className="font-black text-lg text-gray-900">Items</h3>
+                <p
+                  className="text-xs font-bold text-gray-400 mt-0.5 truncate"
+                  data-testid="text-order-id"
+                >
+                  Order #{orderNumber}
+                </p>
+              </div>
+              <span className="text-sm font-bold text-gray-400 whitespace-nowrap">{lineItems.length} item{lineItems.length === 1 ? "" : "s"}</span>
             </div>
             <div className="grid grid-cols-2 gap-3">
               {lineItems.map((item, i) => {
