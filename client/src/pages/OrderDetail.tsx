@@ -323,16 +323,38 @@ export default function OrderDetail() {
                 </p>
               </div>
             </div>
-            <div className="bg-black/10 rounded-2xl p-4 space-y-2">
-              <div className="flex items-center gap-2 text-sm text-white">
-                <span className="font-bold">How to repost:</span>
-              </div>
-              <ol className="text-sm text-orange-50 space-y-1.5 ml-6 list-decimal">
-                <li>Open Instagram and create a new Story (public, not Close Friends)</li>
-                <li>Tag the brand using the @ mention sticker</li>
-                <li>Leave it up for 24 hours</li>
-              </ol>
-            </div>
+            {rawHandle ? (
+              <a
+                href={`https://instagram.com/${rawHandle}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="tactile-btn bg-white text-[#EA580C] w-full py-4 text-lg shadow-[0_4px_12px_rgba(0,0,0,0.1),inset_0_-4px_0_rgba(240,240,240,1)] text-center"
+                data-testid="link-repost-instagram"
+              >
+                Repost on Instagram
+              </a>
+            ) : (
+              <span className="tactile-btn bg-white text-[#EA580C] w-full py-4 text-lg shadow-[0_4px_12px_rgba(0,0,0,0.1),inset_0_-4px_0_rgba(240,240,240,1)] text-center">
+                Repost on Instagram
+              </span>
+            )}
+
+            <ul className="mt-4 text-orange-50 text-xs font-medium bg-black/10 px-4 py-3 rounded-2xl space-y-1.5 text-left w-full">
+              <li className="flex items-start gap-2">
+                <ShieldCheck className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>Public Story (not Close Friends)</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <ShieldCheck className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>
+                  {rawHandle ? <BrandHandle handle={rawHandle} /> : "@brand"} must be clearly visible
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <ShieldCheck className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>Stays up for 24 hours</span>
+              </li>
+            </ul>
           </div>
         )}
 
