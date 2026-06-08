@@ -184,7 +184,7 @@ export default function OrderDetail() {
 
   return (
     <div className="min-h-screen safe-top bg-warm pb-12">
-      <header className="px-4 py-4 flex items-center justify-between sticky top-0 bg-[#FCFCFB]/80 backdrop-blur-md z-10">
+      <header className="px-4 py-4 flex items-center">
         <Link href="/discounts">
           <button
             className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center hover-elevate"
