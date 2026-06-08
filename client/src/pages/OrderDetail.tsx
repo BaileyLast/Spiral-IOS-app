@@ -328,13 +328,13 @@ export default function OrderDetail() {
                 href={`https://instagram.com/${rawHandle}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="tactile-btn bg-white text-[#EA580C] w-full py-4 text-lg shadow-[0_4px_12px_rgba(0,0,0,0.1),inset_0_-4px_0_rgba(240,240,240,1)] text-center"
+                className="flex items-center justify-center w-full rounded-full bg-white text-[#EA580C] font-bold py-4 text-lg shadow-[0_4px_12px_rgba(0,0,0,0.12)] active:opacity-90 transition-opacity"
                 data-testid="link-repost-instagram"
               >
                 Repost on Instagram
               </a>
             ) : (
-              <span className="tactile-btn bg-white text-[#EA580C] w-full py-4 text-lg shadow-[0_4px_12px_rgba(0,0,0,0.1),inset_0_-4px_0_rgba(240,240,240,1)] text-center">
+              <span className="flex items-center justify-center w-full rounded-full bg-white text-[#EA580C] font-bold py-4 text-lg shadow-[0_4px_12px_rgba(0,0,0,0.12)]">
                 Repost on Instagram
               </span>
             )}
