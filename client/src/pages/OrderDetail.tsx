@@ -157,10 +157,6 @@ export default function OrderDetail() {
   const awaitingPickup = order.shopifyTrackingStatus === "ready_for_pickup" && order.status !== "delivered";
   const rawHandle = (order.merchantInstagramHandle || "").replace(/^@/, "");
   const orderNumber = order.shopifyOrderId.slice(-4);
-  const storeLabel =
-    order.storeName && order.storeName.trim() && order.storeName.trim() !== "My Store"
-      ? order.storeName.trim()
-      : null;
 
   // Journey middle-step label is dynamic per delivery mode.
   // Pickup journey: Order placed → Almost ready → Ready for pickup (→ Collected) → Post a story
@@ -198,39 +194,6 @@ export default function OrderDetail() {
             <ArrowLeft className="w-5 h-5 text-gray-900" />
           </button>
         </Link>
-        <div className="flex items-center gap-2 bg-gray-800 px-3 py-1.5 rounded-full shadow-sm max-w-[60%]">
-          {order.storeLogo && !/(^|\/\/)(www\.)?google\.com\/s2\/favicons/i.test(order.storeLogo) ? (
-            <img
-              src={order.storeLogo}
-              alt={order.storeName || "Store"}
-              className="w-5 h-5 rounded-full object-contain"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = "none";
-              }}
-            />
-          ) : (
-            <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center">
-              <Store className="w-3 h-3 text-white/70" />
-            </div>
-          )}
-          {storeLabel && (
-            <span
-              className="text-sm font-bold text-white truncate"
-              data-testid="text-store-name"
-            >
-              {storeLabel}
-            </span>
-          )}
-          {lineItems.length === 0 && (
-            <span
-              className="text-sm font-bold text-white truncate"
-              data-testid="text-order-id"
-            >
-              Order #{orderNumber}
-            </span>
-          )}
-        </div>
-        <div className="w-10" />
       </header>
 
       <main className="px-5 mt-4 space-y-6">
