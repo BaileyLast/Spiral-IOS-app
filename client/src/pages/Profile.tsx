@@ -119,6 +119,19 @@ export default function Profile() {
               {profile.email}
             </p>
           )}
+          {isInstagramConnected && (
+            <div className="flex items-center justify-center flex-wrap gap-x-2 gap-y-0.5 mt-3">
+              <span className="flex items-center gap-1.5 font-bold text-[#0E5C42]" data-testid="text-instagram-handle">
+                <Instagram className="w-4 h-4 text-[#1A996E]" />
+                @{profile?.instagramHandle}
+              </span>
+              {profile?.followerCount != null && (
+                <span className="text-sm font-bold text-[#1A996E]" data-testid="text-follower-count">
+                  · {formatFollowerCount(profile.followerCount)} followers
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Stats card */}
@@ -159,37 +172,8 @@ export default function Profile() {
           </div>
         )}
 
-        {/* Instagram connection */}
-        {isInstagramConnected ? (
-          <div className="creator-card p-5 bg-[#E6F8F0]" data-testid="card-instagram-connected">
-            <div className="flex items-center gap-4">
-              <Avatar className="w-14 h-14 border-2 border-white shadow-sm">
-                {profile?.instagramProfilePicture ? (
-                  <AvatarImage
-                    src="/api/customer/instagram-avatar"
-                    alt={profile.instagramHandle || "Instagram"}
-                  />
-                ) : null}
-                <AvatarFallback className="bg-[#4ECCA3] text-white">
-                  <Instagram className="w-6 h-6" />
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <p className="font-black text-[#0E5C42] truncate" data-testid="text-instagram-handle">
-                  @{profile?.instagramHandle}
-                </p>
-                {profile?.followerCount != null && (
-                  <p className="text-sm font-bold text-[#1A996E] mt-0.5">
-                    {formatFollowerCount(profile.followerCount)} followers
-                  </p>
-                )}
-              </div>
-              <div className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center">
-                <Instagram className="w-5 h-5 text-[#1A996E]" />
-              </div>
-            </div>
-          </div>
-        ) : (
+        {/* Instagram connection prompt (only when not yet linked) */}
+        {!isInstagramConnected && (
           <div
             className="creator-card story-bg-gradient p-6 text-white text-center relative overflow-hidden"
             data-testid="card-connect-instagram-hero"
