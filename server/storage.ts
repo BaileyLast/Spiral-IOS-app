@@ -76,6 +76,7 @@ export interface IStorage {
   updateOrderFulfillment(orderId: string, fulfilledAt: Date): Promise<Order>;
   updateOrderTrackingStatus(orderId: string, status: string): Promise<Order | undefined>;
   patchOrderIfNull(orderId: string, fields: Partial<Order>): Promise<Order | undefined>;
+  updateOrderLineItems(orderId: string, lineItems: string): Promise<void>;
   getOrdersAwaitingDeliveryFallback(): Promise<Order[]>;
   // Products and Collections
   syncProducts(products: InsertShopifyProduct[]): Promise<ShopifyProduct[]>;
@@ -584,6 +585,13 @@ export class DatabaseStorage implements IStorage {
       .where(eq(orders.id, orderId))
       .returning();
     return updated;
+  }
+
+  async updateOrderLineItems(orderId: string, lineItems: string): Promise<void> {
+    await db
+      .update(orders)
+      .set({ lineItems })
+      .where(eq(orders.id, orderId));
   }
 
   async updateOrderTrackingStatus(orderId: string, status: string): Promise<Order | undefined> {

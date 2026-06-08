@@ -7,7 +7,7 @@ import { Resend } from "resend";
 import { storage } from "./storage";
 import { z } from "zod";
 import { insertStoreSettingsSchema, insertDiscountTierSchema, insertVerificationSchema, isOrderOwed, OWED_VERIFICATION_ANYDELIVERY, OWED_VERIFICATION_DELIVERED_ONLY, type StoreSettings, type SpiralCustomer } from "@shared/schema";
-import { fetchShopifyProducts, fetchShopifyCollections, fetchProductImages } from "./shopify";
+import { fetchShopifyProducts, fetchShopifyCollections, fetchProductImages, fetchOrderLineItemImages } from "./shopify";
 import { getJoinspiralToken, markJoinspiralTokenInvalid, isInstagramAuthError } from "./joinspiralToken";
 import {
   getShopifyCredentials,
@@ -1690,6 +1690,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return { name, imageUrl, productUrl, quantity };
           })
           .filter((item) => item.name.length > 0);
+        // The checkout widget often doesn't send image URLs. If any item is
+        // missing one, re-read the order from Shopify and fill images in by
+        // product title so the shopper sees real photos. Best-effort: any
+        // failure just leaves the placeholder icon.
+        const needsImages = normalized.some((item) => !item.imageUrl);
+        if (needsImages && confirmCreds?.shopDomain && confirmCreds?.accessToken) {
+          const imagesByTitle = await fetchOrderLineItemImages({
+            shopDomain: confirmCreds.shopDomain,
+            accessToken: confirmCreds.accessToken,
+            shopifyOrderId,
+          });
+          if (Object.keys(imagesByTitle).length > 0) {
+            for (const item of normalized) {
+              if (item.imageUrl) continue;
+              const key = item.name.trim().toLowerCase();
+              if (imagesByTitle[key]) item.imageUrl = imagesByTitle[key];
+            }
+          }
+        }
         if (normalized.length > 0) {
           confirmLineItems = JSON.stringify(normalized);
         }
@@ -4543,6 +4562,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (err) {
       console.error("[shopify-backfill] failed:", err);
       res.status(500).json({ error: "Failed to backfill webhooks" });
+    }
+  });
+
+  // One-shot repair: find orders whose stored line items have no image and
+  // re-enrich them from Shopify (by re-reading each order via its stored
+  // shopify_order_id). Idempotent and safe to re-run — orders that already
+  // have images, or whose products genuinely have no image in Shopify, are
+  // skipped. Internal-key gated; intended to be invoked server-to-server.
+  app.post("/api/internal/orders/backfill-images", requireInternalKey, async (req, res) => {
+    try {
+      const settings = await storage.getStoreSettings();
+      const creds = await getShopifyCredentialsForSettings(settings);
+      if (!creds?.shopDomain || !creds?.accessToken) {
+        return res.status(400).json({ error: "No Shopify store connected (dashboard returned no credentials)" });
+      }
+
+      const allOrders = await storage.getOrders();
+      const result = {
+        scanned: 0,
+        repaired: 0,
+        skipped: 0,
+        failed: 0,
+        repairedOrders: [] as Array<{ orderId: string; shopifyOrderId: string }>,
+      };
+
+      for (const order of allOrders) {
+        if (!order.lineItems || !order.shopifyOrderId) continue;
+        let items: any[];
+        try {
+          items = JSON.parse(order.lineItems);
+        } catch {
+          continue;
+        }
+        if (!Array.isArray(items) || items.length === 0) continue;
+        const missing = items.some((it) => it && typeof it === 'object' && !it.imageUrl);
+        if (!missing) continue;
+
+        result.scanned++;
+        try {
+          const imagesByTitle = await fetchOrderLineItemImages({
+            shopDomain: creds.shopDomain,
+            accessToken: creds.accessToken,
+            shopifyOrderId: order.shopifyOrderId,
+          });
+          if (Object.keys(imagesByTitle).length === 0) {
+            result.skipped++;
+            continue;
+          }
+          let changed = false;
+          for (const it of items) {
+            if (!it || typeof it !== 'object' || it.imageUrl) continue;
+            const name = (it.title || it.name || '').toString().trim().toLowerCase();
+            if (name && imagesByTitle[name]) {
+              it.imageUrl = imagesByTitle[name];
+              changed = true;
+            }
+          }
+          if (changed) {
+            await storage.updateOrderLineItems(order.id, JSON.stringify(items));
+            result.repaired++;
+            result.repairedOrders.push({ orderId: order.id, shopifyOrderId: order.shopifyOrderId });
+            console.log(`[backfill-images] repaired order ${order.id} (shopify ${order.shopifyOrderId})`);
+          } else {
+            result.skipped++;
+          }
+        } catch (e) {
+          result.failed++;
+          console.error(`[backfill-images] order ${order.id} failed:`, e);
+        }
+      }
+
+      res.json(result);
+    } catch (err) {
+      console.error("[backfill-images] failed:", err);
+      res.status(500).json({ error: "Failed to backfill order images" });
     }
   });
 

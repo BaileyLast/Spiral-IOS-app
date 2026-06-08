@@ -114,6 +114,57 @@ export async function fetchProductImages(
   }
 }
 
+// Re-read a placed order from Shopify and resolve each line item's product
+// image. Used to enrich/repair orders whose stored line items have no image
+// (the checkout widget often doesn't send image URLs, and the webhook path
+// can miss images if credentials were briefly unavailable at creation time).
+// Returns a map of lowercased product title -> image URL. Degrades quietly to
+// an empty map on any failure (missing order, no product image, API error).
+export async function fetchOrderLineItemImages(
+  options: ShopifyApiOptions & { shopifyOrderId: string | number },
+): Promise<Record<string, string>> {
+  const { shopDomain, accessToken, shopifyOrderId } = options;
+  const idStr = String(shopifyOrderId).trim();
+  if (!idStr) return {};
+
+  const url = `https://${shopDomain}/admin/api/2024-01/orders/${encodeURIComponent(idStr)}.json?fields=line_items`;
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'X-Shopify-Access-Token': accessToken,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!response.ok) {
+      console.warn(`[shopify] fetchOrderLineItemImages failed: ${response.status} ${response.statusText}`);
+      return {};
+    }
+    const data = (await response.json()) as {
+      order?: { line_items?: Array<{ title?: string; product_id?: number | null }> };
+    };
+    const lineItems = data.order?.line_items || [];
+    const productIds = lineItems
+      .map((li) => li.product_id)
+      .filter((id): id is number => id != null);
+    if (productIds.length === 0) return {};
+
+    const imagesByProductId = await fetchProductImages({ shopDomain, accessToken, productIds });
+
+    const map: Record<string, string> = {};
+    for (const li of lineItems) {
+      const title = (li.title || '').trim().toLowerCase();
+      if (!title || li.product_id == null) continue;
+      const src = imagesByProductId[String(li.product_id)];
+      if (src) map[title] = src;
+    }
+    return map;
+  } catch (err) {
+    console.warn('[shopify] fetchOrderLineItemImages error:', err);
+    return {};
+  }
+}
+
 export async function registerWebhook(options: ShopifyApiOptions & { topic: string; address: string }): Promise<void> {
   const { shopDomain, accessToken, topic, address } = options;
   const url = `https://${shopDomain}/admin/api/2024-01/webhooks.json`;
