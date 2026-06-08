@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { ShoppingBag, ChevronRight, Store, Lock, Instagram, CheckCircle2 } from "lucide-react";
 import type { Order } from "@shared/schema";
+import { useAuthGuard } from "@/hooks/use-auth-guard";
 
 export interface LineItem {
   name?: string | null;
@@ -355,12 +356,16 @@ interface MeResponse {
 }
 
 export default function Orders() {
-  const { data: orders = [], isLoading } = useQuery<Order[]>({
+  const { data: orders = [], isLoading, error: ordersError } = useQuery<Order[]>({
     queryKey: ["/api/customer/orders"],
   });
-  const { data: me } = useQuery<MeResponse>({
+  const { data: me, error: meError } = useQuery<MeResponse>({
     queryKey: ["/api/customer/me"],
   });
+
+  // If the session is dead, treat the shopper as logged out instead of rendering
+  // the signed-in shell with stale/empty data (e.g. on-hold banner + no orders).
+  useAuthGuard(ordersError, meError);
 
   const activeOrders = orders.filter((o) => !isCompleted(o));
   const historyOrders = orders.filter((o) => isCompleted(o));

@@ -5,6 +5,7 @@ import type { Order } from "@shared/schema";
 import HomeInstagramConnect from "@/components/HomeInstagramConnect";
 import { OrderCard } from "@/pages/Orders";
 import { formatCurrency } from "@/lib/countries";
+import { useAuthGuard } from "@/hooks/use-auth-guard";
 
 interface CustomerProfile {
   id: string;
@@ -26,15 +27,15 @@ function formatFollowerCount(count: number): string {
 }
 
 export default function CustomerHome() {
-  const { data: profile } = useQuery<CustomerProfile>({
+  const { data: profile, error: profileError } = useQuery<CustomerProfile>({
     queryKey: ["/api/customer/me"],
   });
 
-  const { data: orders = [] } = useQuery<Order[]>({
+  const { data: orders = [], error: ordersError } = useQuery<Order[]>({
     queryKey: ["/api/customer/orders"],
   });
 
-  const { data: stats } = useQuery<{
+  const { data: stats, error: statsError } = useQuery<{
     totalSaved: number;
     ordersCompleted: number;
     discountPercent: number;
@@ -42,6 +43,10 @@ export default function CustomerHome() {
   }>({
     queryKey: ["/api/customer/stats"],
   });
+
+  // If the session is dead, treat the shopper as logged out instead of rendering
+  // the signed-in shell with stale/empty data (e.g. on-hold banner + no orders).
+  useAuthGuard(profileError, ordersError, statsError);
 
   const recentOrders = orders.slice(0, 3);
   const isSoftBanned = profile?.accountStatus === "soft_banned";

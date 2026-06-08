@@ -7,6 +7,12 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+// Errors thrown by the fetchers above are prefixed with the HTTP status, e.g.
+// "401: Not authenticated". Use this to detect a dead/unauthenticated session.
+export function isUnauthorizedError(error: unknown): boolean {
+  return error instanceof Error && /^401:/.test(error.message);
+}
+
 export async function apiRequest(
   method: string,
   url: string,

@@ -21,6 +21,16 @@ app.set('trust proxy', 1);
 const isProduction = process.env.NODE_ENV === 'production';
 const isReplit = !!process.env.REPL_SLUG;
 
+// Any deployed/Replit context is served over HTTPS and may be loaded cross-site
+// (the iOS WebView shell and the Shopify checkout widget both call this API from
+// a different origin). For those requests the browser only sends the session
+// cookie when it is SameSite=None AND Secure. We must keep the two in lockstep:
+// a SameSite=None cookie without Secure is silently dropped by browsers. Note
+// that REPL_SLUG is NOT reliably set on a deployed Reserved VM, so we cannot key
+// the cross-site cookie on it — doing so let prod fall back to SameSite=Lax,
+// which dropped the cookie on every cross-site request and 401'd the whole app.
+const crossSiteSecureCookie = isProduction || isReplit;
+
 const PgStore = connectPgSimple(session);
 
 app.use(session({
@@ -32,10 +42,10 @@ app.use(session({
     createTableIfMissing: true,
   }),
   cookie: {
-    secure: isProduction || isReplit,
+    secure: crossSiteSecureCookie,
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000,
-    sameSite: isReplit ? 'none' : 'lax',
+    sameSite: crossSiteSecureCookie ? 'none' : 'lax',
   }
 }));
 
