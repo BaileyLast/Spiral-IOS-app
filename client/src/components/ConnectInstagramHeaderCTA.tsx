@@ -16,16 +16,20 @@ export function ConnectInstagramHeaderCTA() {
   if (profile.instagramHandle) return null;
 
   return (
-    <Link
-      href="/home"
-      className="block bg-[#EBF9F5] border-b border-[#A8F5E0] px-6 py-2.5 hover-elevate active-elevate-2"
-      data-testid="header-cta-connect-instagram"
-    >
-      <div className="flex items-center gap-2 text-[#155843]">
-        <Instagram className="w-4 h-4 shrink-0" />
-        <span className="text-sm font-semibold flex-1">Connect Instagram to use Spiral</span>
-        <ChevronRight className="w-4 h-4 shrink-0 opacity-70" />
-      </div>
-    </Link>
+    <div className="px-4 pt-4">
+      <Link
+        href="/home"
+        className="creator-card story-bg-gradient flex items-center gap-3 px-4 py-3 text-white hover-elevate active-elevate-2"
+        data-testid="header-cta-connect-instagram"
+      >
+        <div className="w-9 h-9 rounded-full bg-white flex items-center justify-center text-[#4ECCA3] shadow-sm shrink-0">
+          <Instagram className="w-5 h-5" />
+        </div>
+        <span className="text-sm font-bold flex-1 leading-tight">
+          Connect Instagram to use Spiral
+        </span>
+        <ChevronRight className="w-5 h-5 shrink-0 opacity-90" />
+      </Link>
+    </div>
   );
 }
