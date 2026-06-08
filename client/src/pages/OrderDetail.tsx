@@ -347,7 +347,6 @@ export default function OrderDetail() {
             </div>
             <div className="bg-orange-100/60 rounded-2xl p-4 space-y-2">
               <div className="flex items-center gap-2 text-sm text-orange-800">
-                <Instagram className="w-4 h-4" />
                 <span className="font-bold">How to repost:</span>
               </div>
               <ol className="text-sm text-orange-800 space-y-1.5 ml-6 list-decimal">
