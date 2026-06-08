@@ -327,29 +327,29 @@ export default function OrderDetail() {
         )}
 
         {(status === "not_public" || status === "taken_down_early") && (
-          <div className="creator-card p-5 bg-orange-50 border border-orange-200" data-testid={`card-${status}`}>
+          <div className="creator-card p-5 text-white bg-gradient-to-br from-[#FB923C] to-[#EA580C]" data-testid={`card-${status}`}>
             <div className="flex items-start gap-4 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
-                <Camera className="w-5 h-5 text-orange-600" />
+              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-lg text-[#EA580C]">
+                <Camera className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-black text-orange-900 text-base" data-testid={`text-${status}-heading`}>
+                <h3 className="font-black text-white text-base" data-testid={`text-${status}-heading`}>
                   {status === "not_public"
                     ? "We couldn't see your Story"
                     : "Your Story came down too early"}
                 </h3>
-                <p className="text-sm text-orange-700 mt-1" data-testid={`text-${status}-body`}>
+                <p className="text-sm text-orange-50 font-medium mt-1" data-testid={`text-${status}-body`}>
                   {status === "not_public"
                     ? "Stories must be public — Close Friends doesn't count. Repost publicly and tag the brand to unlock your next discount."
                     : "Spiral Stories need to stay up for 24 hours. Repost publicly and tag the brand to unlock your next discount."}
                 </p>
               </div>
             </div>
-            <div className="bg-orange-100/60 rounded-2xl p-4 space-y-2">
-              <div className="flex items-center gap-2 text-sm text-orange-800">
+            <div className="bg-black/10 rounded-2xl p-4 space-y-2">
+              <div className="flex items-center gap-2 text-sm text-white">
                 <span className="font-bold">How to repost:</span>
               </div>
-              <ol className="text-sm text-orange-800 space-y-1.5 ml-6 list-decimal">
+              <ol className="text-sm text-orange-50 space-y-1.5 ml-6 list-decimal">
                 <li>Open Instagram and create a new Story (public, not Close Friends)</li>
                 <li>Tag the brand using the @ mention sticker</li>
                 <li>Leave it up for 24 hours</li>
