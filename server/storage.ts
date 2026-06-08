@@ -1315,10 +1315,15 @@ export class DatabaseStorage implements IStorage {
 
   async getSpiralCustomerByInstagramHandle(handle: string): Promise<SpiralCustomer | undefined> {
     const normalizedHandle = handle.toLowerCase().replace('@', '');
-    const allCustomers = await db.select().from(spiralCustomers);
-    return allCustomers.find(c => 
-      c.instagramHandle?.toLowerCase().replace('@', '') === normalizedHandle
-    );
+    // Push the normalized comparison into the DB with LIMIT 1 so this stays
+    // cheap on the hot path (the dashboard teaser widget calls it per check)
+    // instead of reading the whole table and filtering in JS.
+    const [customer] = await db
+      .select()
+      .from(spiralCustomers)
+      .where(sql`lower(replace(${spiralCustomers.instagramHandle}, '@', '')) = ${normalizedHandle}`)
+      .limit(1);
+    return customer;
   }
 
   async getSpiralCustomersByInstagramHandle(handle: string): Promise<SpiralCustomer[]> {

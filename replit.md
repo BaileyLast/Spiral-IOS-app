@@ -69,6 +69,7 @@ All routes gated by `requireInternalKey` (header `x-spiral-internal-key`). Used 
 |---|---|
 | `POST /identity/resolve` | `{merchantInstagramBusinessId, senderScopedId}` → Spiral identity (or confirmed non-Spiral). Same logic as the story-mention webhook (`resolveScopedSender` helper). |
 | `GET /customers/by-instagram?handle=&userId=&globalUserId=` | Find Spiral customers by IG identity. Returns array (siblings can share a handle). |
+| `POST /customers/lookup-by-handle` | `{instagramHandle}` → `{isSpiral:true, customerId}` if a Spiral shopper owns that handle, else `{isSpiral:false}`. Case-insensitive, tolerates leading `@`. Miss = 200 (never 404). Hot path for the merchant dashboard product-page teaser (Login vs Join). |
 | `GET /identity/:globalUserId/verifications?fallbackUserId=` | Story history for an IG identity. Survives customer deletion. Pass `_` for the path param if only fallback id is known. |
 | `POST /discount/calculate` | `{customerId}` → eligibility + tier match (mirrors `/api/checkout/calculate-discount`, sans soft-ban gate). Backed by `calculateDiscountForCustomer`. |
 | `GET /customers/:customerId/soft-ban-status` | Read-through soft-ban evaluator (`evaluateSoftBanForCheckout`). Self-heals stale state. |

@@ -4791,6 +4791,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 2b. POST /api/internal/customers/lookup-by-handle
+  // Hot-path yes/no check used by the merchant dashboard's product-page teaser
+  // widget: does this Instagram handle belong to a registered Spiral shopper?
+  // Lets the widget render "Login →" vs "Join Spiral →". Single case-insensitive
+  // handle lookup; a miss is a 200 with { isSpiral: false } (never 404) so the
+  // caller's 3s-timeout/degrade path only triggers on real failures.
+  app.post("/api/internal/customers/lookup-by-handle", requireInternalKey, async (req, res) => {
+    try {
+      const raw = req.body?.instagramHandle;
+      const handle = typeof raw === "string" ? raw.trim().replace(/^@/, "") : "";
+      if (!handle) {
+        return res.status(400).json({ error: "must_provide_instagramHandle" });
+      }
+      // Storage lookup already normalizes case + strips a leading @.
+      const customer = await storage.getSpiralCustomerByInstagramHandle(handle);
+      if (!customer) {
+        return res.json({ isSpiral: false });
+      }
+      return res.json({ isSpiral: true, customerId: customer.id });
+    } catch (err) {
+      console.error("[internal] customers/lookup-by-handle failed:", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
   // 3. GET /api/internal/identity/:globalUserId/verifications
   // Every verification row attached to any order owned by this Instagram
   // identity. Survives spiral_customers deletion (orders are anonymized but
