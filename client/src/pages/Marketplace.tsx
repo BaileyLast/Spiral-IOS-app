@@ -501,8 +501,8 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
               className="text-xs text-gray-500 font-medium flex items-center gap-1 truncate"
               data-testid={`text-brand-handle-${testKey}`}
             >
-              <Instagram className="w-3 h-3 flex-shrink-0" />
               <span className="truncate">@{brand.instagramUsername}</span>
+              <Instagram className="w-3 h-3 flex-shrink-0" />
             </p>
           )}
         </div>

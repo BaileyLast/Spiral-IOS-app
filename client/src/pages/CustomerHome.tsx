@@ -176,7 +176,7 @@ export default function CustomerHome() {
                 className="text-2xl font-black mb-2 leading-tight"
                 data-testid="text-soft-ban-heading"
               >
-                Keep the spiral going
+                Keep your Spiral going
               </h2>
               <p
                 className="text-[#E6F8F0] font-medium text-sm mb-5 max-w-[320px]"

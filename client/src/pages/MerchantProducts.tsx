@@ -216,7 +216,7 @@ export default function MerchantProducts() {
             className="mb-4 rounded-2xl border border-[#4ECCA3]/30 bg-[#E6F8F0] p-3 text-sm text-[#0F4F3C]"
             data-testid="banner-on-hold"
           >
-            <p className="font-semibold">Keep the spiral going</p>
+            <p className="font-semibold">Keep your Spiral going</p>
             <p className="text-[#155843] mt-0.5">
               {pricingState.reason === "inherited_from_instagram"
                 ? "Your Instagram owes a Story from an earlier Spiral order. Post it tagging the brand to keep earning discounts."

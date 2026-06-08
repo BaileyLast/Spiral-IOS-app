@@ -427,7 +427,7 @@ export default function Orders() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-bold text-white text-base leading-tight" data-testid="text-soft-ban-heading">
-                Keep the spiral going
+                Keep your Spiral going
               </p>
               <p className="text-xs text-[#E6F8F0] font-medium mt-1" data-testid="text-soft-ban-body">
                 Complete your pending Story post(s) to keep earning Spiral discounts.
