@@ -397,22 +397,22 @@ export default function Orders() {
         {me && !me.instagramHandle && (
           <Link
             href="/home"
-            className="block p-5 rounded-2xl bg-gradient-to-br from-[#EBF9F5] to-[#D6F2E6] border border-[#A8F5E0] hover-elevate active-elevate-2"
+            className="creator-card story-bg-gradient block p-5 text-white hover-elevate active-elevate-2"
             data-testid="card-connect-instagram-prominent"
           >
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center flex-shrink-0 shadow-sm">
-                <Instagram className="w-6 h-6 text-[#2BAE88]" />
+              <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-lg text-[#4ECCA3]">
+                <Instagram className="w-6 h-6" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-black text-[#0F4F3C] text-base">
+                <p className="font-bold text-white text-base leading-tight">
                   Verify your Instagram
                 </p>
-                <p className="text-sm text-[#155843] mt-0.5">
+                <p className="text-sm text-[#E6F8F0] font-medium mt-1">
                   To start earning discounts we need to verify your Instagram account. Just follow the simple instructions here.
                 </p>
               </div>
-              <ChevronRight className="w-5 h-5 text-[#2BAE88] flex-shrink-0 mt-1" />
+              <ChevronRight className="w-5 h-5 text-white opacity-90 flex-shrink-0 mt-1" />
             </div>
           </Link>
         )}
