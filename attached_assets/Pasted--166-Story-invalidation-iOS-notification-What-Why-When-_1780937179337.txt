@@ -1,0 +1,21 @@
+#166 - Story invalidation iOS notification
+What & Why
+When a Spiral admin rejects a flagged story (action: "reject"), the dashboard resets the verification to pending — wiping storyImageUrl, storyDetectedAt, and setting status back to "pending". But the shopper's iOS app still shows the story as posted. Without a notification, the shopper sees stale state and the iOS app's records are out of sync. We need to ping the iOS app when a story is invalidated so it can reset the shopper's story status on its side.
+
+Done looks like
+When action: "reject" is processed by the dashboard resolve endpoint, it calls the iOS app with a story-invalidation notification containing at minimum the verification ID and instagram handle.
+The call is best-effort and non-fatal — if the iOS app is unreachable, the dashboard resolve still succeeds and the failure is logged.
+The notification fires from the dashboard's resolve endpoint (not the CRM layer), so it works regardless of how the endpoint is called.
+Out of scope
+What the iOS app does with the notification — that's the iOS team's implementation. This task only covers sending it.
+action: "approve" — no notification needed when a story is cleared/approved.
+Steps
+Add the notification call to the dashboard resolve route — After storage.resolveFlag(id, 'reject') succeeds, fire a POST to IOS_APP_URL/api/internal/stories/invalidate (or the endpoint the iOS team confirms) with { verificationId: id, instagramHandle }. Wrap in try/catch so failure is non-fatal; log the outcome.
+Wire in IOS_APP_URL — The dashboard routes file already has access to environment variables. Add IOS_APP_URL (falling back to SPIRAL_CUSTOMER_APP_URL) and the x-spiral-internal-key header, consistent with how the CRM calls the iOS app.
+Update the CRM — Add a comment/note in crm/server.ts that the story-invalidation notification is now handled by the dashboard resolve endpoint, so the CRM doesn't need to duplicate it.
+Relevant files
+server/routes.ts
+crm/server.ts
+server/lib/spiralCoreApi.ts
+Dependencies
+Soft-ban single ownership cleanup
