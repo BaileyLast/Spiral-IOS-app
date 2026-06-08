@@ -16,7 +16,7 @@ Simple, everyday language. No emojis.
 
 ## Stack
 
-- **Frontend**: React 18 + TypeScript + Vite, shadcn/ui + Tailwind. Mobile-first, single-column. HSL CSS variables, branded purple. Bottom nav: Home / Marketplace / Discounts / Profile. React Query for server state, localStorage for session.
+- **Frontend**: React 18 + TypeScript + Vite, shadcn/ui + Tailwind. Mobile-first, single-column. HSL CSS variables, branded green/teal. Bottom nav: Home / Marketplace / Discounts / Profile. React Query for server state, localStorage for session.
 - **Backend**: Express + Drizzle ORM + Neon serverless Postgres. TypeScript strict, ESNext.
 - **Build**: Vite (client), esbuild (server prod), tsx (dev).
 
