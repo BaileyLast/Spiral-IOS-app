@@ -87,16 +87,7 @@ export default function Profile() {
 
   return (
     <div className="min-h-screen bg-warm safe-top pb-12">
-      <header className="px-6 pt-10 pb-6">
-        <h1
-          className="text-3xl font-black tracking-tight text-gray-900 mb-2"
-          data-testid="text-page-title"
-        >
-          Profile
-        </h1>
-      </header>
-
-      <main className="px-6 space-y-6">
+      <main className="px-6 pt-10 space-y-6">
         {/* Profile header card */}
         <div className="creator-card p-6 flex flex-col items-center text-center" data-testid="card-profile-header">
           <Avatar className="w-20 h-20 border-4 border-white shadow-md">
