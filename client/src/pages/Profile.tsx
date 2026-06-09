@@ -110,28 +110,23 @@ export default function Profile() {
               {displayName?.[0]?.toUpperCase() || "?"}
             </AvatarFallback>
           </Avatar>
-          {realName && (
-            <h2 className="text-2xl font-black text-gray-900 mt-4" data-testid="text-display-name">
-              {realName}
-            </h2>
-          )}
           {profile?.email && (
             <p
-              className={`text-sm font-medium text-gray-500 ${realName ? "mt-1" : "mt-4"}`}
+              className="text-sm font-medium text-gray-500 mt-4"
               data-testid="text-email"
             >
               {profile.email}
             </p>
           )}
           {isInstagramConnected && (
-            <div className="flex items-center justify-center flex-wrap gap-x-2 gap-y-0.5 mt-3">
-              <span className="flex items-center gap-1.5 font-bold text-[#0E5C42]" data-testid="text-instagram-handle">
-                <Instagram className="w-4 h-4 text-[#1A996E]" />
+            <div className="flex flex-col items-center gap-1 mt-3">
+              <Instagram className="w-5 h-5 text-[#1A996E]" />
+              <span className="font-bold text-[#0E5C42]" data-testid="text-instagram-handle">
                 @{profile?.instagramHandle}
               </span>
               {profile?.followerCount != null && (
                 <span className="text-sm font-bold text-[#1A996E]" data-testid="text-follower-count">
-                  · {formatFollowerCount(profile.followerCount)} followers
+                  {formatFollowerCount(profile.followerCount)} followers
                 </span>
               )}
             </div>
