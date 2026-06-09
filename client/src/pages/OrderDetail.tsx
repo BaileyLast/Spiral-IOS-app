@@ -19,7 +19,7 @@ import {
   Clock,
   Package,
   Instagram,
-  Camera,
+  Lock,
   Loader2,
   ShoppingBag,
   Store,
@@ -308,7 +308,7 @@ export default function OrderDetail() {
           <div className="creator-card p-5 text-white bg-gradient-to-br from-[#FB923C] to-[#EA580C]" data-testid={`card-${status}`}>
             <div className="flex items-start gap-4 mb-4">
               <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-lg text-[#EA580C]">
-                <Camera className="w-5 h-5" />
+                <Lock className="w-5 h-5" />
               </div>
               <div>
                 <h3 className="font-black text-white text-base" data-testid={`text-${status}-heading`}>
