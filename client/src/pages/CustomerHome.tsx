@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { ChevronRight, Instagram, Lock, CheckCircle2 } from "lucide-react";
+import { ChevronRight, Instagram, Lock } from "lucide-react";
 import type { Order } from "@shared/schema";
 import HomeInstagramConnect from "@/components/HomeInstagramConnect";
 import { OrderCard } from "@/pages/Orders";
@@ -18,12 +18,6 @@ interface CustomerProfile {
   accountStatus?: string;
   softBannedReason?: string | null;
   country?: string | null;
-}
-
-function formatFollowerCount(count: number): string {
-  if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
-  if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
-  return count.toString();
 }
 
 export default function CustomerHome() {
@@ -61,7 +55,6 @@ export default function CustomerHome() {
   });
   const pendingCount = owedOrders.length;
 
-  const greetingName = profile?.name?.split(" ")[0] || profile?.instagramHandle;
   const hasStats =
     !!stats && (stats.totalSaved > 0 || stats.ordersCompleted > 0 || stats.discountPercent > 0);
   const discountText =
@@ -73,39 +66,7 @@ export default function CustomerHome() {
 
   return (
     <div className="min-h-screen bg-warm safe-top pb-12">
-      <header className="px-6 pt-10 pb-6">
-        <h1
-          className="text-3xl font-black tracking-tight text-gray-900 mb-2"
-          data-testid="text-page-title"
-        >
-          {greetingName ? `Hi, ${greetingName}` : "Welcome"}
-        </h1>
-        {profile?.instagramHandle && (
-          <div
-            className="glass-pill inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white shadow-sm border border-gray-100"
-            data-testid="card-instagram-profile"
-          >
-            <Instagram className="w-3.5 h-3.5 text-[#4ECCA3]" />
-            <span
-              className="text-xs font-bold text-gray-700"
-              data-testid="text-instagram-handle"
-            >
-              @{profile.instagramHandle}
-            </span>
-            <CheckCircle2 className="w-3.5 h-3.5 text-[#1A996E]" />
-            {profile.followerCount ? (
-              <span
-                className="text-xs font-bold text-gray-500"
-                data-testid="text-follower-count"
-              >
-                · {formatFollowerCount(profile.followerCount)}
-              </span>
-            ) : null}
-          </div>
-        )}
-      </header>
-
-      <main className="px-6 space-y-6">
+      <main className="px-6 pt-10 space-y-6">
         {profile && !profile.instagramHandle && <HomeInstagramConnect />}
 
         {hasStats && (
