@@ -1051,10 +1051,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Admin API (read_products scope, already granted at install) so the
       // shopper sees real product photos on the Orders + OrderDetail screens.
       // Failures are non-fatal — items just fall back to the placeholder icon.
-      const rawLineItems = (order.line_items || []).slice(0, 5);
+      // Cap kept high enough to cover any realistic basket while bounding the
+      // stored JSON. (Was 5 — too low; large baskets silently lost items.)
+      const rawLineItems = (order.line_items || []).slice(0, 50);
       const productIds = rawLineItems
         .map((item: any) => item.product_id)
         .filter((id: any) => id != null);
+
+      // Per-item Spiral discount. Shopify allocates the order discount across
+      // line items in `discount_allocations[].amount`; summing them gives the
+      // dollars knocked off that item (0 = not part of the discount).
+      const lineItemDiscount = (item: any): number => {
+        const allocations = Array.isArray(item?.discount_allocations)
+          ? item.discount_allocations
+          : [];
+        const total = allocations.reduce((sum: number, a: any) => {
+          const n = parseFloat(String(a?.amount ?? ''));
+          return Number.isFinite(n) ? sum + n : sum;
+        }, 0);
+        return Number.isFinite(total) && total > 0 ? Math.round(total * 100) / 100 : 0;
+      };
 
       let productImageMap: Record<string, string> = {};
       const creds = await getShopifyCredentialsForSettings(settings);
@@ -1077,6 +1093,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           variantTitle: item.variant_title || null,
           quantity: item.quantity,
           imageUrl: item.product_id ? productImageMap[String(item.product_id)] || null : null,
+          discountedAmount: lineItemDiscount(item),
         }))
       );
 
@@ -1687,7 +1704,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const productUrl = normalizeHttpUrl(raw?.productUrl ?? raw?.url);
             const rawQty = Number(raw?.quantity);
             const quantity = Number.isFinite(rawQty) && rawQty >= 1 ? Math.floor(rawQty) : 1;
-            return { name, imageUrl, productUrl, quantity };
+            // Pass through a per-item discount if the widget supplies one;
+            // most callers don't, so this stays undefined and the UI falls
+            // back to the single order-level discount line.
+            const rawItemDiscount = Number(raw?.discountedAmount ?? raw?.discount);
+            const discountedAmount = Number.isFinite(rawItemDiscount) && rawItemDiscount > 0
+              ? Math.round(rawItemDiscount * 100) / 100
+              : undefined;
+            return { name, imageUrl, productUrl, quantity, ...(discountedAmount !== undefined ? { discountedAmount } : {}) };
           })
           .filter((item) => item.name.length > 0);
         // The checkout widget often doesn't send image URLs. If any item is

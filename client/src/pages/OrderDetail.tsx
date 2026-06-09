@@ -153,6 +153,19 @@ export default function OrderDetail() {
   const status = getStatusLabel(order);
   const lineItems = parseLineItems(order.lineItems).filter((item) => lineItemDisplayName(item).length > 0);
   const percentLabel = formatDiscountPercent(order.discountPercent);
+  // Per-item discount breakdown. Only orders captured with allocation data
+  // carry `discountedAmount`; when none do (older/widget orders) we fall back
+  // to the single order-level discount line and skip the per-product markers.
+  const hasPerItemDiscount = lineItems.some(
+    (item) => typeof item.discountedAmount === "number",
+  );
+  const itemWasDiscounted = (item: LineItem) =>
+    hasPerItemDiscount && (item.discountedAmount ?? 0) > 0;
+  const discountedItems = lineItems.filter((item) => itemWasDiscounted(item));
+  const mixedDiscount =
+    hasPerItemDiscount &&
+    discountedItems.length > 0 &&
+    discountedItems.length < lineItems.length;
   const isPickup = !!order.readyForPickupAt || order.shopifyTrackingStatus === "ready_for_pickup";
   const awaitingPickup = order.shopifyTrackingStatus === "ready_for_pickup" && order.status !== "delivered";
   const rawHandle = (order.merchantInstagramHandle || "").replace(/^@/, "");
@@ -416,13 +429,19 @@ export default function OrderDetail() {
               </div>
               <span className="text-sm font-bold text-gray-400 whitespace-nowrap">{lineItems.length} item{lineItems.length === 1 ? "" : "s"}</span>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div
+              className="flex gap-3 overflow-x-auto -mx-5 px-5 pb-1 snap-x scrollbar-none"
+              style={{ scrollbarWidth: "none" }}
+              data-testid="carousel-line-items"
+            >
               {lineItems.map((item, i) => {
                 const name = lineItemDisplayName(item);
                 const productUrl =
                   typeof item.productUrl === "string" && /^https?:\/\//i.test(item.productUrl)
                     ? item.productUrl
                     : null;
+                const discounted = itemWasDiscounted(item);
+                const showStatus = hasPerItemDiscount;
                 const card = (
                   <div className="relative rounded-2xl overflow-hidden bg-gray-100 aspect-[4/5]">
                     {item.imageUrl ? (
@@ -440,6 +459,25 @@ export default function OrderDetail() {
                       </div>
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                    {showStatus && (
+                      <div className="absolute top-2.5 left-2.5">
+                        {discounted ? (
+                          <span
+                            className="bg-[#4ECCA3] text-white text-[10px] px-2 py-0.5 rounded-full font-black uppercase shadow-[0_2px_8px_rgba(78,204,163,0.35)] whitespace-nowrap"
+                            data-testid={`badge-item-discounted-${name}`}
+                          >
+                            Discount applied
+                          </span>
+                        ) : (
+                          <span
+                            className="bg-black/55 text-white/90 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase whitespace-nowrap"
+                            data-testid={`badge-item-not-discounted-${name}`}
+                          >
+                            Not included
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <div className="absolute bottom-3 left-3 right-3">
                       <p
                         className="text-white font-bold text-sm leading-tight line-clamp-2 mb-1"
@@ -465,6 +503,7 @@ export default function OrderDetail() {
                       href={productUrl}
                       target="_blank"
                       rel="noopener noreferrer"
+                      className="flex-shrink-0 w-40 snap-start"
                       data-testid={`link-line-item-${name}`}
                     >
                       {card}
@@ -472,7 +511,11 @@ export default function OrderDetail() {
                   );
                 }
                 return (
-                  <div key={`${name}-${i}`} data-testid={`row-line-item-${name}`}>
+                  <div
+                    key={`${name}-${i}`}
+                    className="flex-shrink-0 w-40 snap-start"
+                    data-testid={`row-line-item-${name}`}
+                  >
                     {card}
                   </div>
                 );
@@ -508,6 +551,17 @@ export default function OrderDetail() {
                 -${Number(order.discountAmount).toFixed(2)}
               </span>
             </div>
+            {mixedDiscount && (
+              <p
+                className="text-xs text-gray-400 font-medium leading-relaxed"
+                data-testid="text-discount-coverage"
+              >
+                Applied to {discountedItems.length} of {lineItems.length} items:{" "}
+                <span className="text-gray-300">
+                  {discountedItems.map((item) => lineItemDisplayName(item)).join(", ")}
+                </span>
+              </p>
+            )}
             {Number(order.shippingAmount ?? 0) > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-gray-400 font-medium">Shipping</span>

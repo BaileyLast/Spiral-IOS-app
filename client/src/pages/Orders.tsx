@@ -11,6 +11,11 @@ export interface LineItem {
   imageUrl?: string | null;
   productUrl?: string | null;
   quantity: number;
+  // Dollar amount of the Spiral discount allocated to this specific line item.
+  // Present only for orders captured via the Shopify webhook after this change;
+  // older orders and widget-confirm orders leave it undefined (fallback to the
+  // single order-level discount line). 0 means the item was not discounted.
+  discountedAmount?: number | null;
 }
 
 export function parseLineItems(raw: string | null | undefined): LineItem[] {
@@ -257,8 +262,8 @@ export const MOCK_ACTIVE: Order[] = [
     storeLogo: "https://www.google.com/s2/favicons?domain=glossier.com&sz=64",
     shopifyOrderId: "479301",
     lineItems: JSON.stringify([
-      { name: "Cloud Paint", imageUrl: "https://images.unsplash.com/photo-1631730486572-226d1f595b68?w=400&h=400&fit=crop", quantity: 2 },
-      { name: "Boy Brow", imageUrl: null, quantity: 1 },
+      { name: "Cloud Paint", imageUrl: "https://images.unsplash.com/photo-1631730486572-226d1f595b68?w=400&h=400&fit=crop", quantity: 2, discountedAmount: 8.5 },
+      { name: "Boy Brow", imageUrl: null, quantity: 1, discountedAmount: 0 },
     ]),
     discountAmount: "8.50",
     orderTotal: "42.00",
