@@ -93,12 +93,23 @@ function pickTierPercent(tiers: DiscountTier[], followerCount: number): number |
 
 type PricingState =
   | { kind: "loading" }
-  | { kind: "soft_banned"; reason: string | null }
   | { kind: "not_connected" }
   | { kind: "below_min"; minFollowers: number; followerCount: number }
   | { kind: "no_tier"; lowestTierFollowers: number | null; followerCount: number }
   | { kind: "no_rules" }
   | { kind: "eligible"; percent: number };
+
+// On-hold (soft-ban) status is tracked separately from pricing so an on-hold
+// shopper still SEES their discounted price while browsing — exactly like the
+// marketplace. The banner reminds them to post; it no longer hides the price.
+type OnHoldState = { active: boolean; reason: string | null };
+
+function resolveOnHoldState(profile: CustomerProfile | null | undefined): OnHoldState {
+  return {
+    active: profile?.accountStatus === "soft_banned",
+    reason: profile?.softBannedReason ?? null,
+  };
+}
 
 function resolvePricingState(
   profile: CustomerProfile | null | undefined,
@@ -107,13 +118,12 @@ function resolvePricingState(
   if (!brand) return { kind: "loading" };
   // No profile yet → don't promise anything; render originals silently.
   if (!profile) return { kind: "loading" };
-  if (profile.accountStatus === "soft_banned") {
-    return { kind: "soft_banned", reason: profile.softBannedReason ?? null };
-  }
   const tiers = brand.discountTiers ?? [];
   // Brand simply hasn't configured Spiral discounts.
   if (tiers.length === 0) return { kind: "no_rules" };
-  if (!profile.instagramHandle) return { kind: "not_connected" };
+  // Connected = immutable instagramUserId is set (matches Marketplace and the
+  // backend matching rule). instagramHandle is display-only and can be blank.
+  if (!profile.instagramUserId) return { kind: "not_connected" };
   const followerCount = profile.followerCount ?? 0;
   const minFollowers = brand.minFollowers ?? 0;
   if (followerCount < minFollowers) {
@@ -157,6 +167,7 @@ export default function MerchantProducts() {
   });
 
   const pricingState = useMemo(() => resolvePricingState(profile ?? null, brand), [profile, brand]);
+  const onHold = useMemo(() => resolveOnHoldState(profile ?? null), [profile]);
 
   const displayName = brand ? cleanBrandName(brand.storeName, brand.instagramUsername) : "";
   const initial = (displayName.trim()[0] || "?").toUpperCase();
@@ -211,14 +222,14 @@ export default function MerchantProducts() {
       </header>
 
       <main className="px-4 pb-8 pt-4">
-        {pricingState.kind === "soft_banned" && (
+        {onHold.active && (
           <div
             className="mb-4 rounded-2xl border border-[#4ECCA3]/30 bg-[#E6F8F0] p-3 text-sm text-[#0F4F3C]"
             data-testid="banner-on-hold"
           >
             <p className="font-semibold">Keep your Spiral going</p>
             <p className="text-[#155843] mt-0.5">
-              {pricingState.reason === "inherited_from_instagram"
+              {onHold.reason === "inherited_from_instagram"
                 ? "Your Instagram owes a Story from an earlier Spiral order. Post it tagging the brand to keep earning discounts."
                 : "You've got a Story to post. Share your latest purchase tagging the brand to keep earning discounts with Spiral."}
             </p>
