@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { ShoppingBag, ChevronRight, Store, Lock, Instagram, CheckCircle2 } from "lucide-react";
+import { ShoppingBag, ChevronRight, Store, Lock, Instagram, CheckCircle2, Check } from "lucide-react";
 import type { Order } from "@shared/schema";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 
@@ -149,13 +149,23 @@ export function OrderCard({ order, dimmed = false, overlayOnly = false }: { orde
           </div>
 
           <div className="absolute top-4 right-4">
-            <span
-              className={`px-3 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase inline-flex items-center gap-1.5 ${statusPillClasses(status)}`}
-              data-testid={`status-order-${order.id}`}
-            >
-              {status === "Repost Story" && <Lock className="w-3 h-3" />}
-              {status}
-            </span>
+            {isDone ? (
+              <div
+                className="w-7 h-7 rounded-full bg-[#4ECCA3] flex items-center justify-center shadow-sm"
+                data-testid={`status-order-${order.id}`}
+                aria-label={status}
+              >
+                <Check className="w-4 h-4 text-white" strokeWidth={3} />
+              </div>
+            ) : (
+              <span
+                className={`px-3 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase inline-flex items-center gap-1.5 ${statusPillClasses(status)}`}
+                data-testid={`status-order-${order.id}`}
+              >
+                {status === "Repost Story" && <Lock className="w-3 h-3" />}
+                {status}
+              </span>
+            )}
           </div>
 
           <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 to-transparent" />
