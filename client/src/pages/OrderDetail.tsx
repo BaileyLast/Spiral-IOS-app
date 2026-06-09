@@ -305,9 +305,9 @@ export default function OrderDetail() {
         )}
 
         {(status === "not_public" || status === "taken_down_early") && (
-          <div className="creator-card p-5 text-white bg-gradient-to-br from-[#FB923C] to-[#EA580C]" data-testid={`card-${status}`}>
+          <div className="creator-card story-bg-gradient p-5 text-white" data-testid={`card-${status}`}>
             <div className="flex items-start gap-4 mb-4">
-              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-lg text-[#EA580C]">
+              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-lg text-[#4ECCA3]">
                 <Lock className="w-5 h-5" />
               </div>
               <div>
@@ -316,7 +316,7 @@ export default function OrderDetail() {
                     ? "Your Story came through, but we couldn't confirm it"
                     : "Your Story came down too early"}
                 </h3>
-                <p className="text-sm text-orange-50 font-medium mt-1" data-testid={`text-${status}-body`}>
+                <p className="text-sm text-[#E6F8F0] font-medium mt-1" data-testid={`text-${status}-body`}>
                   {status === "not_public"
                     ? "Stories must be public and up for 24 hours."
                     : "Spiral Stories need to stay up for 24 hours. Repost publicly and tag the brand to unlock your next discount."}
@@ -328,18 +328,18 @@ export default function OrderDetail() {
                 href={`https://instagram.com/${rawHandle}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center w-full rounded-full bg-white text-[#EA580C] font-bold py-4 text-lg shadow-[0_4px_12px_rgba(0,0,0,0.12)] active:opacity-90 transition-opacity"
+                className="flex items-center justify-center w-full rounded-full bg-white text-[#4ECCA3] font-bold py-4 text-lg shadow-[0_4px_12px_rgba(0,0,0,0.12)] active:opacity-90 transition-opacity"
                 data-testid="link-repost-instagram"
               >
                 Repost story
               </a>
             ) : (
-              <span className="flex items-center justify-center w-full rounded-full bg-white text-[#EA580C] font-bold py-4 text-lg shadow-[0_4px_12px_rgba(0,0,0,0.12)]">
+              <span className="flex items-center justify-center w-full rounded-full bg-white text-[#4ECCA3] font-bold py-4 text-lg shadow-[0_4px_12px_rgba(0,0,0,0.12)]">
                 Repost story
               </span>
             )}
 
-            <ul className="mt-4 text-orange-50 text-xs font-medium bg-black/10 px-4 py-3 rounded-2xl space-y-1.5 text-left w-full">
+            <ul className="mt-4 text-[#E6F8F0] text-xs font-medium bg-black/10 px-4 py-3 rounded-2xl space-y-1.5 text-left w-full">
               <li className="flex items-start gap-2">
                 <ShieldCheck className="w-4 h-4 mt-0.5 flex-shrink-0" />
                 <span>Public Story (not Close Friends)</span>
