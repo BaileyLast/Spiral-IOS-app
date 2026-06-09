@@ -430,7 +430,7 @@ export default function OrderDetail() {
               <span className="text-sm font-bold text-gray-400 whitespace-nowrap">{lineItems.length} item{lineItems.length === 1 ? "" : "s"}</span>
             </div>
             <div
-              className="flex gap-3 overflow-x-auto -mx-5 px-5 pb-1 snap-x scrollbar-none"
+              className="flex gap-3 overflow-x-auto pb-1 snap-x scrollbar-none"
               style={{ scrollbarWidth: "none" }}
               data-testid="carousel-line-items"
             >
