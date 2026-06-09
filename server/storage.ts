@@ -1,4 +1,4 @@
-import { OWED_VERIFICATION_ANYDELIVERY, OWED_VERIFICATION_DELIVERED_ONLY } from "@shared/schema";
+import { OWED_VERIFICATION_ANYDELIVERY, OWED_VERIFICATION_DELIVERED_ONLY, TERMINAL_ORDER_STATUSES } from "@shared/schema";
 import { 
   storeSettings, 
   discountTiers, 
@@ -40,7 +40,7 @@ import {
   type InsertDashboardForwardQueue,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, inArray, and, or, lt, isNull, asc, desc, sql, type SQL } from "drizzle-orm";
+import { eq, inArray, and, or, not, lt, isNull, asc, desc, sql, type SQL } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 export interface IStorage {
@@ -181,6 +181,9 @@ export interface IStorage {
   ): Promise<void>;
   // Mark an order's status as 'delivered' (transitions order.status, sets deliveredAt if column exists).
   markOrderDelivered(orderId: string): Promise<Order>;
+  // Set a terminal order status (e.g. 'cancelled' / 'refunded') from the Shopify
+  // cancel/refund webhooks. Returns the updated row.
+  setOrderStatus(orderId: string, status: string): Promise<Order | undefined>;
   // Cross-account Instagram identity lookup. Returns every Spiral customer
   // whose Instagram identity matches (by global pk OR by page-scoped user ID).
   // Used to anchor soft-ban to the Instagram account, not the email — closes
@@ -890,6 +893,15 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async setOrderStatus(orderId: string, status: string): Promise<Order | undefined> {
+    const [updated] = await db
+      .update(orders)
+      .set({ status })
+      .where(eq(orders.id, orderId))
+      .returning();
+    return updated;
+  }
+
   async getCustomersByInstagramIdentity(identity: {
     instagramGlobalUserId?: string | null;
     instagramUserId?: string | null;
@@ -921,12 +933,15 @@ export class DatabaseStorage implements IStorage {
     const idWhere = idConds.length === 1 ? idConds[0] : or(...idConds)!;
     // Owed-state set is the canonical one from shared/schema.ts
     // (OWED_VERIFICATION_ANYDELIVERY + OWED_VERIFICATION_DELIVERED_ONLY).
+    // Terminal statuses (cancelled/refunded) can never be owed — mirror
+    // isOrderOwed so a refunded taken_down_early order can't block auto-unban.
     const rows = await db
       .select()
       .from(orders)
       .where(
         and(
           idWhere,
+          not(inArray(orders.status, [...TERMINAL_ORDER_STATUSES])),
           or(
             inArray(orders.verificationStatus, [...OWED_VERIFICATION_ANYDELIVERY]),
             and(

@@ -1282,6 +1282,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Release a shopper from any Story debt tied to an order that has just been
+  // undone (cancelled or fully refunded). Sets the terminal order status — which
+  // drops the order out of all owed accounting via isOrderOwed — then re-runs the
+  // self-healing auto-unban (which also cascades to IG-sibling accounts). We do
+  // NOT touch the verification record: if a Story was already posted/verified we
+  // keep it (no clawback). Idempotent.
+  async function releaseOrderDebt(orderId: string, terminalStatus: "cancelled" | "refunded"): Promise<void> {
+    const order = await storage.getOrderById(orderId);
+    if (!order) return;
+    if (order.status === terminalStatus) {
+      console.log(`[refund] Order ${orderId} already ${terminalStatus} — idempotent no-op`);
+      return;
+    }
+    await storage.setOrderStatus(orderId, terminalStatus);
+    console.log(`[refund] Order ${orderId} → ${terminalStatus} (Story debt cleared)`);
+    if (order.spiralCustomerId) {
+      await maybeAutoUnbanCustomer(order.spiralCustomerId);
+    }
+  }
+
+  // Webhook for Shopify orders/cancelled — the whole order is voided, so the
+  // shopper never keeps the goods and owes no Story. Release unconditionally.
+  app.post("/webhooks/shopify/orders-cancelled", async (req, res) => {
+    try {
+      if (!verifyShopifyWebhook(req)) {
+        console.warn('[shopify] orders/cancelled webhook signature INVALID — rejecting');
+        return res.status(401).json({ error: 'Invalid webhook signature' });
+      }
+      res.status(200).json({ received: true });
+
+      const shopifyOrderId = req.body?.id?.toString();
+      console.log(`[shopify] orders/cancelled received — order=${shopifyOrderId}`);
+      if (!shopifyOrderId) return;
+
+      const order = await storage.getOrderByShopifyOrderId(shopifyOrderId);
+      if (!order) {
+        console.log(`[shopify] No Spiral order for cancelled Shopify order ${shopifyOrderId}`);
+        return;
+      }
+      await releaseOrderDebt(order.id, "cancelled");
+    } catch (error) {
+      console.error('Error processing orders/cancelled webhook:', error);
+    }
+  });
+
+  // Webhook for Shopify refunds/create — a refund was issued. We only release the
+  // shopper on a FULL refund (they sent everything back); a partial refund where
+  // they keep at least one item still owes a Story. Shopify's refund payload does
+  // not carry the order's overall financial state, so we read it back from the
+  // Admin API: financial_status === 'refunded' means fully refunded. If we can't
+  // determine it, we conservatively HOLD (no release) so debt can't be dodged.
+  app.post("/webhooks/shopify/refunds-create", async (req, res) => {
+    try {
+      if (!verifyShopifyWebhook(req)) {
+        console.warn('[shopify] refunds/create webhook signature INVALID — rejecting');
+        return res.status(401).json({ error: 'Invalid webhook signature' });
+      }
+      res.status(200).json({ received: true });
+
+      const shopifyOrderId = req.body?.order_id?.toString();
+      console.log(`[shopify] refunds/create received — order=${shopifyOrderId}`);
+      if (!shopifyOrderId) return;
+
+      const order = await storage.getOrderByShopifyOrderId(shopifyOrderId);
+      if (!order) {
+        console.log(`[shopify] No Spiral order for refunded Shopify order ${shopifyOrderId}`);
+        return;
+      }
+
+      const settings = await storage.getStoreSettings();
+      const creds = await getShopifyCredentialsForSettings(settings);
+      if (!creds?.shopDomain || !creds?.accessToken) {
+        console.warn(`[refund] Cannot verify refund extent for order ${order.id} — no Shopify credentials, holding debt`);
+        return;
+      }
+
+      let financialStatus: string | null = null;
+      try {
+        const r = await fetch(
+          `https://${creds.shopDomain}/admin/api/2024-01/orders/${shopifyOrderId}.json?fields=id,financial_status`,
+          { headers: { 'X-Shopify-Access-Token': creds.accessToken } },
+        );
+        if (r.ok) {
+          const data = await r.json();
+          financialStatus = (data?.order?.financial_status || '').toLowerCase() || null;
+        } else {
+          console.warn(`[refund] Shopify order fetch for ${shopifyOrderId} returned ${r.status} — holding debt`);
+        }
+      } catch (e) {
+        console.warn(`[refund] Shopify order fetch for ${shopifyOrderId} failed — holding debt:`, e);
+      }
+
+      if (financialStatus === 'refunded') {
+        await releaseOrderDebt(order.id, "refunded");
+      } else {
+        console.log(`[refund] Order ${order.id} partial/unknown refund (financial_status=${financialStatus ?? 'unknown'}) — Story debt retained`);
+      }
+    } catch (error) {
+      console.error('Error processing refunds/create webhook:', error);
+    }
+  });
+
   // ============================================
   // Instagram/Meta Webhook Routes for Story Mentions
   // ============================================
@@ -4597,6 +4699,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { topic: 'fulfillments/create', address: `${baseUrl}/webhooks/shopify/fulfillments-create` },
         { topic: 'fulfillments/update', address: `${baseUrl}/webhooks/shopify/fulfillments-update` },
         { topic: 'fulfillment_events/create', address: `${baseUrl}/webhooks/shopify/fulfillment-events-create` },
+        { topic: 'orders/cancelled', address: `${baseUrl}/webhooks/shopify/orders-cancelled` },
+        { topic: 'refunds/create', address: `${baseUrl}/webhooks/shopify/refunds-create` },
       ];
       const results: Record<string, { ok: boolean; status: number; body?: string }> = {};
       for (const t of topics) {

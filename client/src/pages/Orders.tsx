@@ -44,6 +44,8 @@ export function formatDiscountPercent(raw: string | number | null | undefined): 
 }
 
 function getStatusLabel(order: Order) {
+  if (order.status === "cancelled") return "Cancelled";
+  if (order.status === "refunded") return "Refunded";
   if (order.verificationStatus === "verified") return "Story verified";
   if (order.verificationStatus === "quick_verified") return "Confirmed";
   if (order.verificationStatus === "not_public") return "Repost Story";
@@ -91,6 +93,9 @@ function statusPillClasses(status: string) {
       return "bg-[#4ECCA3] text-white shadow-[0_2px_8px_rgba(78,204,163,0.3)]";
     case "Repost Story":
       return "bg-[#4ECCA3] text-white shadow-[0_2px_8px_rgba(78,204,163,0.3)]";
+    case "Cancelled":
+    case "Refunded":
+      return "bg-gray-100 text-gray-500";
     default:
       return "bg-white/90 text-gray-700";
   }

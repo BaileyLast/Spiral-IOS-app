@@ -13,7 +13,13 @@ export const OWED_VERIFICATION_DELIVERED_ONLY = ["pending", "awaiting_review", "
 export type OwedVerificationStatus =
   | typeof OWED_VERIFICATION_ANYDELIVERY[number]
   | typeof OWED_VERIFICATION_DELIVERED_ONLY[number];
+// Terminal order statuses set by the Shopify cancel/refund webhooks. An order in
+// either state can never owe a Story (the sale is undone — the shopper either
+// never received the goods or sent them back), so it drops out of all owed-debt
+// accounting regardless of its verification status.
+export const TERMINAL_ORDER_STATUSES = ["cancelled", "refunded"] as const;
 export function isOrderOwed(o: { status: string; verificationStatus: string }): boolean {
+  if ((TERMINAL_ORDER_STATUSES as readonly string[]).includes(o.status)) return false;
   if ((OWED_VERIFICATION_ANYDELIVERY as readonly string[]).includes(o.verificationStatus)) return true;
   if (o.status === "delivered" && (OWED_VERIFICATION_DELIVERED_ONLY as readonly string[]).includes(o.verificationStatus)) return true;
   return false;

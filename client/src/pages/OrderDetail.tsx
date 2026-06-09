@@ -66,6 +66,8 @@ function BrandHandle({ handle, className = "" }: { handle: string; className?: s
 }
 
 function getStatusLabel(order: Order) {
+  if (order.status === "cancelled") return "cancelled";
+  if (order.status === "refunded") return "refunded";
   if (order.verificationStatus === "verified") return "verified";
   if (order.verificationStatus === "quick_verified") return "quick_verified";
   if (order.verificationStatus === "not_public") return "not_public";
@@ -188,12 +190,23 @@ export default function OrderDetail() {
   })();
 
   const storyComplete = status === "verified";
-  const steps = [
-    { id: "ordered", label: "Order placed", icon: Package, complete: true },
-    { id: "shipped", label: middleLabel, icon: isPickup ? Store : Clock, complete: status !== "ordered" },
-    { id: "delivered", label: isPickup ? "Collected" : "Delivered", icon: CheckCircle, complete: ["awaiting", "story_received", "awaiting_review", "quick_verified", "not_public", "taken_down_early", "verified"].includes(status) },
-    { id: "verified", label: storyComplete ? "Story posted" : "Post a story", icon: CheckCircle, complete: storyComplete },
-  ];
+  const isTerminal = status === "cancelled" || status === "refunded";
+  const steps = isTerminal
+    ? [
+        { id: "ordered", label: "Order placed", icon: Package, complete: true },
+        {
+          id: "verified",
+          label: status === "cancelled" ? "Order cancelled" : "Order refunded",
+          icon: Package,
+          complete: true,
+        },
+      ]
+    : [
+        { id: "ordered", label: "Order placed", icon: Package, complete: true },
+        { id: "shipped", label: middleLabel, icon: isPickup ? Store : Clock, complete: status !== "ordered" },
+        { id: "delivered", label: isPickup ? "Collected" : "Delivered", icon: CheckCircle, complete: ["awaiting", "story_received", "awaiting_review", "quick_verified", "not_public", "taken_down_early", "verified"].includes(status) },
+        { id: "verified", label: storyComplete ? "Story posted" : "Post a story", icon: CheckCircle, complete: storyComplete },
+      ];
 
   return (
     <div className="min-h-screen safe-top bg-warm pb-12">
@@ -238,6 +251,24 @@ export default function OrderDetail() {
                 "I've collected it"
               )}
             </button>
+          </div>
+        )}
+
+        {(status === "cancelled" || status === "refunded") && (
+          <div className="creator-card p-5 bg-gray-50 border border-gray-200" data-testid="card-terminal-status">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
+                <Package className="w-5 h-5 text-gray-500" />
+              </div>
+              <div>
+                <h3 className="font-black text-gray-900 text-base">
+                  {status === "cancelled" ? "This order was cancelled" : "This order was refunded"}
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  No Story needed — there's nothing left to post about. You're all clear.
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
