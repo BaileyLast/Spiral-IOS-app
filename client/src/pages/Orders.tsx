@@ -531,7 +531,7 @@ export default function Orders() {
               );
               return (
                 <section className="space-y-5">
-                  <p className="text-xs text-gray-300 font-bold uppercase tracking-widest px-1">
+                  <p className="text-xs text-gray-400 font-bold uppercase tracking-widest px-1">
                     Active — preview
                   </p>
                   {MOCK_ACTIVE.map((mock) => {
