@@ -85,7 +85,7 @@ function statusPillClasses(status: string) {
     case "Story Needed":
       return "bg-[#4ECCA3] text-white shadow-[0_2px_8px_rgba(78,204,163,0.3)]";
     case "Repost Story":
-      return "bg-orange-100 text-orange-700";
+      return "bg-[#EA580C] text-white shadow-[0_2px_8px_rgba(234,88,12,0.3)]";
     default:
       return "bg-white/90 text-gray-700";
   }
