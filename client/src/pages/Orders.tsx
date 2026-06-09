@@ -116,7 +116,7 @@ function StoreBadgeImg({ src, name }: { src?: string | null; name?: string | nul
   );
 }
 
-export function OrderCard({ order, dimmed = false }: { order: Order; dimmed?: boolean }) {
+export function OrderCard({ order, dimmed = false, overlayOnly = false }: { order: Order; dimmed?: boolean; overlayOnly?: boolean }) {
   const status = getStatusLabel(order);
   const isDone = status === "Story verified" || status === "Confirmed";
   const lineItems = parseLineItems(order.lineItems);
@@ -167,7 +167,7 @@ export function OrderCard({ order, dimmed = false }: { order: Order; dimmed?: bo
               )}
               <p className="text-xs opacity-75 mt-0.5">#{order.shopifyOrderId.slice(-6)}</p>
             </div>
-            {!isDone && (
+            {(!isDone || overlayOnly) && (
               <div className="text-right flex-shrink-0">
                 <p className="text-sm font-bold text-[#A8F0D1]">
                   You saved ${Number(order.discountAmount).toFixed(2)}
@@ -177,7 +177,7 @@ export function OrderCard({ order, dimmed = false }: { order: Order; dimmed?: bo
           </div>
         </div>
 
-        {status === "Story Needed" && (
+        {!overlayOnly && status === "Story Needed" && (
           <div className="p-4 bg-white flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 rounded-full bg-[#E6F8F0] flex items-center justify-center text-[#4ECCA3] flex-shrink-0">
@@ -189,7 +189,7 @@ export function OrderCard({ order, dimmed = false }: { order: Order; dimmed?: bo
           </div>
         )}
 
-        {(status === "Story verified" || status === "Confirmed") && (
+        {!overlayOnly && (status === "Story verified" || status === "Confirmed") && (
           <div className="p-4 bg-white flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-[#1A996E] flex-shrink-0">

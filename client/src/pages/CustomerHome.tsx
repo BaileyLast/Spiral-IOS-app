@@ -186,7 +186,7 @@ export default function CustomerHome() {
 
             <div className="space-y-4">
               {recentOrders.map((order) => (
-                <OrderCard key={order.id} order={order} />
+                <OrderCard key={order.id} order={order} overlayOnly />
               ))}
             </div>
           </section>
