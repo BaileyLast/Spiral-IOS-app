@@ -331,11 +331,11 @@ export default function OrderDetail() {
                 className="flex items-center justify-center w-full rounded-full bg-white text-[#EA580C] font-bold py-4 text-lg shadow-[0_4px_12px_rgba(0,0,0,0.12)] active:opacity-90 transition-opacity"
                 data-testid="link-repost-instagram"
               >
-                Repost on Instagram
+                Repost story
               </a>
             ) : (
               <span className="flex items-center justify-center w-full rounded-full bg-white text-[#EA580C] font-bold py-4 text-lg shadow-[0_4px_12px_rgba(0,0,0,0.12)]">
-                Repost on Instagram
+                Repost story
               </span>
             )}
 
