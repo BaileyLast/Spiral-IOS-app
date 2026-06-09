@@ -318,7 +318,7 @@ export default function OrderDetail() {
                 </h3>
                 <p className="text-sm text-orange-50 font-medium mt-1" data-testid={`text-${status}-body`}>
                   {status === "not_public"
-                    ? "We picked up your Story, but couldn't see it publicly. Stories must be public and up for 24 hours."
+                    ? "Stories must be public and up for 24 hours."
                     : "Spiral Stories need to stay up for 24 hours. Repost publicly and tag the brand to unlock your next discount."}
                 </p>
               </div>
