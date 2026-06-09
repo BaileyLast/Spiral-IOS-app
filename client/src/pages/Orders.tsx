@@ -149,9 +149,10 @@ export function OrderCard({ order, dimmed = false }: { order: Order; dimmed?: bo
 
           <div className="absolute top-4 right-4">
             <span
-              className={`px-3 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase ${statusPillClasses(status)}`}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase inline-flex items-center gap-1.5 ${statusPillClasses(status)}`}
               data-testid={`status-order-${order.id}`}
             >
+              {status === "Repost Story" && <Lock className="w-3 h-3" />}
               {status}
             </span>
           </div>
