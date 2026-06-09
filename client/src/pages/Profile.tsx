@@ -139,7 +139,7 @@ export default function Profile() {
         </div>
 
         {/* Stats card */}
-        <div className="creator-card p-5 !bg-gray-900 text-white" data-testid="card-stats">
+        <div className="creator-card p-5 !bg-gray-900 text-white flex flex-col items-center text-center" data-testid="card-stats">
           <h3 className="font-black text-lg mb-4">Your savings</h3>
           <p className="text-4xl font-black text-[#A8F0D1]" data-testid="text-total-saved">
             {formatCurrency(Number(totalSaved), profile?.country)}
