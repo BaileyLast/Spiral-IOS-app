@@ -78,10 +78,9 @@ export default function Profile() {
     );
   }
 
-  const displayName =
-    [profile?.firstName, profile?.lastName].filter(Boolean).join(" ") ||
-    profile?.email ||
-    "Guest";
+  const realName =
+    [profile?.firstName, profile?.lastName].filter(Boolean).join(" ") || "";
+  const displayName = realName || profile?.email || "Guest";
   const isInstagramConnected = !!profile?.instagramHandle;
   const totalSaved = stats?.totalSaved ?? 0;
   const ordersCompleted = stats?.ordersCompleted ?? 0;
@@ -111,11 +110,16 @@ export default function Profile() {
               {displayName?.[0]?.toUpperCase() || "?"}
             </AvatarFallback>
           </Avatar>
-          <h2 className="text-2xl font-black text-gray-900 mt-4" data-testid="text-display-name">
-            {displayName}
-          </h2>
+          {realName && (
+            <h2 className="text-2xl font-black text-gray-900 mt-4" data-testid="text-display-name">
+              {realName}
+            </h2>
+          )}
           {profile?.email && (
-            <p className="text-sm font-medium text-gray-500 mt-1" data-testid="text-email">
+            <p
+              className={`text-sm font-medium text-gray-500 ${realName ? "mt-1" : "mt-4"}`}
+              data-testid="text-email"
+            >
               {profile.email}
             </p>
           )}
