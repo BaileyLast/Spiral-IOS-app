@@ -67,7 +67,7 @@ function getStatusLabel(order: Order) {
   return "Ordered";
 }
 
-function isCompleted(order: Order) {
+export function isCompleted(order: Order) {
   const status = getStatusLabel(order);
   return status === "Story verified" || status === "Confirmed";
 }

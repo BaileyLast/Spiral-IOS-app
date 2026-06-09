@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { ChevronRight, Instagram, Lock } from "lucide-react";
 import type { Order } from "@shared/schema";
 import HomeInstagramConnect from "@/components/HomeInstagramConnect";
-import { OrderCard } from "@/pages/Orders";
+import { OrderCard, isCompleted } from "@/pages/Orders";
 import { formatCurrency } from "@/lib/countries";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 
@@ -42,7 +42,9 @@ export default function CustomerHome() {
   // the signed-in shell with stale/empty data (e.g. on-hold banner + no orders).
   useAuthGuard(profileError, ordersError, statsError);
 
-  const recentOrders = orders.slice(0, 3);
+  const recentOrders = [...orders]
+    .sort((a, b) => Number(isCompleted(a)) - Number(isCompleted(b)))
+    .slice(0, 3);
   const isSoftBanned = profile?.accountStatus === "soft_banned";
   // Mirrors server-side getOwedOrdersForCustomer exactly so banner count never disagrees
   // with checkout: taken_down_early (final-fail debt) is owed regardless of delivery; quick
