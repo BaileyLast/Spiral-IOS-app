@@ -376,8 +376,6 @@ export default function Orders() {
   const hasRealOrders = orders.length > 0;
   const isSoftBanned = me?.accountStatus === "soft_banned";
 
-  const inProgressCount = activeOrders.length;
-
   return (
     <div className="min-h-screen bg-warm safe-top pb-12">
       <header className="px-6 pt-10 pb-6">
@@ -387,14 +385,6 @@ export default function Orders() {
         >
           Your Discounts
         </h1>
-        {hasRealOrders && inProgressCount > 0 && (
-          <div className="glass-pill inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white shadow-sm border border-gray-100">
-            <div className="w-2 h-2 rounded-full bg-[#4ECCA3] animate-pulse" />
-            <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">
-              {inProgressCount} in progress
-            </span>
-          </div>
-        )}
       </header>
 
       <main className="px-6 space-y-8">
