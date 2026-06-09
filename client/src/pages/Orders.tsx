@@ -477,7 +477,7 @@ export default function Orders() {
             {historyOrders.length > 0 && (
               <section className="space-y-5">
                 <div className="flex items-center gap-4">
-                  <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Past</h2>
+                  <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest">History</h2>
                   <div className="h-px bg-gray-200 flex-1" />
                 </div>
                 {historyOrders.map((order) => (
@@ -513,7 +513,7 @@ export default function Orders() {
 
             <section className="space-y-3">
               <div className="flex items-center gap-4">
-                <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Past orders</h2>
+                <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest">History</h2>
                 <div className="h-px bg-gray-200 flex-1" />
               </div>
               {[...historyOrders, ...MOCK_HISTORY].map((order) => (
