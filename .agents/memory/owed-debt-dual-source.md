@@ -24,3 +24,22 @@ SQL query in lockstep. The shared constants (`OWED_VERIFICATION_ANYDELIVERY`,
 `OWED_VERIFICATION_DELIVERED_ONLY`, `TERMINAL_ORDER_STATUSES`) live in schema and
 are imported by the SQL query to reduce drift, but the query's boolean structure
 is hand-written — verify it still matches isOrderOwed's logic.
+
+## Refund release is per-item discount-aware (deliberate conservative HOLD)
+
+The `refunds/create` webhook releases a shopper only when they keep NO
+Spiral-discounted line item. "Discounted item" is detected via Shopify line-item
+`discount_allocations` (sum > 0) — the SAME signal the orders/create handler uses
+to record per-item `discountedAmount`. Kept qty = ordered qty − total refunded qty
+summed across all `refunds[].refund_line_items`.
+
+**Why:** If `discount_allocations` is absent/empty we cannot tell which items were
+discounted, so we HOLD (keep owing) — never release. HOLD is the safe direction
+(a wrong HOLD is recoverable; a wrong RELEASE hands out a free pass). Do NOT try to
+"fix" a missing-allocations HOLD by correlating the stored `lineItems` JSON: those
+rows carry `discountedAmount` but NO Shopify `line_item_id`, so they can't be
+matched to refund quantities. An architect review flagged this as a gap; it is an
+intentional, scoped decision, not an oversight.
+
+**How to apply:** Keep refund release detection on `discount_allocations`. Any
+future change must preserve the conservative HOLD on undeterminable discount data.

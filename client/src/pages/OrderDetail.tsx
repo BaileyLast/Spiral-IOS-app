@@ -254,21 +254,11 @@ export default function OrderDetail() {
           </div>
         )}
 
-        {(status === "cancelled" || status === "refunded") && (
-          <div className="creator-card p-5 bg-gray-50 border border-gray-200" data-testid="card-terminal-status">
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
-                <Package className="w-5 h-5 text-gray-500" />
-              </div>
-              <div>
-                <h3 className="font-black text-gray-900 text-base">
-                  {status === "cancelled" ? "This order was cancelled" : "This order was refunded"}
-                </h3>
-                <p className="text-sm text-gray-500 mt-1">
-                  No Story needed — there's nothing left to post about. You're all clear.
-                </p>
-              </div>
-            </div>
+        {isTerminal && (
+          <div className="flex justify-center" data-testid="badge-terminal-status">
+            <span className="inline-flex items-center bg-gray-100 text-gray-500 text-xs font-bold px-3 py-1.5 rounded-full">
+              {status === "cancelled" ? "Cancelled" : "Refunded"}
+            </span>
           </div>
         )}
 

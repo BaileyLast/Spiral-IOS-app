@@ -1286,8 +1286,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // undone (cancelled or fully refunded). Sets the terminal order status — which
   // drops the order out of all owed accounting via isOrderOwed — then re-runs the
   // self-healing auto-unban (which also cascades to IG-sibling accounts). We do
-  // NOT touch the verification record: if a Story was already posted/verified we
-  // keep it (no clawback). Idempotent.
+  // NOT touch the verification record: if a Story was already posted/verified it
+  // stays that way — a refund never reverses an already-earned Story or discount.
+  // Idempotent.
   async function releaseOrderDebt(orderId: string, terminalStatus: "cancelled" | "refunded"): Promise<void> {
     const order = await storage.getOrderById(orderId);
     if (!order) return;
@@ -1327,12 +1328,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Webhook for Shopify refunds/create — a refund was issued. We only release the
-  // shopper on a FULL refund (they sent everything back); a partial refund where
-  // they keep at least one item still owes a Story. Shopify's refund payload does
-  // not carry the order's overall financial state, so we read it back from the
-  // Admin API: financial_status === 'refunded' means fully refunded. If we can't
-  // determine it, we conservatively HOLD (no release) so debt can't be dodged.
+  // Webhook for Shopify refunds/create — a refund was issued. The shopper still
+  // owes a Story as long as they are KEEPING any line item that received a Spiral
+  // discount; once every Spiral-discounted item has been refunded (whether via a
+  // single full refund or piecemeal partial refunds) there is nothing left to
+  // earn a discount on, so we release. Shopify's refund payload doesn't carry the
+  // full picture, so we read the live order back from the Admin API: its line
+  // items (with per-item discount_allocations) plus all its refunds (with the
+  // refunded quantity per line item). We then check, per discounted item, whether
+  // any units are still kept. A fully-refunded order (financial_status ===
+  // 'refunded') is just the case where everything — including discounted items —
+  // is returned. If we can't fetch the order or can't see the discount picture,
+  // we conservatively HOLD (no release) so debt can't be dodged.
   app.post("/webhooks/shopify/refunds-create", async (req, res) => {
     try {
       if (!verifyShopifyWebhook(req)) {
@@ -1358,15 +1365,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      let financialStatus: string | null = null;
+      let liveOrder: any = null;
       try {
         const r = await fetch(
-          `https://${creds.shopDomain}/admin/api/2024-01/orders/${shopifyOrderId}.json?fields=id,financial_status`,
+          `https://${creds.shopDomain}/admin/api/2024-01/orders/${shopifyOrderId}.json?fields=id,financial_status,line_items,refunds`,
           { headers: { 'X-Shopify-Access-Token': creds.accessToken } },
         );
         if (r.ok) {
           const data = await r.json();
-          financialStatus = (data?.order?.financial_status || '').toLowerCase() || null;
+          liveOrder = data?.order ?? null;
         } else {
           console.warn(`[refund] Shopify order fetch for ${shopifyOrderId} returned ${r.status} — holding debt`);
         }
@@ -1374,10 +1381,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.warn(`[refund] Shopify order fetch for ${shopifyOrderId} failed — holding debt:`, e);
       }
 
+      if (!liveOrder) return; // couldn't fetch — conservative hold
+
+      const financialStatus = (liveOrder.financial_status || '').toLowerCase() || null;
+
+      // Fast path: Shopify itself reports the whole order as refunded.
       if (financialStatus === 'refunded') {
         await releaseOrderDebt(order.id, "refunded");
+        return;
+      }
+
+      const lineItems = Array.isArray(liveOrder.line_items) ? liveOrder.line_items : [];
+      const refunds = Array.isArray(liveOrder.refunds) ? liveOrder.refunds : [];
+
+      if (lineItems.length === 0) {
+        console.warn(`[refund] Order ${order.id} — Admin payload has no line items, can't assess discounted items; holding debt`);
+        return;
+      }
+
+      // Total refunded quantity per line item id, summed across every refund.
+      const refundedQtyByLineItem = new Map<string, number>();
+      for (const ref of refunds) {
+        const rlis = Array.isArray(ref?.refund_line_items) ? ref.refund_line_items : [];
+        for (const rli of rlis) {
+          const lid = String(rli?.line_item_id ?? rli?.line_item?.id ?? '');
+          if (!lid) continue;
+          const qty = Number(rli?.quantity ?? 0);
+          if (!Number.isFinite(qty) || qty <= 0) continue;
+          refundedQtyByLineItem.set(lid, (refundedQtyByLineItem.get(lid) ?? 0) + qty);
+        }
+      }
+
+      // Dollars knocked off an item by Spiral's discount (0 = not discounted).
+      const discountAllocated = (item: any): number => {
+        const allocs = Array.isArray(item?.discount_allocations) ? item.discount_allocations : [];
+        return allocs.reduce((sum: number, a: any) => {
+          const n = parseFloat(String(a?.amount ?? ''));
+          return Number.isFinite(n) ? sum + n : sum;
+        }, 0);
+      };
+
+      let hasAnyDiscountedItem = false;
+      let keepsDiscountedItem = false;
+      for (const item of lineItems) {
+        if (discountAllocated(item) <= 0) continue; // not a Spiral-discounted item
+        hasAnyDiscountedItem = true;
+        const lid = String(item?.id ?? '');
+        const originalQty = Number(item?.quantity ?? 0);
+        const refundedQty = refundedQtyByLineItem.get(lid) ?? 0;
+        if (originalQty - refundedQty > 0) {
+          keepsDiscountedItem = true;
+          break;
+        }
+      }
+
+      if (!hasAnyDiscountedItem) {
+        console.warn(`[refund] Order ${order.id} — no per-item discount data in Admin payload, can't tell which items were discounted; holding debt`);
+        return;
+      }
+
+      if (keepsDiscountedItem) {
+        console.log(`[refund] Order ${order.id} partial refund — shopper still keeps a discounted item; Story debt retained`);
       } else {
-        console.log(`[refund] Order ${order.id} partial/unknown refund (financial_status=${financialStatus ?? 'unknown'}) — Story debt retained`);
+        console.log(`[refund] Order ${order.id} — all discounted items refunded; releasing Story debt`);
+        await releaseOrderDebt(order.id, "refunded");
       }
     } catch (error) {
       console.error('Error processing refunds/create webhook:', error);

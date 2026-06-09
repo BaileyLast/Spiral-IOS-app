@@ -85,8 +85,8 @@ All routes gated by `requireInternalKey` (header `x-spiral-internal-key`). Used 
 - `GET/POST /webhooks/instagram` — Story mentions on merchant's connected IG.
 - `/webhooks/shopify/orders-create` · `/fulfillments-create` · `/fulfillments-update` · `/fulfillment-events-create` · `/orders-cancelled` · `/refunds-create` — registered via the dashboard's Shopify OAuth and (re)registered by `POST /api/internal/shopify/backfill-webhooks`.
   - `orders/cancelled` → marks the order `cancelled` and releases any Story debt (full cancellation = no goods kept = nothing owed).
-  - `refunds/create` → reads the order's `financial_status` back from the Admin API; only a **full** refund (`financial_status === 'refunded'`) marks the order `refunded` and releases. Partial refunds (shopper keeps ≥1 item) keep the obligation. If the status can't be determined, debt is conservatively **held**.
-  - Release = set the terminal order status + re-run `maybeAutoUnbanCustomer` (self-heals and cascades to IG-sibling accounts). Verification records are kept as-is — no clawback if a Story was already posted before the refund.
+  - `refunds/create` → reads the live order back from the Admin API (`fields=id,financial_status,line_items,refunds`) and releases only when the shopper keeps **no** Spiral-discounted line item. Per discounted item (`discount_allocations` sum > 0), kept qty = ordered qty − total refunded qty across all `refunds[].refund_line_items`. A full refund (`financial_status === 'refunded'`) is the fast-path case where everything is returned. If the shopper keeps any discounted item, the obligation stands. If the order can't be fetched, has no line items, or shows no per-item discount data, debt is conservatively **held**.
+  - Release = set the terminal order status + re-run `maybeAutoUnbanCustomer` (self-heals and cascades to IG-sibling accounts). Verification records are kept as-is — a refund never reverses an already-earned Story or discount.
 
 ## Shopify Credentials
 
@@ -163,7 +163,7 @@ All paths funnel into the idempotent `transitionOrderToDelivered` helper.
 ### Terminal states (cancel / refund)
 
 - `cancelled` / `refunded` are terminal `orders.status` values set by the Shopify `orders/cancelled` and `refunds/create` webhooks. An order in either state can never owe a Story — `isOrderOwed` (in `shared/schema.ts`, the single source of truth for owed accounting) returns `false` for these statuses regardless of verification state.
-- Setting the terminal status then re-runs `maybeAutoUnbanCustomer`, so a cancelled/fully-refunded order auto-lifts the shopper's soft-ban (and cascades to IG-sibling accounts). Partial refunds do not release. See the Shopify webhooks list above for the full-vs-partial rule. In-app, these orders show a neutral "Cancelled"/"Refunded" badge and no Story prompt.
+- Setting the terminal status then re-runs `maybeAutoUnbanCustomer`, so a cancelled/refunded order auto-lifts the shopper's soft-ban (and cascades to IG-sibling accounts). A refund only releases once the shopper keeps no Spiral-discounted item (full refund, or all discounted items refunded); a partial refund that leaves a discounted item with the shopper does not release. See the Shopify webhooks list above for the per-item rule. In-app, these orders show a neutral "Cancelled"/"Refunded" badge and no Story prompt.
 
 ## Verification Lifecycle
 
