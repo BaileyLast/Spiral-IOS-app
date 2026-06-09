@@ -1510,6 +1510,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update last login
       await storage.updateSpiralCustomerLastLogin(customer.id);
 
+      // Refresh the Instagram profile picture if stale/missing so the widget
+      // gets a live, publicly accessible HTTPS image (IG CDN URLs are
+      // ephemeral). Best-effort: same pattern as /api/customer/me — never let a
+      // refresh failure block login.
+      let profilePictureUrl = customer.instagramProfilePicture ?? null;
+      if (customer.instagramUserId && process.env.RAPIDAPI_KEY) {
+        const lastUpdated = customer.followerCountUpdatedAt ? new Date(customer.followerCountUpdatedAt).getTime() : 0;
+        const oneDayMs = 24 * 60 * 60 * 1000;
+        const isStale = Date.now() - lastUpdated > oneDayMs;
+
+        if (isStale || !profilePictureUrl) {
+          try {
+            const igData = await fetchInstagramDataByUserId(customer.instagramUserId, process.env.RAPIDAPI_KEY);
+            const refreshedHandle = igData.username || customer.instagramHandle;
+            const refreshedFollowerCount = igData.followerCount != null ? igData.followerCount : (customer.followerCount ?? 0);
+            if (igData.profilePicture) profilePictureUrl = igData.profilePicture;
+            await storage.updateSpiralCustomerInstagram(customer.id, {
+              instagramHandle: refreshedHandle,
+              instagramUserId: customer.instagramUserId,
+              instagramAccessToken: null,
+              instagramTokenExpiry: null,
+              instagramProfilePicture: profilePictureUrl,
+              instagramAccountType: customer.instagramAccountType || "UNKNOWN",
+              followerCount: refreshedFollowerCount,
+            });
+          } catch (igError) {
+            console.error("Failed to refresh Instagram profile picture during checkout authenticate:", igError);
+          }
+        }
+      }
+
       // Evaluate soft-ban here so the widget gets the on-hold signal in the
       // SAME response as the profile — no second round-trip needed before it
       // can render the "Your discount is on hold" screen. Login itself still
@@ -1527,6 +1558,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         instagramUserId: customer.instagramUserId,
         instagramGlobalUserId: customer.instagramGlobalUserId ?? null,
         followerCount: customer.followerCount || 0,
+        // Shopper's Instagram profile photo for the checkout widget avatar.
+        // Publicly accessible HTTPS image when available, else null (never
+        // undefined). Refreshed above to avoid stale/expired IG CDN links.
+        profilePictureUrl,
         // Soft-ban surface (Task #62). When softBanned is true the widget
         // should skip /api/checkout/calculate-discount entirely and render
         // the on-hold screen using softBanMessage, with a "Check your Spiral
