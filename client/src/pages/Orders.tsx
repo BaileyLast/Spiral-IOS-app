@@ -118,6 +118,7 @@ function StoreBadgeImg({ src, name }: { src?: string | null; name?: string | nul
 
 export function OrderCard({ order, dimmed = false }: { order: Order; dimmed?: boolean }) {
   const status = getStatusLabel(order);
+  const isDone = status === "Story verified" || status === "Confirmed";
   const lineItems = parseLineItems(order.lineItems);
   const firstItem = lineItems[0];
   const itemName = firstItem ? lineItemDisplayName(firstItem) : "";
@@ -166,11 +167,13 @@ export function OrderCard({ order, dimmed = false }: { order: Order; dimmed?: bo
               )}
               <p className="text-xs opacity-75 mt-0.5">#{order.shopifyOrderId.slice(-6)}</p>
             </div>
-            <div className="text-right flex-shrink-0">
-              <p className="text-sm font-bold text-[#A8F0D1]">
-                You saved ${Number(order.discountAmount).toFixed(2)}
-              </p>
-            </div>
+            {!isDone && (
+              <div className="text-right flex-shrink-0">
+                <p className="text-sm font-bold text-[#A8F0D1]">
+                  You saved ${Number(order.discountAmount).toFixed(2)}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -192,7 +195,7 @@ export function OrderCard({ order, dimmed = false }: { order: Order; dimmed?: bo
               <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-[#1A996E] flex-shrink-0">
                 <CheckCircle2 className="w-5 h-5" />
               </div>
-              <p className="text-sm font-bold text-gray-900">{status}</p>
+              <p className="text-sm font-bold text-gray-900">You saved ${Number(order.discountAmount).toFixed(2)}</p>
             </div>
             <ChevronRight className="w-5 h-5 text-gray-300 flex-shrink-0" />
           </div>
