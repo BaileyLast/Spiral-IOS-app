@@ -485,7 +485,7 @@ export default function Orders() {
                   <div className="h-px bg-gray-200 flex-1" />
                 </div>
                 {historyOrders.map((order) => (
-                  <OrderCard key={order.id} order={order} dimmed />
+                  <OrderRowCompact key={order.id} order={order} />
                 ))}
               </section>
             )}
