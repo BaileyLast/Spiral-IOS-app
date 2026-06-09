@@ -101,14 +101,12 @@ export default function Profile() {
               {displayName?.[0]?.toUpperCase() || "?"}
             </AvatarFallback>
           </Avatar>
-          {profile?.email && (
-            <p
-              className="text-sm font-medium text-gray-500 mt-4"
-              data-testid="text-email"
-            >
-              {profile.email}
-            </p>
-          )}
+          <h1
+            className="text-2xl font-black text-gray-900 mt-4"
+            data-testid="text-name"
+          >
+            {displayName}
+          </h1>
           {isInstagramConnected && (
             <div className="flex flex-col items-center gap-1 mt-3">
               <Instagram className="w-5 h-5 text-[#1A996E]" />
