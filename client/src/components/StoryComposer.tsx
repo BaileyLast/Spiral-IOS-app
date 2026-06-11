@@ -57,14 +57,18 @@ function drawDisclosurePill(
   return { pillW, pillH };
 }
 
-// Long-edge cap. Keeps the in-memory data URLs small enough for low-end devices
-// while staying sharp for a full-screen Story.
-const MAX_EDGE = 1440;
+// Instagram Story canvas. Every photo is rendered onto this exact frame so the
+// output always matches a full-screen Story (1080x1920), regardless of the
+// source photo's shape.
+const STORY_WIDTH = 1080;
+const STORY_HEIGHT = 1920;
 
-// Decodes the photo once and returns two downscaled data URLs:
-// - `clean`: the photo as-is (native background, where the sticker is movable).
-// - `baked`: the photo with the disclosure pill burned in (web fallback, where a
-//   movable sticker isn't possible so disclosure must be guaranteed).
+// Decodes the photo once and returns two data URLs, both sized to a 1080x1920
+// Story frame with the source center-cropped to fill (no letterbox bars):
+// - `clean`: the cropped photo as-is (native background, where the sticker is movable).
+// - `baked`: the cropped photo with the disclosure pill burned into the bottom
+//   corner (web fallback, where a movable sticker isn't possible so disclosure
+//   must be guaranteed).
 function prepareImages(src: string): Promise<{ clean: string; baked: string }> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -75,23 +79,29 @@ function prepareImages(src: string): Promise<{ clean: string; baked: string }> {
         reject(new Error("image-empty"));
         return;
       }
-      const scale = Math.min(1, MAX_EDGE / Math.max(ow, oh));
-      const w = Math.round(ow * scale);
-      const h = Math.round(oh * scale);
       const canvas = document.createElement("canvas");
-      canvas.width = w;
-      canvas.height = h;
+      canvas.width = STORY_WIDTH;
+      canvas.height = STORY_HEIGHT;
       const ctx = canvas.getContext("2d");
       if (!ctx) {
         reject(new Error("no-2d-context"));
         return;
       }
-      ctx.drawImage(img, 0, 0, w, h);
+      // Cover-fit: scale so the photo fills the whole 1080x1920 frame, then
+      // center the overflow so the edges are cropped evenly.
+      const scale = Math.max(STORY_WIDTH / ow, STORY_HEIGHT / oh);
+      const drawW = ow * scale;
+      const drawH = oh * scale;
+      const dx = (STORY_WIDTH - drawW) / 2;
+      const dy = (STORY_HEIGHT - drawH) / 2;
+      ctx.fillStyle = "#000000";
+      ctx.fillRect(0, 0, STORY_WIDTH, STORY_HEIGHT);
+      ctx.drawImage(img, dx, dy, drawW, drawH);
       const clean = canvas.toDataURL("image/jpeg", 0.92);
-      const pad = Math.round(w * 0.04);
-      const fontSize = Math.max(20, Math.round(w * 0.045));
+      const pad = Math.round(STORY_WIDTH * 0.04);
+      const fontSize = Math.max(20, Math.round(STORY_WIDTH * 0.045));
       const pillH = Math.round(fontSize * 2);
-      drawDisclosurePill(ctx, pad, h - pad - pillH, w);
+      drawDisclosurePill(ctx, pad, STORY_HEIGHT - pad - pillH, STORY_WIDTH);
       const baked = canvas.toDataURL("image/jpeg", 0.92);
       resolve({ clean, baked });
     };
