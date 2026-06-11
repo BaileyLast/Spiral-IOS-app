@@ -304,6 +304,7 @@ export const MOCK_ACTIVE: Order[] = [
     createdAt: new Date("2026-03-24").toISOString(),
     status: "delivered",
     verificationStatus: "pending",
+    merchantInstagramHandle: "marketmatchups",
     instagramHandle: null,
     instagramUserId: null,
     followerCount: null,
