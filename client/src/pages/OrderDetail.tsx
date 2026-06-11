@@ -28,6 +28,7 @@ import {
 import type { Order } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import StoryComposer from "@/components/StoryComposer";
 import {
   parseLineItems,
   lineItemDisplayName,
@@ -97,6 +98,17 @@ export default function OrderDetail() {
 
   const order = isMock ? mockOrder : queryOrder;
   const isLoading = isMock ? false : queryLoading;
+
+  const [showComposer, setShowComposer] = useState(false);
+
+  // Brands carry the merchant's public shop URL; we match by IG handle so the
+  // composer can pass a link sticker to the brand's store.
+  const { data: brands } = useQuery<
+    { instagramUsername: string | null; storefrontUrl: string }[]
+  >({
+    queryKey: ["/api/brands"],
+    enabled: !!orderId,
+  });
 
   const markReceivedMutation = useMutation({
     mutationFn: async () => {
@@ -172,6 +184,25 @@ export default function OrderDetail() {
   const awaitingPickup = order.shopifyTrackingStatus === "ready_for_pickup" && order.status !== "delivered";
   const rawHandle = (order.merchantInstagramHandle || "").replace(/^@/, "");
   const orderNumber = order.shopifyOrderId.slice(-4);
+
+  // Resolve the brand's public shop URL by matching the merchant handle, guarded
+  // to http(s) only so the composer never passes a non-web link sticker.
+  const shopUrl = (() => {
+    if (!rawHandle || !brands) return null;
+    const match = brands.find(
+      (b) =>
+        (b.instagramUsername || "").replace(/^@/, "").toLowerCase() ===
+        rawHandle.toLowerCase(),
+    );
+    const url = match?.storefrontUrl;
+    if (!url) return null;
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === "https:" || parsed.protocol === "http:" ? url : null;
+    } catch {
+      return null;
+    }
+  })();
 
   // Journey middle-step label is dynamic per delivery mode.
   // Pickup journey: Order placed → Almost ready → Ready for pickup (→ Collected) → Post a story
@@ -276,15 +307,14 @@ export default function OrderDetail() {
               </p>
 
               {rawHandle ? (
-                <a
-                  href={`https://instagram.com/${rawHandle}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={() => setShowComposer(true)}
                   className="tactile-btn bg-white text-[#4ECCA3] w-full py-4 text-lg shadow-[0_4px_12px_rgba(0,0,0,0.1),inset_0_-4px_0_rgba(240,240,240,1)] text-center"
-                  data-testid="link-merchant-handle"
+                  data-testid="button-open-composer"
                 >
-                  Open Instagram
-                </a>
+                  Post your Story
+                </button>
               ) : (
                 <span className="tactile-btn bg-white text-[#4ECCA3] w-full py-4 text-lg shadow-[0_4px_12px_rgba(0,0,0,0.1),inset_0_-4px_0_rgba(240,240,240,1)] text-center">
                   Post Story Now
@@ -358,15 +388,14 @@ export default function OrderDetail() {
               </div>
             </div>
             {rawHandle ? (
-              <a
-                href={`https://instagram.com/${rawHandle}`}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={() => setShowComposer(true)}
                 className="flex items-center justify-center w-full rounded-full bg-white text-[#4ECCA3] font-bold py-4 text-lg shadow-[0_4px_12px_rgba(0,0,0,0.12)] active:opacity-90 transition-opacity"
-                data-testid="link-repost-instagram"
+                data-testid="button-repost-composer"
               >
                 Repost story
-              </a>
+              </button>
             ) : (
               <span className="flex items-center justify-center w-full rounded-full bg-white text-[#4ECCA3] font-bold py-4 text-lg shadow-[0_4px_12px_rgba(0,0,0,0.12)]">
                 Repost story
@@ -649,6 +678,13 @@ export default function OrderDetail() {
           </div>
         </div>
       </main>
+
+      <StoryComposer
+        open={showComposer}
+        onClose={() => setShowComposer(false)}
+        merchantHandle={rawHandle}
+        shopUrl={shopUrl}
+      />
     </div>
   );
 }
