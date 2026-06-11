@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Camera, ImageUp, X, Loader2, Instagram, Copy, Check, ShieldCheck } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Camera, ImageUp, X, Loader2, Instagram, Copy, Check, ShieldCheck, Link2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 // Plain, CMA-friendly disclosure label. This is the working default rendered in
@@ -176,6 +176,166 @@ function tryNativeBridge(
   return false;
 }
 
+// Custom in-app camera. Uses the live device camera so we can overlay framing
+// guides (where the disclosure pill / link sticker land) on top of the preview.
+// The preview box is locked to the 1080x1920 Story aspect with object-cover, so
+// what the shopper sees is what prepareImages() center-crops on capture.
+function CameraCapture({
+  shopUrl,
+  onCapture,
+  onCancel,
+  onUnavailable,
+}: {
+  shopUrl?: string | null;
+  onCapture: (src: string) => void;
+  onCancel: () => void;
+  onUnavailable: () => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const start = async () => {
+      const md = navigator.mediaDevices;
+      if (!md || typeof md.getUserMedia !== "function") {
+        onUnavailable();
+        return;
+      }
+      try {
+        const stream = await md.getUserMedia({
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1080 },
+            height: { ideal: 1920 },
+          },
+          audio: false,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        streamRef.current = stream;
+        const video = videoRef.current;
+        if (video) {
+          video.srcObject = stream;
+          try {
+            await video.play();
+          } catch {
+            // Autoplay can reject; the stream still renders once decoded.
+          }
+        }
+        if (!cancelled) setReady(true);
+      } catch {
+        if (!cancelled) onUnavailable();
+      }
+    };
+    void start();
+    return () => {
+      cancelled = true;
+      const s = streamRef.current;
+      if (s) s.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const capture = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    if (!vw || !vh) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = vw;
+    canvas.height = vh;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, vw, vh);
+    onCapture(canvas.toDataURL("image/jpeg", 0.95));
+  };
+
+  return (
+    <>
+      <header className="flex items-center justify-between px-4 py-4">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center"
+          aria-label="Back"
+          data-testid="button-camera-back"
+        >
+          <X className="w-5 h-5 text-white" />
+        </button>
+        <span className="text-white font-bold text-sm">Frame your shot</span>
+        <span className="w-10" />
+      </header>
+
+      <div className="flex-1 flex items-center justify-center px-4 min-h-0">
+        <div className="relative w-full max-w-[430px] aspect-[9/16] max-h-full overflow-hidden rounded-2xl bg-black">
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            autoPlay
+            className="absolute inset-0 w-full h-full object-cover"
+            data-testid="video-camera-preview"
+          />
+
+          {!ready && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+              <Loader2 className="w-8 h-8 animate-spin text-white" />
+            </div>
+          )}
+
+          {/* Top hint */}
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-black/45 backdrop-blur-sm">
+            <span className="text-[11px] font-medium text-white/90 whitespace-nowrap">
+              Keep your product clear of the dashed areas
+            </span>
+          </div>
+
+          {/* Link sticker ghost (native app only) */}
+          {shopUrl && (
+            <div
+              className="absolute left-1/2 -translate-x-1/2 bottom-[12%] flex items-center gap-1.5 rounded-lg border border-dashed border-white/70 bg-black/35 px-3 py-1.5 backdrop-blur-sm"
+              data-testid="guide-link-sticker"
+            >
+              <Link2 className="w-3.5 h-3.5 text-white/90" />
+              <span className="text-[10px] font-bold tracking-wide text-white/90">SHOP LINK</span>
+            </div>
+          )}
+
+          {/* Disclosure pill ghost — matches the baked bottom-left position */}
+          <div
+            className="absolute left-[4%] bottom-[2.5%] flex items-center gap-1.5 rounded-full border border-dashed border-white/70 bg-black/45 px-3 py-1.5 backdrop-blur-sm"
+            data-testid="guide-disclosure"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-white/90" />
+            <span className="text-[10px] font-bold tracking-wide text-white/90">
+              {DISCLOSURE_LABEL}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="py-6 flex items-center justify-center">
+        <button
+          type="button"
+          onClick={capture}
+          disabled={!ready}
+          aria-label="Take photo"
+          data-testid="button-shutter"
+          className="w-[72px] h-[72px] rounded-full bg-white ring-4 ring-white/30 flex items-center justify-center active:scale-95 transition-transform disabled:opacity-50"
+        >
+          <span className="w-[58px] h-[58px] rounded-full border-2 border-black/10" />
+        </button>
+      </div>
+    </>
+  );
+}
+
 export default function StoryComposer({ open, onClose, merchantHandle, shopUrl }: StoryComposerProps) {
   const { toast } = useToast();
   const [composed, setComposed] = useState<string | null>(null);
@@ -183,6 +343,8 @@ export default function StoryComposer({ open, onClose, merchantHandle, shopUrl }
   const [working, setWorking] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [cameraFallback, setCameraFallback] = useState(false);
 
   if (!open) return null;
 
@@ -196,28 +358,33 @@ export default function StoryComposer({ open, onClose, merchantHandle, shopUrl }
 
   const close = () => {
     reset();
+    setShowCamera(false);
     onClose();
+  };
+
+  const processSrc = async (src: string) => {
+    setWorking(true);
+    try {
+      const { clean, baked } = await prepareImages(src);
+      setOriginal(clean);
+      setComposed(baked);
+    } catch {
+      toast({
+        title: "Couldn't load that photo",
+        description: "Please try a different one.",
+        variant: "destructive",
+      });
+    } finally {
+      setWorking(false);
+    }
   };
 
   const onPick = (file?: File) => {
     if (!file) return;
     setWorking(true);
     const reader = new FileReader();
-    reader.onload = async () => {
-      const src = reader.result as string;
-      try {
-        const { clean, baked } = await prepareImages(src);
-        setOriginal(clean);
-        setComposed(baked);
-      } catch {
-        toast({
-          title: "Couldn't load that photo",
-          description: "Please try a different one.",
-          variant: "destructive",
-        });
-      } finally {
-        setWorking(false);
-      }
+    reader.onload = () => {
+      void processSrc(reader.result as string);
     };
     reader.onerror = () => {
       setWorking(false);
@@ -283,6 +450,26 @@ export default function StoryComposer({ open, onClose, merchantHandle, shopUrl }
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col safe-top" data-testid="overlay-story-composer">
+      {showCamera ? (
+        <CameraCapture
+          shopUrl={shopUrl}
+          onCancel={() => setShowCamera(false)}
+          onCapture={(src) => {
+            setShowCamera(false);
+            void processSrc(src);
+          }}
+          onUnavailable={() => {
+            setShowCamera(false);
+            setCameraFallback(true);
+            toast({
+              title: "Using your phone's camera",
+              description:
+                "We couldn't open the in-app camera, so we'll use your phone's camera instead.",
+            });
+          }}
+        />
+      ) : (
+        <>
       <header className="flex items-center justify-between px-4 py-4">
         <button
           type="button"
@@ -306,22 +493,35 @@ export default function StoryComposer({ open, onClose, merchantHandle, shopUrl }
           <p className="text-white/70 text-sm mb-8 max-w-[280px]">
             Snap your purchase or pick one from your camera roll. We'll add the disclosure for you.
           </p>
-          <label
-            className="tactile-btn bg-white text-black w-full max-w-[320px] py-4 text-lg mb-3 flex items-center justify-center gap-2 cursor-pointer"
-            data-testid="button-take-photo"
-          >
-            {working ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}
-            Take photo
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="sr-only"
+          {cameraFallback ? (
+            <label
+              className="tactile-btn bg-white text-black w-full max-w-[320px] py-4 text-lg mb-3 flex items-center justify-center gap-2 cursor-pointer"
+              data-testid="button-take-photo"
+            >
+              {working ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}
+              Take photo
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="sr-only"
+                disabled={working}
+                onChange={(e) => onPick(e.target.files?.[0])}
+                data-testid="input-camera"
+              />
+            </label>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowCamera(true)}
               disabled={working}
-              onChange={(e) => onPick(e.target.files?.[0])}
-              data-testid="input-camera"
-            />
-          </label>
+              className="tactile-btn bg-white text-black w-full max-w-[320px] py-4 text-lg mb-3 flex items-center justify-center gap-2"
+              data-testid="button-take-photo"
+            >
+              {working ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}
+              Take photo
+            </button>
+          )}
           <label
             className="w-full max-w-[320px] py-4 text-lg font-bold text-white rounded-full bg-white/10 flex items-center justify-center gap-2 active:opacity-80 cursor-pointer"
             data-testid="button-upload-photo"
@@ -402,6 +602,8 @@ export default function StoryComposer({ open, onClose, merchantHandle, shopUrl }
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );
