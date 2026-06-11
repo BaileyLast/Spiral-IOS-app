@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Camera, ImageUp, X, Loader2, Instagram, Copy, Check, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -173,8 +173,6 @@ export default function StoryComposer({ open, onClose, merchantHandle, shopUrl }
   const [working, setWorking] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [copied, setCopied] = useState(false);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
-  const libraryInputRef = useRef<HTMLInputElement>(null);
 
   if (!open) return null;
 
@@ -275,24 +273,6 @@ export default function StoryComposer({ open, onClose, merchantHandle, shopUrl }
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col safe-top" data-testid="overlay-story-composer">
-      <input
-        ref={cameraInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-        onChange={(e) => onPick(e.target.files?.[0])}
-        data-testid="input-camera"
-      />
-      <input
-        ref={libraryInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => onPick(e.target.files?.[0])}
-        data-testid="input-library"
-      />
-
       <header className="flex items-center justify-between px-4 py-4">
         <button
           type="button"
@@ -316,26 +296,37 @@ export default function StoryComposer({ open, onClose, merchantHandle, shopUrl }
           <p className="text-white/70 text-sm mb-8 max-w-[280px]">
             Snap your purchase or pick one from your camera roll. We'll add the disclosure for you.
           </p>
-          <button
-            type="button"
-            onClick={() => cameraInputRef.current?.click()}
-            disabled={working}
-            className="tactile-btn bg-white text-black w-full max-w-[320px] py-4 text-lg mb-3 flex items-center justify-center gap-2"
+          <label
+            className="tactile-btn bg-white text-black w-full max-w-[320px] py-4 text-lg mb-3 flex items-center justify-center gap-2 cursor-pointer"
             data-testid="button-take-photo"
           >
             {working ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}
             Take photo
-          </button>
-          <button
-            type="button"
-            onClick={() => libraryInputRef.current?.click()}
-            disabled={working}
-            className="w-full max-w-[320px] py-4 text-lg font-bold text-white rounded-full bg-white/10 flex items-center justify-center gap-2 active:opacity-80"
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="sr-only"
+              disabled={working}
+              onChange={(e) => onPick(e.target.files?.[0])}
+              data-testid="input-camera"
+            />
+          </label>
+          <label
+            className="w-full max-w-[320px] py-4 text-lg font-bold text-white rounded-full bg-white/10 flex items-center justify-center gap-2 active:opacity-80 cursor-pointer"
             data-testid="button-upload-photo"
           >
             <ImageUp className="w-5 h-5" />
             Upload from library
-          </button>
+            <input
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              disabled={working}
+              onChange={(e) => onPick(e.target.files?.[0])}
+              data-testid="input-library"
+            />
+          </label>
         </div>
       ) : (
         <div className="flex-1 flex flex-col px-5 pb-6 overflow-y-auto">
