@@ -1,0 +1,74 @@
+Build me an internal admin tool called the "Spiral CRM."
+
+What it's for
+This is a private, team-only web app for the Spiral staff to look up and manage our data — shoppers, their orders, and our merchants. It is not for customers or merchants. Think clean, fast, no-frills admin dashboard: search, view, edit, remove.
+
+The most important architecture rule
+The CRM must not keep its own copy of shopper or merchant data. Each piece of data has one true owner, and the CRM reads and edits it live from that owner through their secure internal APIs. The CRM only has its own database for CRM-specific things: team member logins, internal notes, and an audit log of actions taken. Never duplicate shopper or merchant records into the CRM's database — that causes data to drift out of sync.
+
+The data sources it connects to
+
+Source 1 — Spiral Customer App (source of truth for shoppers and orders)
+
+Every request sends the shared secret key in the header: x-spiral-internal-key: <key>. From it the CRM needs to:
+
+Browse and search all shoppers (by name, email, or Instagram handle), with paging.
+Open a full shopper profile: account details (name, email, signup date, last login, active/inactive), Instagram handle + follower count, account status (active or on-hold/soft-banned, with reason), and their full order history.
+View a shopper's story/verification history (what they posted, when, and whether it passed).
+Edit a shopper's details.
+Remove (delete) a shopper.
+Lift or apply a shopper's on-hold (soft-ban) status.
+Browse and search all orders, and open a single order's full detail.
+(Note: some read/edit/delete endpoints may still need to be added on the customer app's side — treat that as a dependency to confirm.)
+
+Source 2 — Spiral Merchant Dashboard (source of truth for merchants)
+
+Base URL: https://spiral-merchant-dashboard.replit.app
+Auth header on every request: x-spiral-internal-key: <same shared key>
+
+All endpoints below are read-only. The CRM should never cache or copy the responses — always fetch live.
+
+Merchant list
+
+GET /api/internal/crm/merchants?page=1&limit=50&q=searchterm
+
+Returns { items: [...], total: number }. Each item includes:
+shopDomain, storeName, ownerEmail, ownerName, primaryDomain, spiralEnabled, tokenActive (false = app uninstalled), shopifyIndustry, shopifyCountry, instagramUsername, instagramProfilePictureUrl
+
+Full merchant profile
+
+GET /api/internal/crm/merchants/:shopDomain
+
+Everything from the list item plus: phone, instagramHandle, instagramBusinessAccountId, instagramTokenExpiresAt, cooldownDays, postingWindowDays, widgetColor, widgetPages, primaryCategory, secondaryCategories, customerAppUrl
+
+Campaign / discount settings
+
+GET /api/internal/crm/merchants/:shopDomain/campaign
+
+Returns: productSelectionType, discountTemplate, maxDiscount, cooldownDays, postingWindowDays, widgetPages, tierItemCaps, and a discountTiers array (each tier has fromFollowers, toFollowers, discountPercent, maxItemsDiscounted)
+
+Performance analytics
+
+GET /api/internal/crm/merchants/:shopDomain/analytics
+
+Returns aggregated stats: totalVerifications, verifiedCount, pendingCount, totalOrders, totalRevenue, totalDiscountGiven, avgDiscountPercent, storyPostCount, lastOrderAt, lastVerificationAt
+
+Story promotions
+
+GET /api/internal/crm/merchants/:shopDomain/promotions
+
+Returns up to 50 most recent verified Instagram story posts for this merchant: instagramHandle, followerCount, storyImageUrl, discountPercent, discountAmount, verifiedAt, orderStatus, showInGallery, merchantRejected
+
+What tokenActive means: true = app is installed and connected. false = merchant uninstalled the Shopify app. Use this as the "Removed app" status indicator.
+
+What the CRM needs to show per merchant
+
+Bring these together into a single merchant detail view:
+
+Store name, shop domain, primary domain (custom URL), owner email, owner name, phone
+Spiral status: enabled/disabled/removed (from spiralEnabled + tokenActive)
+Industry and country (from Shopify)
+Instagram connection: handle, username, profile picture, token expiry
+Full campaign config (from /campaign)
+Top-level performance numbers (from /analytics)
+Recent story promotions gallery (from /promotions)
