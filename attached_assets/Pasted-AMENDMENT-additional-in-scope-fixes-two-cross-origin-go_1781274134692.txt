@@ -1,0 +1,60 @@
+AMENDMENT — additional in-scope fixes + two cross-origin gotchas to watch
+
+The base task is correct. Add the following.
+
+== IN SCOPE (fix inside this repl) ==
+
+A) Step 1 is incomplete: patching apiRequest + getQueryFn is NOT enough.
+   Some calls bypass both wrappers and will keep hitting THIS repl (which no
+   longer has an API) instead of the Core. Audit the whole client for raw
+   fetch()/XHR and for direct /api URLs used outside the wrappers, and fix each.
+   Known offenders:
+   - client/src/pages/MerchantProducts.tsx (~line 160): a raw
+     fetch('/api/brands/<id>/products', { credentials:"include" }).
+     Route it through apiRequest (or apply withApiBase + the Bearer header to it),
+     so it goes to the Core with auth.
+
+B) The Instagram avatar will break — and it's not a normal fetch.
+   client/src/pages/Profile.tsx (~line 96) and
+   client/src/pages/ManageAccount.tsx (~line 204) load the avatar as:
+       <img src="/api/customer/instagram-avatar">
+   Two problems once we're cross-origin:
+     1. Relative URL -> hits THIS thin repl, not the Core (404).
+     2. An <img> tag cannot send the Authorization: Bearer header, but the
+        endpoint requires auth (getCustomerId). So even pointed at the Core it
+        would depend on the cross-site cookie, which a native iOS WebView often
+        blocks.
+   Fix: load the avatar via apiRequest (so it carries the Bearer token), then
+   render the response as a blob/object URL instead of a direct src. Apply to
+   both pages.
+
+   Also sanity-check client/src/components/StoryComposer.tsx (~line 74, new Image())
+   — if it ever loads an /api/... URL, it has the same problem.
+
+== WATCH / TEST (these need a Core-side change, not fixable in this repl) ==
+
+C) "I've received this order" will 403 cross-origin.
+   The Core's mark-received route has an old per-route guard that rejects any
+   request whose Origin doesn't match the Core's own host. Once this app calls
+   api.joinspiral.app from the iOS origin, that guard always trips -> 403, button
+   dead. apiRequest is wired correctly; the failure is server-side. This requires
+   a small Core change (drop/replace that guard; the Core's CORS allowlist already
+   covers CSRF). Do NOT try to work around it in the client — flag it as a
+   companion Core task and verify the button works after that lands.
+
+D) Signup -> verify-email has no Bearer fallback.
+   The auth token is only minted when verify-email SUCCEEDS, so the signup step is
+   cookie-only: the pending signup is carried by the session cookie between the two
+   calls. Keeping credentials:"include" is right, but if the native WebView blocks
+   third-party cookies (iOS frequently does), signup breaks with nothing to fall
+   back on. Test signup -> verify in the ACTUAL native WebView early. If it fails,
+   it needs a Core change to make signup stateless (return a signupToken the client
+   stores and sends). Flag as a companion Core task if it fails the WebView test.
+
+== Done-when additions ==
+- The avatar renders in Profile and ManageAccount in the native WebView (carried by
+  the Bearer token, not a cross-site cookie).
+- No client code path uses a relative /api URL or a raw fetch that skips the
+  base-URL + Bearer plumbing.
+- mark-received and signup->verify are explicitly tested in the native WebView;
+  if either fails, a companion Core task is raised (they cannot be fixed here).

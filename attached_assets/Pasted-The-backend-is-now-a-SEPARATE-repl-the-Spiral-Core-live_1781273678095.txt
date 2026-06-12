@@ -1,0 +1,48 @@
+The backend is now a SEPARATE repl — the Spiral Core — live at https://api.joinspiral.app.
+It is the single source of truth. This repl is now ONLY the thin shopper client.
+Your job is to adapt the remix into that thin client. Make these changes:
+1) POINT THE CLIENT AT THE CORE
+   - Set env var VITE_API_BASE_URL = https://api.joinspiral.app
+   - The plumbing already uses it: client/src/lib/queryClient.ts has withApiBase(),
+     which prefixes every /api/... call with that base. No code change needed here.
+2) ACTUALLY STORE THE AUTH TOKEN (the real gap)
+   - queryClient.ts already exports setAuthToken() and already sends the stored token
+     as `Authorization: Bearer ...` on every request — but nothing calls setAuthToken yet.
+   - On successful POST /api/customer/login: call setAuthToken(response.token)
+   - On successful POST /api/customer/verify-email: call setAuthToken(response.token)
+   - On logout: call setAuthToken(null) (and still call POST /api/customer/logout,
+     which revokes it server-side)
+   - Token persists in localStorage (key "spiral_auth_token"). This is what keeps the
+     user logged in across launches and makes auth work even if cross-site cookies get
+     blocked. (credentials:"include" is already set, so the session cookie also works
+     in the webview as a parallel path — including the signup -> verify-email flow,
+     which relies on the cookie to carry the pending signup between the two calls.)
+3) STOP BEING A SECOND BACKEND
+   - The remix still carries a full copy of server/ (the /api/customer, /api/internal,
+     /api/checkout, and /webhooks routes) plus DB code. This repl must NOT run those —
+     two sources of truth will corrupt state.
+   - Do not connect this repl to the production database. Do not run/deploy the API or
+     webhook routes from here. The frontend talks ONLY to the Core over https.
+   - Keep only what's needed to serve the static React client to the native iOS webview
+     wrapper. Strip or disable the rest.
+4) REMOVE CORE-ONLY SECRETS FROM THIS REPL
+   - This thin client needs NONE of these — delete them here so they aren't duplicated
+     or leaked: SPIRAL_INTERNAL_KEY, FACEBOOK_APP_ID/SECRET, INSTAGRAM_APP_ID/SECRET,
+     INSTAGRAM_REDIRECT_URI, RAPIDAPI_KEY, SPIRAL_INSTAGRAM_ACCESS_TOKEN,
+     SPIRAL_INSTAGRAM_BUSINESS_ID, AWS_* , OPENAI_API_KEY, SHOPIFY_REDIRECT_URI.
+   - Keep only frontend/native config (e.g. VITE_API_BASE_URL, anything the native
+     wrapper needs).
+5) CORS
+   - This repl's origin https://spiral-ios-app.replit.app is already on the Core's
+     allowlist. If you serve the client from any other origin, add that origin to the
+     Core's CORS_ALLOWED_ORIGINS env var (comma-separated).
+6) KEEP THE NATIVE BITS
+   - Keep the native Story-share bridge behavior (clean photo + movable disclosure
+     sticker; web fallback bakes the disclosure into the image — never share without a
+     disclosure).
+   - Keep push-token registration: POST /api/customer/push-token { token } on launch
+     after login, and { token: null } on logout.
+That's it. Everything else (screens, the spiral-code Instagram linking flow, order &
+verification status display, the soft-ban "on hold" banner) already exists in the
+remix and already calls the right endpoints — it just needs to point at the Core
+(step 1) and store the token (step 2).
