@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { useLocation, useRoute } from "wouter";
 import { ChevronLeft, Store, ExternalLink, Instagram } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -157,10 +158,10 @@ export default function MerchantProducts() {
   const { data: products, isLoading, isError } = useQuery<Product[]>({
     queryKey: ["/api/brands", brandId, "products"],
     queryFn: async () => {
-      const res = await fetch(`/api/brands/${encodeURIComponent(brandId)}/products`, {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const res = await apiRequest(
+        "GET",
+        `/api/brands/${encodeURIComponent(brandId)}/products`,
+      );
       return res.json();
     },
     enabled: !!brandId,

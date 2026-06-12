@@ -1,5 +1,55 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
+// All API calls target the Spiral Core backend (single source of truth).
+// Set VITE_API_BASE_URL to the Core origin (e.g. https://api.joinspiral.app).
+// When unset (local dev against a co-located server), calls fall back to the
+// current origin so relative URLs keep working.
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
+
+// Prefix a relative API path with the configured Core base URL. Absolute URLs
+// (http/https) are passed through untouched.
+export function withApiBase(url: string): string {
+  if (!API_BASE_URL) return url;
+  if (/^https?:\/\//i.test(url)) return url;
+  return `${API_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+}
+
+const AUTH_TOKEN_KEY = "spiral_auth_token";
+
+let authToken: string | null = null;
+try {
+  authToken = localStorage.getItem(AUTH_TOKEN_KEY);
+} catch {
+  authToken = null;
+}
+
+// Persist (or clear) the bearer token used to authenticate against the Core.
+// Pass null on logout / account deletion.
+export function setAuthToken(token: string | null) {
+  authToken = token && token.length > 0 ? token : null;
+  try {
+    if (authToken) {
+      localStorage.setItem(AUTH_TOKEN_KEY, authToken);
+    } else {
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+    }
+  } catch {
+    // localStorage may be unavailable (private mode); the in-memory token
+    // still authenticates this session.
+  }
+}
+
+export function getAuthToken(): string | null {
+  return authToken;
+}
+
+function buildHeaders(base: Record<string, string> = {}): Record<string, string> {
+  if (authToken) {
+    return { ...base, Authorization: `Bearer ${authToken}` };
+  }
+  return base;
+}
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
@@ -18,9 +68,9 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  const res = await fetch(url, {
+  const res = await fetch(withApiBase(url), {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers: buildHeaders(data ? { "Content-Type": "application/json" } : {}),
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
@@ -35,7 +85,8 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
+    const res = await fetch(withApiBase(queryKey.join("/") as string), {
+      headers: buildHeaders(),
       credentials: "include",
     });
 

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, setAuthToken } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Mail } from "lucide-react";
 const spiralLogoUrl = "/spiral-gradient-logo.png";
@@ -28,6 +28,7 @@ export default function VerifyEmail() {
       return response.json();
     },
     onSuccess: (data) => {
+      if (data.token) setAuthToken(data.token);
       localStorage.setItem("spiral_customer", JSON.stringify({
         id: data.id,
         email: data.email,

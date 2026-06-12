@@ -16,7 +16,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, setAuthToken } from "@/lib/queryClient";
+import { useInstagramAvatar } from "@/hooks/use-instagram-avatar";
 import { useToast } from "@/hooks/use-toast";
 import { COUNTRIES, getCountryByCode, detectCountryFromLocale } from "@/lib/countries";
 import {
@@ -76,6 +77,8 @@ export default function ManageAccount() {
     queryKey: ["/api/customer/me"],
   });
 
+  const avatarUrl = useInstagramAvatar(!!profile?.instagramProfilePicture);
+
   const updateMutation = useMutation({
     mutationFn: async (data: { firstName?: string | null; lastName?: string | null; dateOfBirth?: string | null; address?: string | null; country?: string | null }) => {
       const response = await apiRequest("PATCH", "/api/customer/profile", data);
@@ -101,6 +104,7 @@ export default function ManageAccount() {
       await apiRequest("DELETE", "/api/customer/me");
     },
     onSuccess: () => {
+      setAuthToken(null);
       localStorage.removeItem("spiral_customer");
       queryClient.clear();
       setDeleteOpen(false);
@@ -199,10 +203,10 @@ export default function ManageAccount() {
           <div className="creator-card p-5" data-testid="card-instagram-connected">
             <div className="flex items-center gap-4">
               <Avatar className="w-14 h-14 border-2 border-white shadow-sm">
-                {profile?.instagramProfilePicture ? (
+                {avatarUrl ? (
                   <AvatarImage
-                    src="/api/customer/instagram-avatar"
-                    alt={profile.instagramHandle || "Instagram"}
+                    src={avatarUrl}
+                    alt={profile?.instagramHandle || "Instagram"}
                   />
                 ) : null}
                 <AvatarFallback className="bg-[#4ECCA3] text-white">

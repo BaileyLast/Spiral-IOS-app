@@ -51,9 +51,7 @@ integrations = ["javascript_mem_db:1.0.0", "javascript_database:1.0.0"]
 [userenv]
 
 [userenv.shared]
-SHOPIFY_APP_BASE_URL = "https://spiral-app-1.replit.app"
-APP_BASE_URL = "https://spiral-app-1.replit.app"
-INSTAGRAM_WEBHOOK_VERIFY_TOKEN = "spiral_verify_token"
+VITE_API_BASE_URL = "https://api.joinspiral.app"
 
 [postMerge]
 path = "scripts/post-merge.sh"

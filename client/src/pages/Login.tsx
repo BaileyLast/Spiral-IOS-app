@@ -5,7 +5,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, setAuthToken } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { Eye, EyeOff, Loader2, ChevronDown, Check, Sparkles } from "lucide-react";
@@ -22,6 +22,7 @@ interface AuthResponse {
   emailVerified?: boolean;
   instagramHandle?: string;
   followerCount?: number;
+  token?: string;
 }
 
 export default function Login() {
@@ -46,6 +47,7 @@ export default function Login() {
       return response.json();
     },
     onSuccess: (data: AuthResponse, variables) => {
+      if (data.token) setAuthToken(data.token);
       localStorage.setItem("spiral_customer", JSON.stringify(data));
 
       if (variables.mode === "signup") {

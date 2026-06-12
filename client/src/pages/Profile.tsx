@@ -1,7 +1,8 @@
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, setAuthToken } from "@/lib/queryClient";
+import { useInstagramAvatar } from "@/hooks/use-instagram-avatar";
 import {
   LogOut,
   ChevronRight,
@@ -50,6 +51,8 @@ export default function Profile() {
     queryKey: ["/api/customer/stats"],
   });
 
+  const avatarUrl = useInstagramAvatar(!!profile?.instagramProfilePicture);
+
   const logoutMutation = useMutation({
     mutationFn: async () => {
       try {
@@ -60,6 +63,7 @@ export default function Profile() {
       await apiRequest("POST", "/api/customer/logout");
     },
     onSuccess: () => {
+      setAuthToken(null);
       localStorage.removeItem("spiral_customer");
       queryClient.clear();
       setLocation("/");
@@ -91,10 +95,10 @@ export default function Profile() {
         {/* Profile header card */}
         <div className="creator-card p-6 flex flex-col items-center text-center" data-testid="card-profile-header">
           <Avatar className="w-20 h-20 border-4 border-white shadow-md">
-            {profile?.instagramProfilePicture ? (
+            {avatarUrl ? (
               <AvatarImage
-                src="/api/customer/instagram-avatar"
-                alt={profile.instagramHandle || profile.email}
+                src={avatarUrl}
+                alt={profile?.instagramHandle || profile?.email}
               />
             ) : null}
             <AvatarFallback className="bg-[#E6F8F0] text-[#1A996E] text-2xl font-black">

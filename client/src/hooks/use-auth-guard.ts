@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { isUnauthorizedError } from "@/lib/queryClient";
+import { isUnauthorizedError, setAuthToken } from "@/lib/queryClient";
 
 // Redirects to /login whenever a signed-in query reports an unauthenticated
 // session (HTTP 401). Without this, a dead session leaves the app rendering its
@@ -16,6 +16,7 @@ export function useAuthGuard(...errors: unknown[]) {
 
   useEffect(() => {
     if (!unauthorized) return;
+    setAuthToken(null);
     localStorage.removeItem("spiral_customer");
     queryClient.clear();
     setLocation("/login");
