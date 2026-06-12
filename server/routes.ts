@@ -2848,7 +2848,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     | { ok: true }
     | { ok: false; reason: string; statusCode: number | null; retriable: boolean };
 
-  async function attemptDashboardForward(payload: { messaging: any[]; shopDomain?: string; instagramBusinessAccountId?: string; storyImageUrl?: string }): Promise<ForwardAttemptResult> {
+  // Platform-agnostic outcome signal sent back to the originating merchant after
+  // a flagged Story is rejected (and again when the resulting hold lifts). The
+  // `kind` discriminator lets the shared retry queue tell outcome rows apart from
+  // story_mention forwards. Merchant routing identifiers (shopDomain +
+  // instagramBusinessAccountId + storeName) are included so any consumer can map
+  // the outcome to the right merchant without app-scoped↔global id conversion.
+  type StoryOutcomePayload = {
+    kind: 'story-outcome';
+    status: 'rejected' | 'resolved';
+    reason: string;
+    orderId: string;
+    shopifyOrderId?: string;
+    storeName?: string;
+    shopDomain?: string;
+    instagramBusinessAccountId?: string;
+    instagramGlobalUserId?: string;
+    instagramHandle?: string;
+    softBanned: boolean;
+  };
+
+  const DASHBOARD_BASE_URL = 'https://spiral-merchant-dashboard.replit.app';
+
+  // Generic best-effort POST to the merchant dashboard with the shared internal
+  // key + a 3s timeout. Used by both the story_mention forward and the
+  // story-outcome (rejection / resolution) notify. Classifies failures so the
+  // retry worker knows whether a row is worth retrying.
+  async function postToDashboard(path: string, payload: unknown): Promise<ForwardAttemptResult> {
     const internalKey = process.env.SPIRAL_INTERNAL_KEY;
     if (!internalKey) {
       if (!storyForwardKeyMissingWarned) {
@@ -2861,7 +2887,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3000);
     try {
-      const res = await fetch('https://spiral-merchant-dashboard.replit.app/api/instagram/story-mention', {
+      const res = await fetch(`${DASHBOARD_BASE_URL}${path}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2884,6 +2910,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  async function attemptDashboardForward(payload: { messaging: any[]; shopDomain?: string; instagramBusinessAccountId?: string; storyImageUrl?: string }): Promise<ForwardAttemptResult> {
+    return postToDashboard('/api/instagram/story-mention', payload);
+  }
+
+  async function attemptOutcomeForward(payload: StoryOutcomePayload): Promise<ForwardAttemptResult> {
+    return postToDashboard('/api/instagram/story-outcome', payload);
   }
 
   async function forwardStoryMentionToDashboard(
@@ -2933,6 +2967,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  // Best-effort signal back to the originating merchant when a flagged Story is
+  // rejected (status 'rejected', hold applied) or when that hold later lifts
+  // because the shopper reposted and passed the quick check (status 'resolved').
+  // Reuses the same fire-and-forget + retry-queue path as the story_mention
+  // forward, so a transient dashboard outage never loses the outcome and never
+  // blocks the rejection or verification flow.
+  async function forwardStoryOutcomeToDashboard(payload: StoryOutcomePayload): Promise<void> {
+    const result = await attemptOutcomeForward(payload);
+    if (result.ok) {
+      console.log(`[STORY-OUTCOME] Signalled ${payload.status} for order ${payload.orderId} to merchant dashboard`);
+      return;
+    }
+    const retryLabel = result.retriable ? 'enqueuing for retry' : 'enqueuing for investigation (non-retriable)';
+    console.warn(`[STORY-OUTCOME] Outcome notify failed for order ${payload.orderId}: ${result.reason} — ${retryLabel}`);
+    try {
+      const seedDelayMs = result.retriable ? DASHBOARD_FORWARD_RETRY_DELAYS_MS[0] : 0;
+      await storage.enqueueDashboardForward({
+        payload,
+        nextAttemptAt: new Date(Date.now() + seedDelayMs),
+        lastError: result.reason,
+        lastStatusCode: result.statusCode,
+      });
+    } catch (err: any) {
+      console.error(`[STORY-OUTCOME] Failed to enqueue outcome retry: ${err?.message || err}`);
+    }
+  }
+
+  // Build the outcome payload from an order (single-tenant: merchant routing
+  // identifiers come from store settings) and signal it. Fully best-effort — any
+  // error here is swallowed so the caller's primary flow is never affected.
+  async function notifyStoryOutcome(
+    order: Order,
+    status: 'rejected' | 'resolved',
+    softBanned: boolean,
+    reason?: string,
+  ): Promise<void> {
+    try {
+      const settings = await storage.getStoreSettings();
+      const payload: StoryOutcomePayload = {
+        kind: 'story-outcome',
+        status,
+        reason: reason ?? (status === 'rejected' ? 'story_rejected' : 'hold_lifted'),
+        orderId: order.id,
+        softBanned,
+      };
+      if (order.shopifyOrderId) payload.shopifyOrderId = order.shopifyOrderId;
+      if (order.storeName || settings?.storeName) payload.storeName = order.storeName ?? settings?.storeName ?? undefined;
+      if (settings?.shopDomain) payload.shopDomain = settings.shopDomain;
+      if (settings?.instagramBusinessAccountId) payload.instagramBusinessAccountId = settings.instagramBusinessAccountId;
+      if (order.instagramGlobalUserId) payload.instagramGlobalUserId = order.instagramGlobalUserId;
+      if (order.instagramHandle) payload.instagramHandle = order.instagramHandle;
+      await forwardStoryOutcomeToDashboard(payload);
+    } catch (err: any) {
+      console.error(`[STORY-OUTCOME] notifyStoryOutcome(${status}) for order ${order.id} threw: ${err?.message || err}`);
+    }
+  }
+
   // Retry worker for failed dashboard forwards. Runs every minute. Backoff is
   // attempt-count based: after attempt N (1-indexed) the next retry is at
   // [1m, 5m, 30m, 30m, ...]. Rows older than 24h are dropped (logged) so the
@@ -2968,8 +3059,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await storage.deleteDashboardForward(row.id);
           continue;
         }
-        const payload = row.payload as { messaging: any[]; shopDomain?: string; instagramBusinessAccountId?: string; storyImageUrl?: string };
-        const result = await attemptDashboardForward(payload);
+        // The queue carries two payload kinds: story_mention forwards (no `kind`,
+        // legacy shape) and story-outcome notifies (`kind: 'story-outcome'`).
+        // Route to the right endpoint based on the discriminator.
+        const rawPayload = row.payload as any;
+        const isOutcome = rawPayload?.kind === 'story-outcome';
+        const result = isOutcome
+          ? await attemptOutcomeForward(rawPayload as StoryOutcomePayload)
+          : await attemptDashboardForward(rawPayload as { messaging: any[]; shopDomain?: string; instagramBusinessAccountId?: string; storyImageUrl?: string });
         if (result.ok) {
           console.log(`[STORY-FORWARD] Retry succeeded for ${row.id} on attempt ${row.attempts + 1}`);
           await storage.deleteDashboardForward(row.id);
@@ -4291,6 +4388,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
               await storage.updateOrderVerificationStatus(check.orderId, 'quick_verified');
               await maybeAutoUnbanCustomer(check.customerId);
               console.log(`[publicity-check] Order ${check.orderId} QUICK_VERIFIED — discount unlocked`);
+              // If this order was previously rejected by an admin, the shopper has
+              // now reposted and passed the quick check — the rejection is resolved
+              // and the resulting hold has lifted. Clear the stamp and signal the
+              // merchant. Best-effort; never blocks the verification flow.
+              try {
+                const resolvedOrder = await storage.getOrderById(check.orderId);
+                if (resolvedOrder?.storyRejectedAt) {
+                  const cleared = await storage.setOrderStoryRejectedAt(check.orderId, null);
+                  const customer = await storage.getSpiralCustomerById(check.customerId);
+                  const stillBanned = customer?.accountStatus === 'soft_banned';
+                  void notifyStoryOutcome(cleared ?? resolvedOrder, 'resolved', stillBanned, 'hold_lifted');
+                  console.log(`[publicity-check] Order ${check.orderId} rejection RESOLVED via repost — merchant notified`);
+                }
+              } catch (err: any) {
+                console.error(`[publicity-check] resolution notify for order ${check.orderId} threw: ${err?.message || err}`);
+              }
             } else {
               // Final stage passed — confirm the verification.
               await storage.markVerified(check.verificationId);
@@ -4936,35 +5049,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const bodySchema = z.object({
         verificationId: z.string().min(1).optional().nullable(),
-        instagramHandle: z.string().min(1),
+        // Stable identifiers (preferred). The CRM sends these so the lookup does
+        // not depend on the mutable Instagram handle.
+        orderId: z.string().min(1).optional().nullable(),
+        instagramGlobalUserId: z.string().min(1).optional().nullable(),
+        instagramUserId: z.string().min(1).optional().nullable(),
+        // Mutable handle (legacy fallback). Now optional so newer callers can
+        // address the order by a stable id instead.
+        instagramHandle: z.string().min(1).optional().nullable(),
         shopDomain: z.string().min(1).optional().nullable(),
-      });
+      }).refine(
+        (d) => Boolean(d.orderId || d.instagramGlobalUserId || d.instagramUserId || d.instagramHandle),
+        { message: "Provide at least one of orderId, instagramGlobalUserId, instagramUserId, or instagramHandle" },
+      );
       const parsed = bodySchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() });
       }
-      const { verificationId, instagramHandle, shopDomain } = parsed.data;
-      const normalizedHandle = instagramHandle.toLowerCase().replace(/^@/, "");
-      console.log(`[story-invalidate] reject received for @${normalizedHandle} (verificationId=${verificationId ?? "none"}, shopDomain=${shopDomain ?? "none"})`);
+      const { verificationId, orderId, instagramGlobalUserId, instagramUserId, instagramHandle, shopDomain } = parsed.data;
+      const normalizedHandle = instagramHandle ? instagramHandle.toLowerCase().replace(/^@/, "") : null;
+      console.log(`[story-invalidate] reject received (orderId=${orderId ?? "none"}, globalId=${instagramGlobalUserId ?? "none"}, userId=${instagramUserId ?? "none"}, handle=${normalizedHandle ? "@" + normalizedHandle : "none"}, verificationId=${verificationId ?? "none"}, shopDomain=${shopDomain ?? "none"})`);
 
-      // 1. Resolve shopper(s) by handle. Siblings can share a handle, so this
-      //    returns an array.
-      const customers = await storage.getSpiralCustomersByInstagramHandle(normalizedHandle);
-      if (customers.length === 0) {
-        console.warn(`[story-invalidate] No Spiral customer for @${normalizedHandle} — no-op. (Handle may have changed since posting; dashboard does not send the global IG id.)`);
-        return res.json({ success: true, invalidated: false, reason: "no_customer_match" });
-      }
-
-      // 2. Collect every order across the matched shoppers that is in a
-      //    Story-posted state (story detected / under review / verified), and
-      //    key each on when the Story was actually posted (storyDetectedAt),
-      //    not when the order was created — out-of-order delivery/posting means
-      //    order.createdAt is the wrong ordering signal for "most-recent post".
       const POSTED_STATES = ["story_detected", "awaiting_review", "quick_verified", "verified"];
-      const candidates: { order: NonNullable<Awaited<ReturnType<typeof storage.getOrderById>>>; customerId: string; postedAt: number }[] = [];
-      for (const customer of customers) {
-        const customerOrders = await storage.getOrdersByCustomerId(customer.id);
-        for (const order of customerOrders) {
+
+      // Resolve the target order. Prefer immutable ids (order id, then global IG
+      // id / scoped user id) and fall back to the mutable handle only when no
+      // stable id was supplied.
+      let targetOrder: NonNullable<Awaited<ReturnType<typeof storage.getOrderById>>> | null = null;
+      let customerId: string | null = null;
+
+      if (orderId) {
+        // 1a. Direct, unambiguous lookup by order id — the most precise path.
+        const order = await storage.getOrderById(orderId);
+        if (!order) {
+          console.warn(`[story-invalidate] No order ${orderId} — no-op.`);
+          return res.json({ success: true, invalidated: false, reason: "no_order_match" });
+        }
+        if (!POSTED_STATES.includes(order.verificationStatus)) {
+          console.warn(`[story-invalidate] Order ${orderId} not in a posted state (${order.verificationStatus}) — already reset or never posted. Idempotent no-op.`);
+          return res.json({ success: true, invalidated: false, reason: "no_posted_order" });
+        }
+        targetOrder = order;
+        customerId = order.spiralCustomerId ?? null;
+      } else {
+        // 1b. Resolve candidate orders by Instagram identity (preferred) or
+        //     handle. Either can match multiple orders (IG siblings), so we
+        //     collect candidates and pick the most-recently-posted one below.
+        //
+        //     Identity path scans the orders table DIRECTLY (deletion-safe:
+        //     anonymized orders keep their IG identity columns, so an admin can
+        //     still reject a Story after the owning customer was deleted). The
+        //     handle path stays customer-based, since handles live primarily on
+        //     the customer row.
+        let candidateOrders: { order: NonNullable<Awaited<ReturnType<typeof storage.getOrderById>>>; customerId: string | null }[] = [];
+        if (instagramGlobalUserId || instagramUserId) {
+          const identityOrders = await storage.getOrdersByInstagramIdentity({ instagramGlobalUserId, instagramUserId });
+          candidateOrders = identityOrders.map((order) => ({ order, customerId: order.spiralCustomerId ?? null }));
+        } else {
+          const customers = await storage.getSpiralCustomersByInstagramHandle(normalizedHandle!);
+          for (const customer of customers) {
+            const customerOrders = await storage.getOrdersByCustomerId(customer.id);
+            for (const order of customerOrders) candidateOrders.push({ order, customerId: customer.id });
+          }
+        }
+        if (candidateOrders.length === 0) {
+          console.warn(`[story-invalidate] No order for the supplied identity — no-op. (A handle-only caller may miss if the shopper renamed since posting; send orderId or the global IG id to avoid this.)`);
+          return res.json({ success: true, invalidated: false, reason: "no_customer_match" });
+        }
+
+        // 2. Keep only orders in a Story-posted state (story detected / under
+        //    review / verified), and key each on when the Story was actually
+        //    posted (storyDetectedAt), not when the order was created —
+        //    out-of-order delivery/posting means order.createdAt is the wrong
+        //    ordering signal for "most-recent post".
+        const candidates: { order: NonNullable<Awaited<ReturnType<typeof storage.getOrderById>>>; customerId: string | null; postedAt: number }[] = [];
+        for (const { order, customerId: cid } of candidateOrders) {
           if (!POSTED_STATES.includes(order.verificationStatus)) continue;
           let postedAt = new Date(order.createdAt).getTime();
           if (order.verificationId) {
@@ -4972,18 +5131,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const ts = v?.storyDetectedAt ?? v?.webhookTimestamp ?? v?.verifiedAt;
             if (ts) postedAt = new Date(ts).getTime();
           }
-          candidates.push({ order, customerId: customer.id, postedAt });
+          candidates.push({ order, customerId: cid, postedAt });
         }
-      }
 
-      if (candidates.length === 0) {
-        console.warn(`[story-invalidate] @${normalizedHandle} has no order in a posted state — already reset or never posted. Idempotent no-op.`);
-        return res.json({ success: true, invalidated: false, reason: "no_posted_order" });
-      }
+        if (candidates.length === 0) {
+          console.warn(`[story-invalidate] Matched order(s) have none in a posted state — already reset or never posted. Idempotent no-op.`);
+          return res.json({ success: true, invalidated: false, reason: "no_posted_order" });
+        }
 
-      // 3. Target the most recently posted order.
-      candidates.sort((a, b) => b.postedAt - a.postedAt);
-      const { order: targetOrder, customerId } = candidates[0];
+        // 3. Target the most recently posted order.
+        candidates.sort((a, b) => b.postedAt - a.postedAt);
+        targetOrder = candidates[0].order;
+        customerId = candidates[0].customerId;
+      }
 
       // 4. Reset the verification + order to pre-post. Cancel ALL in-flight
       //    publicity checks for this verification so a scheduled quick/final
@@ -5000,11 +5160,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       await storage.updateOrderVerificationStatus(targetOrder.id, "pending", targetOrder.verificationId ?? undefined);
-      console.log(`[story-invalidate] Order ${targetOrder.id} reset to pending (customer ${customerId}, @${normalizedHandle}).`);
+      // Stamp the rejection so a later repost that passes its quick check is
+      // recognised as a rejection→repost resolution (and the merchant gets the
+      // "hold lifted" outcome). Re-read the order so we notify with the fresh row.
+      const stampedOrder = await storage.setOrderStoryRejectedAt(targetOrder.id, new Date());
+      const orderForNotify = stampedOrder ?? targetOrder;
+      console.log(`[story-invalidate] Order ${targetOrder.id} reset to pending (customer ${customerId ?? "anonymized"}).`);
 
       // 5. Re-derive soft-ban. If the now-pending order is delivered it is owed
-      //    again, so the evaluator re-applies the soft-ban automatically.
-      const ban = await evaluateSoftBanForCheckout(customerId);
+      //    again, so the evaluator re-applies the soft-ban automatically. An
+      //    anonymized order (customer row deleted) has no shopper to hold.
+      const ban = customerId
+        ? await evaluateSoftBanForCheckout(customerId)
+        : { softBanned: false };
+
+      // 6. Best-effort: signal the rejection + resulting hold back to the
+      //    originating merchant. Never blocks the response.
+      void notifyStoryOutcome(orderForNotify, "rejected", ban.softBanned, "story_rejected");
 
       return res.json({
         success: true,

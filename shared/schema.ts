@@ -222,6 +222,12 @@ export const orders = pgTable("orders", {
   // brands feed was unreachable when the order was created.
   merchantInstagramHandle: text("merchant_instagram_handle"),
   lineItems: text("line_items"), // JSON array of {title, quantity}
+  // Set when an admin rejects this order's Story via /api/internal/stories/invalidate
+  // (the order is reset to pending and re-owed). Persisted so that when the shopper
+  // reposts and the new Story passes its quick check, we can recognise this as a
+  // rejection→repost resolution and notify the merchant the hold has lifted. Cleared
+  // once that "resolved" outcome is sent. Null for orders that were never rejected.
+  storyRejectedAt: timestamp("story_rejected_at"),
 }, (table) => ({
   // Indexes for IG-anchored owed-order lookups that survive customer deletion.
   ordersInstagramGlobalUserIdIdx: index("orders_instagram_global_user_id_idx").on(table.instagramGlobalUserId),

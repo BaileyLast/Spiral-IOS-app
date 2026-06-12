@@ -184,6 +184,10 @@ export interface IStorage {
   // Set a terminal order status (e.g. 'cancelled' / 'refunded') from the Shopify
   // cancel/refund webhooks. Returns the updated row.
   setOrderStatus(orderId: string, status: string): Promise<Order | undefined>;
+  // Stamp (or clear) the moment an admin rejected this order's Story. Set when
+  // /api/internal/stories/invalidate resets the order; cleared once the
+  // rejection→repost "hold lifted" outcome has been signalled to the merchant.
+  setOrderStoryRejectedAt(orderId: string, at: Date | null): Promise<Order | undefined>;
   // Cross-account Instagram identity lookup. Returns every Spiral customer
   // whose Instagram identity matches (by global pk OR by page-scoped user ID).
   // Used to anchor soft-ban to the Instagram account, not the email — closes
@@ -193,6 +197,11 @@ export interface IStorage {
   // than spiral_customers.id — survives account deletion so a shopper can't
   // wipe their Story debt by deleting + re-signing-up with the same IG.
   getOwedOrdersByInstagramIdentity(identity: { instagramGlobalUserId?: string | null; instagramUserId?: string | null }): Promise<Order[]>;
+  // Deletion-resilient lookup of ALL orders keyed by Instagram identity (no
+  // owed/status filter). Survives account deletion (anonymized orders keep their
+  // IG identity columns), so admin Story-rejection can target an order even when
+  // the owning customer row is gone.
+  getOrdersByInstagramIdentity(identity: { instagramGlobalUserId?: string | null; instagramUserId?: string | null }): Promise<Order[]>;
   // Lookup merchant by IG business account id. Used by the universal core
   // internal API so callers (merchant dashboard, future Woo/BigCommerce
   // adapters) can address a specific merchant rather than relying on the
@@ -962,6 +971,15 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async setOrderStoryRejectedAt(orderId: string, at: Date | null): Promise<Order | undefined> {
+    const [updated] = await db
+      .update(orders)
+      .set({ storyRejectedAt: at })
+      .where(eq(orders.id, orderId))
+      .returning();
+    return updated;
+  }
+
   async getCustomersByInstagramIdentity(identity: {
     instagramGlobalUserId?: string | null;
     instagramUserId?: string | null;
@@ -1012,6 +1030,22 @@ export class DatabaseStorage implements IStorage {
         )!,
       );
     return rows;
+  }
+
+  async getOrdersByInstagramIdentity(identity: {
+    instagramGlobalUserId?: string | null;
+    instagramUserId?: string | null;
+  }): Promise<Order[]> {
+    const idConds: SQL[] = [];
+    if (identity.instagramGlobalUserId) {
+      idConds.push(eq(orders.instagramGlobalUserId, identity.instagramGlobalUserId));
+    }
+    if (identity.instagramUserId) {
+      idConds.push(eq(orders.instagramUserId, identity.instagramUserId));
+    }
+    if (idConds.length === 0) return [];
+    const idWhere = idConds.length === 1 ? idConds[0] : or(...idConds)!;
+    return await db.select().from(orders).where(idWhere);
   }
 
   async getStoreSettingsByInstagramBusinessId(instagramBusinessAccountId: string): Promise<StoreSettings | undefined> {
