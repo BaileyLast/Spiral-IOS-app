@@ -1,3 +1,4 @@
+- [Spiral Core CORS for thin client](spiral-core-cors-required.md) — Core sends NO CORS headers; browser blocks every cross-origin call from the customer thin client. Fix is credentialed CORS in the Core repl, not the client.
 - [store_settings ghost rows](store-settings-ghost-rows.md) — single-tenant store_settings can have a blank-shop_domain ghost row; LIMIT 1 lookups must order non-blank first.
 - [Meta webhook app secret](meta-webhook-app-secret.md) — webhook handlers now accept EITHER FACEBOOK_APP_SECRET or INSTAGRAM_APP_SECRET; a single-secret mismatch 403'd every webhook (story capture dead). Fix signature gate first; verify app liveness via Graph before assuming deletion.
 - [@joinspiral token expiry](joinspiral-token-expiry.md) — IGAA token expires ~60d and can't be refreshed once expired (regenerate); code-190 "session expired" ≠ deleted app. App now self-heals via service_tokens.
