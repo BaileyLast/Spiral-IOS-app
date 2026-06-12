@@ -80,6 +80,21 @@ All routes gated by `requireInternalKey` (header `x-spiral-internal-key`). Used 
 | `POST /shopify/backfill-webhooks` | Re-register Shopify webhook topics for an already-connected store. Reads credentials via `getShopifyCredentialsForSettings`. |
 | `POST /merchants/register` · `PATCH /customers/:id` | Existing merchant/customer admin hooks. |
 
+#### CRM Admin (`/api/internal/crm/*`)
+
+Server-to-server surface for the separate **Spiral CRM** project to browse/search/view/edit/soft-ban/delete shoppers and view orders. The CRM keeps **no** duplicate datastore — it calls these endpoints; this app stays the single source of truth. Same `requireInternalKey` gate. Every customer payload is whitelisted through `crmCustomerView` (server/routes.ts) and never includes credentials/secrets (`passwordHash`, `instagramAccessToken`, `iosPushToken`, `unsubscribeToken`, email-verification codes, welcome-DM diagnostics).
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /crm/customers?page=&limit=&q=` | Paginated shopper directory. `q` = case-insensitive match over name/email/IG handle. → `{items, total, page, limit}`. `limit` capped at 100. |
+| `GET /crm/customers/:id` | Full shopper profile + order history (`crmOrderView`) + Story/verification history (keyed off IG identity, survives deletion). 404 if unknown. |
+| `PATCH /crm/customers/:id` | Edit editable profile fields only (`firstName`, `lastName`, `dateOfBirth`, `address`, `country`); identity/credentials/IG linkage not editable. Zod-validated. |
+| `DELETE /crm/customers/:id` | Hard-delete shopper (same path as in-app account deletion): removes account + locally-owned rows, anonymizes their orders. Irreversible. |
+| `POST /crm/customers/:id/soft-ban` | `{reason?}` (default `manual_admin`) → place on hold. The derived model self-heals at checkout, so a manual ban on a shopper who owes nothing auto-clears next time they shop. |
+| `POST /crm/customers/:id/clear-soft-ban` | Force-clear the hold. May be re-applied at next checkout if the shopper still owes a Story (own or IG-sibling debt). |
+| `GET /crm/orders?page=&limit=&q=` | Paginated order list. `q` = case-insensitive match over shopper email / IG handle / Shopify order id / store name. → `{items, total, page, limit}`. |
+| `GET /crm/orders/:id` | Full order (`crmOrderView`) + owning shopper (sanitized) when still linked. 404 if unknown. |
+
 ### Webhooks
 - `GET/POST /webhooks/instagram-dm` — DMs to @joinspiral (spiral-code verification) + story_mention events.
 - `GET/POST /webhooks/instagram` — Story mentions on merchant's connected IG.

@@ -6,7 +6,7 @@ import net from "node:net";
 import { Resend } from "resend";
 import { storage } from "./storage";
 import { z } from "zod";
-import { insertStoreSettingsSchema, insertDiscountTierSchema, insertVerificationSchema, isOrderOwed, OWED_VERIFICATION_ANYDELIVERY, OWED_VERIFICATION_DELIVERED_ONLY, type StoreSettings, type SpiralCustomer } from "@shared/schema";
+import { insertStoreSettingsSchema, insertDiscountTierSchema, insertVerificationSchema, isOrderOwed, OWED_VERIFICATION_ANYDELIVERY, OWED_VERIFICATION_DELIVERED_ONLY, type StoreSettings, type SpiralCustomer, type Order } from "@shared/schema";
 import { fetchShopifyProducts, fetchShopifyCollections, fetchProductImages, fetchOrderLineItemImages } from "./shopify";
 import { getJoinspiralToken, markJoinspiralTokenInvalid, isInstagramAuthError } from "./joinspiralToken";
 import {
@@ -5296,6 +5296,253 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json({ sent });
     } catch (err) {
       console.error("[internal] push/send failed:", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+  // ── CRM Internal Admin API (/api/internal/crm/*) ───────────────────────────
+  // Server-to-server surface for the separate Spiral CRM project to browse,
+  // search, view, edit, soft-ban and delete shoppers and view orders. This app
+  // remains the single source of truth — the CRM holds NO duplicate datastore
+  // and calls these endpoints instead. All routes gated by requireInternalKey.
+  //
+  // Every customer payload is whitelisted through crmCustomerView, which NEVER
+  // emits credentials or other secrets (passwordHash, instagramAccessToken,
+  // iosPushToken, unsubscribeToken, email-verification codes, welcome-DM
+  // diagnostics). Add fields here explicitly — do not spread the raw row.
+  const crmCustomerView = (c: SpiralCustomer) => ({
+    id: c.id,
+    email: c.email,
+    firstName: c.firstName ?? null,
+    lastName: c.lastName ?? null,
+    emailVerified: c.emailVerified,
+    instagramHandle: c.instagramHandle ?? null,
+    instagramUserId: c.instagramUserId ?? null,
+    instagramGlobalUserId: c.instagramGlobalUserId ?? null,
+    instagramProfilePicture: c.instagramProfilePicture ?? null,
+    instagramAccountType: c.instagramAccountType ?? null,
+    followerCount: c.followerCount ?? null,
+    followerCountUpdatedAt: c.followerCountUpdatedAt ?? null,
+    dateOfBirth: c.dateOfBirth ?? null,
+    address: c.address ?? null,
+    country: c.country ?? null,
+    accountStatus: c.accountStatus,
+    softBannedReason: c.softBannedReason ?? null,
+    softBannedAt: c.softBannedAt ?? null,
+    marketingEmailOptOut: c.marketingEmailOptOut,
+    isActive: c.isActive,
+    createdAt: c.createdAt,
+    lastLoginAt: c.lastLoginAt ?? null,
+  });
+
+  // Orders carry no credentials, but we still project an explicit view so the
+  // CRM contract stays stable if columns are added later.
+  const crmOrderView = (o: Order) => ({
+    id: o.id,
+    shopifyOrderId: o.shopifyOrderId,
+    shopperEmail: o.shopperEmail,
+    spiralCustomerId: o.spiralCustomerId ?? null,
+    instagramHandle: o.instagramHandle ?? null,
+    instagramUserId: o.instagramUserId ?? null,
+    instagramGlobalUserId: o.instagramGlobalUserId ?? null,
+    followerCount: o.followerCount ?? null,
+    discountPercent: o.discountPercent,
+    orderTotal: o.orderTotal,
+    shippingAmount: o.shippingAmount ?? null,
+    discountAmount: o.discountAmount,
+    status: o.status,
+    verificationStatus: o.verificationStatus,
+    fulfilledAt: o.fulfilledAt ?? null,
+    deliveredAt: o.deliveredAt ?? null,
+    shopifyTrackingStatus: o.shopifyTrackingStatus ?? null,
+    storeName: o.storeName ?? null,
+    merchantInstagramHandle: o.merchantInstagramHandle ?? null,
+    lineItems: o.lineItems ?? null,
+    createdAt: o.createdAt,
+  });
+
+  // GET /api/internal/crm/customers?page=&limit=&q=
+  // Paginated, searchable shopper directory. Search matches name / email / IG
+  // handle (case-insensitive). Returns summary rows + total for pagination.
+  app.get("/api/internal/crm/customers", requireInternalKey, async (req, res) => {
+    try {
+      const page = parseInt(typeof req.query.page === "string" ? req.query.page : "1", 10) || 1;
+      const limit = parseInt(typeof req.query.limit === "string" ? req.query.limit : "25", 10) || 25;
+      const q = typeof req.query.q === "string" ? req.query.q : undefined;
+      const { items, total, page: effectivePage, limit: effectiveLimit } = await storage.listSpiralCustomers({ page, limit, q });
+      return res.json({ items: items.map(crmCustomerView), total, page: effectivePage, limit: effectiveLimit });
+    } catch (err) {
+      console.error("[crm] list customers failed:", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+  // GET /api/internal/crm/customers/:id
+  // Full shopper profile + their order history + Story (verification) history.
+  app.get("/api/internal/crm/customers/:id", requireInternalKey, async (req, res) => {
+    try {
+      const customer = await storage.getSpiralCustomerById(req.params.id);
+      if (!customer) {
+        return res.status(404).json({ error: "customer_not_found" });
+      }
+      const [customerOrders, verifications] = await Promise.all([
+        storage.getOrdersByCustomerId(customer.id),
+        storage.getVerificationsByInstagramIdentity({
+          instagramGlobalUserId: customer.instagramGlobalUserId,
+          instagramUserId: customer.instagramUserId,
+        }),
+      ]);
+      return res.json({
+        customer: crmCustomerView(customer),
+        orders: customerOrders.map(crmOrderView),
+        verifications: verifications.map(v => ({
+          id: v.id,
+          orderId: v.orderId,
+          orderStatus: v.orderStatus,
+          orderVerificationStatus: v.orderVerificationStatus,
+          status: v.status,
+          instagramHandle: v.instagramHandle,
+          instagramUserId: v.instagramUserId,
+          storyMediaUrl: v.storyMediaUrl ?? null,
+          storyMediaType: v.storyMediaType ?? null,
+          storyDetectedAt: v.storyDetectedAt ?? null,
+          verifiedAt: v.verifiedAt ?? null,
+          createdAt: v.createdAt,
+        })),
+      });
+    } catch (err) {
+      console.error("[crm] get customer failed:", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+  // PATCH /api/internal/crm/customers/:id
+  // Edit a shopper's editable profile fields (name / DOB / address / country).
+  // Identity, credentials and IG linkage are intentionally NOT editable here.
+  app.patch("/api/internal/crm/customers/:id", requireInternalKey, async (req, res) => {
+    try {
+      const bodySchema = z.object({
+        firstName: z.string().trim().max(100).nullable().optional(),
+        lastName: z.string().trim().max(100).nullable().optional(),
+        dateOfBirth: z.string().trim().max(40).nullable().optional(),
+        address: z.string().trim().max(500).nullable().optional(),
+        country: z.string().trim().max(100).nullable().optional(),
+      });
+      const parsed = bodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() });
+      }
+      if (Object.keys(parsed.data).length === 0) {
+        return res.status(400).json({ error: "no_fields_to_update" });
+      }
+      const existing = await storage.getSpiralCustomerById(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ error: "customer_not_found" });
+      }
+      const updated = await storage.updateSpiralCustomerProfile(req.params.id, parsed.data);
+      return res.json({ customer: crmCustomerView(updated) });
+    } catch (err) {
+      console.error("[crm] patch customer failed:", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+  // DELETE /api/internal/crm/customers/:id
+  // Hard-delete a shopper (same path as in-app account deletion): removes the
+  // account + locally-owned rows and anonymizes their orders so historical
+  // analytics survive. Irreversible.
+  app.delete("/api/internal/crm/customers/:id", requireInternalKey, async (req, res) => {
+    try {
+      const existing = await storage.getSpiralCustomerById(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ error: "customer_not_found" });
+      }
+      await storage.deleteSpiralCustomerCompletely(req.params.id);
+      console.log(`[crm] customer ${req.params.id} hard-deleted via CRM admin`);
+      return res.json({ success: true });
+    } catch (err) {
+      console.error("[crm] delete customer failed:", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+  // POST /api/internal/crm/customers/:id/soft-ban
+  // Manually place a shopper on hold. Reason defaults to a manual admin tag.
+  // Note: the derived soft-ban model self-heals at checkout, so a manual ban on
+  // a shopper who owes nothing will be auto-cleared the next time they shop.
+  app.post("/api/internal/crm/customers/:id/soft-ban", requireInternalKey, async (req, res) => {
+    try {
+      const bodySchema = z.object({ reason: z.string().trim().min(1).max(100).optional() });
+      const parsed = bodySchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() });
+      }
+      const existing = await storage.getSpiralCustomerById(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ error: "customer_not_found" });
+      }
+      await storage.setCustomerSoftBanned(req.params.id, parsed.data.reason ?? "manual_admin");
+      const updated = await storage.getSpiralCustomerById(req.params.id);
+      console.log(`[crm] customer ${req.params.id} soft-banned via CRM admin (reason=${parsed.data.reason ?? "manual_admin"})`);
+      return res.json({ customer: updated ? crmCustomerView(updated) : null });
+    } catch (err) {
+      console.error("[crm] soft-ban customer failed:", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+  // POST /api/internal/crm/customers/:id/clear-soft-ban
+  // Manually lift a shopper's hold. This is a force-clear admin override; the
+  // derived model may re-apply it at the shopper's next checkout if they still
+  // owe a Story (own debt or IG-anchored sibling debt).
+  app.post("/api/internal/crm/customers/:id/clear-soft-ban", requireInternalKey, async (req, res) => {
+    try {
+      const existing = await storage.getSpiralCustomerById(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ error: "customer_not_found" });
+      }
+      await storage.clearCustomerSoftBan(req.params.id);
+      const updated = await storage.getSpiralCustomerById(req.params.id);
+      console.log(`[crm] customer ${req.params.id} soft-ban cleared via CRM admin`);
+      return res.json({ customer: updated ? crmCustomerView(updated) : null });
+    } catch (err) {
+      console.error("[crm] clear-soft-ban customer failed:", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+  // GET /api/internal/crm/orders?page=&limit=&q=
+  // Paginated, searchable order list. Search matches shopper email / IG handle /
+  // Shopify order id / store name (case-insensitive). Returns rows + total.
+  app.get("/api/internal/crm/orders", requireInternalKey, async (req, res) => {
+    try {
+      const page = parseInt(typeof req.query.page === "string" ? req.query.page : "1", 10) || 1;
+      const limit = parseInt(typeof req.query.limit === "string" ? req.query.limit : "25", 10) || 25;
+      const q = typeof req.query.q === "string" ? req.query.q : undefined;
+      const { items, total, page: effectivePage, limit: effectiveLimit } = await storage.listOrders({ page, limit, q });
+      return res.json({ items: items.map(crmOrderView), total, page: effectivePage, limit: effectiveLimit });
+    } catch (err) {
+      console.error("[crm] list orders failed:", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+  // GET /api/internal/crm/orders/:id
+  // Full order plus the owning shopper (sanitized) when still linked.
+  app.get("/api/internal/crm/orders/:id", requireInternalKey, async (req, res) => {
+    try {
+      const order = await storage.getOrderById(req.params.id);
+      if (!order) {
+        return res.status(404).json({ error: "order_not_found" });
+      }
+      let customer: ReturnType<typeof crmCustomerView> | null = null;
+      if (order.spiralCustomerId) {
+        const owner = await storage.getSpiralCustomerById(order.spiralCustomerId);
+        if (owner) customer = crmCustomerView(owner);
+      }
+      return res.json({ order: crmOrderView(order), customer });
+    } catch (err) {
+      console.error("[crm] get order failed:", err);
       return res.status(500).json({ error: "internal" });
     }
   });

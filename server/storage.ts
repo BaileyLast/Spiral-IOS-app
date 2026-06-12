@@ -40,7 +40,7 @@ import {
   type InsertDashboardForwardQueue,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, inArray, and, or, not, lt, isNull, asc, desc, sql, type SQL } from "drizzle-orm";
+import { eq, inArray, and, or, not, lt, isNull, ilike, asc, desc, sql, type SQL } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 export interface IStorage {
@@ -208,6 +208,12 @@ export interface IStorage {
   // (sets spiralCustomerId to null) so historical analytics survive while the
   // account itself is gone. Required for App Store 5.1.1(v) account deletion.
   deleteSpiralCustomerCompletely(id: string): Promise<void>;
+  // CRM admin: paginated + case-insensitive searchable lists for the internal
+  // CRM tooling (`/api/internal/crm/*`). Search matches across the human-facing
+  // identity fields. Returns the requested page plus the total match count so
+  // the CRM can render pagination controls.
+  listSpiralCustomers(opts: { page: number; limit: number; q?: string }): Promise<{ items: SpiralCustomer[]; total: number; page: number; limit: number }>;
+  listOrders(opts: { page: number; limit: number; q?: string }): Promise<{ items: Order[]; total: number; page: number; limit: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -536,6 +542,60 @@ export class DatabaseStorage implements IStorage {
 
   async getOrders(): Promise<Order[]> {
     return await db.select().from(orders);
+  }
+
+  async listSpiralCustomers(opts: { page: number; limit: number; q?: string }): Promise<{ items: SpiralCustomer[]; total: number; page: number; limit: number }> {
+    const page = Math.max(1, Math.floor(opts.page) || 1);
+    const limit = Math.min(100, Math.max(1, Math.floor(opts.limit) || 25));
+    const offset = (page - 1) * limit;
+    const q = opts.q?.trim();
+    const where = q
+      ? or(
+          ilike(spiralCustomers.email, `%${q}%`),
+          ilike(spiralCustomers.firstName, `%${q}%`),
+          ilike(spiralCustomers.lastName, `%${q}%`),
+          ilike(spiralCustomers.instagramHandle, `%${q}%`),
+        )
+      : undefined;
+    const items = await db
+      .select()
+      .from(spiralCustomers)
+      .where(where)
+      .orderBy(desc(spiralCustomers.createdAt))
+      .limit(limit)
+      .offset(offset);
+    const [row] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(spiralCustomers)
+      .where(where);
+    return { items, total: row?.count ?? 0, page, limit };
+  }
+
+  async listOrders(opts: { page: number; limit: number; q?: string }): Promise<{ items: Order[]; total: number; page: number; limit: number }> {
+    const page = Math.max(1, Math.floor(opts.page) || 1);
+    const limit = Math.min(100, Math.max(1, Math.floor(opts.limit) || 25));
+    const offset = (page - 1) * limit;
+    const q = opts.q?.trim();
+    const where = q
+      ? or(
+          ilike(orders.shopperEmail, `%${q}%`),
+          ilike(orders.instagramHandle, `%${q}%`),
+          ilike(orders.shopifyOrderId, `%${q}%`),
+          ilike(orders.storeName, `%${q}%`),
+        )
+      : undefined;
+    const items = await db
+      .select()
+      .from(orders)
+      .where(where)
+      .orderBy(desc(orders.createdAt))
+      .limit(limit)
+      .offset(offset);
+    const [row] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(orders)
+      .where(where);
+    return { items, total: row?.count ?? 0, page, limit };
   }
 
   async getOrderById(id: string): Promise<Order | undefined> {
