@@ -272,8 +272,20 @@ function CameraCapture({
         <span className="w-10" />
       </header>
 
-      <div className="flex-1 flex items-center justify-center px-4 min-h-0">
-        <div className="relative w-full max-w-[430px] aspect-[9/16] max-h-full overflow-hidden rounded-2xl bg-black">
+      <div
+        className="flex-1 flex items-center justify-center px-4 min-h-0"
+        style={{ containerType: "size" }}
+      >
+        {/* Locked to a true 9:16 Story frame that fits within the available area
+            on every screen: height-led when vertical space is tight, width-led
+            otherwise. Keeps preview === prepareImages() center-crop. */}
+        <div
+          className="relative overflow-hidden rounded-2xl bg-black"
+          style={{
+            height: "min(100cqh, calc(100cqw * 16 / 9))",
+            width: "min(100cqw, calc(100cqh * 9 / 16))",
+          }}
+        >
           <video
             ref={videoRef}
             playsInline
