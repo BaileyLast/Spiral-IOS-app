@@ -1,0 +1,109 @@
+Last login: Mon Jun 15 21:30:37 on ttys000
+bailey@Baileys-MacBook-Pro ~ % cd ~/Downloads/Spiral-IOS-app
+bailey@Baileys-MacBook-Pro Spiral-IOS-app % rm -f .npmrc package-lock.json && npm config set registry https://registry.npmjs.org/ && npm install
+
+added 47 packages, removed 28 packages, changed 58 packages, and audited 655 packages in 11s
+
+95 packages are looking for funding
+  run `npm fund` for details
+
+26 vulnerabilities (3 low, 10 moderate, 13 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+bailey@Baileys-MacBook-Pro Spiral-IOS-app % npm run build && npx cap sync ios
+
+> rest-express@1.0.0 build
+> vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+
+vite v5.4.20 building for production...
+transforming (3) src/main.tsxBrowserslist: browsers data (caniuse-lite) is 8 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+transforming (4) src/App.tsx
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 2045 modules transformed.
+../dist/public/index.html                                                   0.89 kB │ gzip:   0.49 kB
+../dist/public/assets/Spiral_logo_(1)_1779303755271-t8fe3xdl.png           67.83 kB
+../dist/public/assets/Spiral_logo_transparent_1779298156773-BF2aaIlK.png  115.01 kB
+../dist/public/assets/index-CFR8xaX0.css                                   96.97 kB │ gzip:  15.93 kB
+../dist/public/assets/index-CmcH7KqG.js                                   484.73 kB │ gzip: 145.52 kB
+✓ built in 2.04s
+
+  dist/index.js  3.5kb
+
+⚡ Done in 8ms
+[error] CocoaPods is not installed.
+        See this install guide:
+        https://capacitorjs.com/docs/getting-started/environment-setup#homebrew
+bailey@Baileys-MacBook-Pro Spiral-IOS-app % sudo gem install cocoapods
+Password:
+Parker007
+Fetching escape-0.0.4.gem
+Fetching fourflusher-2.3.1.gem
+Fetching public_suffix-4.0.7.gem
+Fetching gh_inspector-1.1.3.gem
+Fetching addressable-2.9.0.gem
+Fetching nap-1.1.0.gem
+Fetching ruby-macho-2.5.1.gem
+Fetching colored2-3.1.2.gem
+Fetching nanaimo-0.4.0.gem
+Fetching claide-1.1.0.gem
+Fetching atomos-0.1.3.gem
+Fetching xcodeproj-1.27.0.gem
+Fetching molinillo-0.8.0.gem
+Fetching cocoapods-try-1.2.0.gem
+Fetching netrc-0.11.0.gem
+Fetching cocoapods-trunk-1.6.0.gem
+Fetching cocoapods-search-1.0.1.gem
+Fetching cocoapods-plugins-1.0.0.gem
+Fetching cocoapods-downloader-2.1.gem
+Fetching cocoapods-deintegrate-1.0.5.gem
+Fetching logger-1.7.0.gem
+Fetching ffi-1.17.4-arm64-darwin.gem
+Fetching ethon-0.18.0.gem
+Fetching typhoeus-1.6.0.gem
+Fetching concurrent-ruby-1.3.6.gem
+Fetching httpclient-2.9.0.gem
+Fetching algoliasearch-1.27.5.gem
+Fetching fuzzy_match-2.0.4.gem
+Fetching benchmark-0.5.0.gem
+Fetching securerandom-0.4.1.gem
+Fetching drb-2.2.3.gem
+Fetching base64-0.3.0.gem
+Fetching connection_pool-3.0.2.gem
+Fetching tzinfo-2.0.6.gem
+Fetching i18n-1.14.8.gem
+Fetching activesupport-7.2.3.1.gem
+Fetching cocoapods-core-1.16.2.gem
+Fetching cocoapods-1.16.2.gem
+Successfully installed public_suffix-4.0.7
+Successfully installed addressable-2.9.0
+Successfully installed ruby-macho-2.5.1
+Successfully installed nap-1.1.0
+Successfully installed gh_inspector-1.1.3
+Successfully installed fourflusher-2.3.1
+Successfully installed escape-0.0.4
+Successfully installed colored2-3.1.2
+Successfully installed nanaimo-0.4.0
+Successfully installed claide-1.1.0
+Successfully installed atomos-0.1.3
+Successfully installed xcodeproj-1.27.0
+Successfully installed molinillo-0.8.0
+Successfully installed cocoapods-try-1.2.0
+Successfully installed netrc-0.11.0
+Successfully installed cocoapods-trunk-1.6.0
+Successfully installed cocoapods-search-1.0.1
+Successfully installed cocoapods-plugins-1.0.0
+Successfully installed cocoapods-downloader-2.1
+Successfully installed cocoapods-deintegrate-1.0.5
+Successfully installed logger-1.7.0
+ERROR:  Error installing cocoapods:
+	The last version of ffi (>= 1.15.0) to support your Ruby & RubyGems was 1.17.4. Try installing it with `gem install ffi -v 1.17.4` and then running the current command again
+	ffi requires Ruby version >= 3.0, < 4.1.dev. The current ruby version is 2.6.10.210.
+bailey@Baileys-MacBook-Pro Spiral-IOS-app % 

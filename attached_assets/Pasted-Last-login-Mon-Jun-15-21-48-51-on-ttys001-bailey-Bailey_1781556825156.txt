@@ -1,0 +1,405 @@
+Last login: Mon Jun 15 21:48:51 on ttys001
+bailey@Baileys-MacBook-Pro ~ % brew -v
+Homebrew 5.0.9
+bailey@Baileys-MacBook-Pro ~ % brew install cocoapods
+==> Auto-updating Homebrew...
+Adjust how often this is run with `$HOMEBREW_AUTO_UPDATE_SECS` or disable with
+`$HOMEBREW_NO_AUTO_UPDATE=1`. Hide these hints with `$HOMEBREW_NO_ENV_HINTS=1` (see `man brew`).
+==> Downloading https://ghcr.io/v2/homebrew/core/portable-ruby/blobs/sha256:4ba8d535df01e4bf97e6661c3815796fd77364ea2552606e891659133a76f0e1
+######################################################################### 100.0%
+==> Pouring portable-ruby-4.0.5_1.arm64_big_sur.bottle.tar.gz
+✔︎ JSON API packages.arm64_tahoe.jws.json             Downloaded   15.2MB/ 15.2MB
+==> Homebrew collects anonymous analytics.
+Read the analytics documentation (and how to opt-out) here:
+  https://docs.brew.sh/Analytics
+No analytics have been recorded yet (nor will be during this `brew` run).
+
+==> Homebrew is run entirely by unpaid volunteers. Please consider donating:
+  https://github.com/Homebrew/brew#donations
+
+==> Auto-updated Homebrew!
+Updated 2 taps (homebrew/core and homebrew/cask).
+==> New Formulae
+actions-up: Tool to update GitHub Actions to latest versions with SHA pinning
+agent-browser: Browser automation CLI for AI agents
+alevin-fry: Efficient and flexible tool for processing single-cell sequencing data
+ansible@13: Automate deployment, configuration, and upgrading
+any2fasta: Convert various sequence formats to FASTA
+aoe: Terminal session manager for AI coding agents
+apache-arrow-adbc: Cross-language, Arrow-native database access
+apache-arrow-adbc-glib: GLib bindings for Apache Arrow ADBC
+apache-serf: High-performance asynchronous HTTP client library
+apfel: Apple Intelligence from the command-line, with OpenAi-compatible API server
+apkeep: Command-line tool for downloading APK files from various sources
+arcadedb: Multi-Model DBMS: Graph, Document, Key/Value, Search, Time Series, Vector
+arf: Modern R console with syntax highlighting and fuzzy search
+asc: Fast, lightweight CLI for App Store Connect
+asccli: App Store Connect CLI to manage apps, versions, and screenshots
+async-profiler: Sampling CPU & HEAP profiler for Java using AsyncGetCallTrace + perf_events
+atuin-server: Sync server for atuin - Improved shell history for zsh, bash, fish and nushell
+aube: Fast Node.js package manager
+avisynthplus: Improved version of the AviSynth frameserver
+azure-dev: Developer CLI that provides commands for working with Azure resources
+azurite: Lightweight server clone of Azure Storage that simulates it locally
+backplane-cli: CLI for interacting with the OpenShift Backplane API
+bagel: CLI to audit posture and evaluate compromise blast radius
+baguette: Headless iOS Simulator manager and host-side input injection for iOS 26
+barman: Backup and Recovery Manager for PostgreSQL
+bazel@8: Google's own build tool
+beads_viewer: Terminal-based UI for the Beads issue tracker
+betterleaks: Secrets scanner built for configurability and speed
+bitwuzla: SMT solver for bit-vectors, floating-points, arrays and uninterpreted functions
+btdu: Sampling disk usage profiler for btrfs
+bttf: CLI tool for datetime arithmetic, parsing, formatting and more
+buildkitd: Concurrent, cache-efficient, and Dockerfile-agnostic builder toolkit (Daemon)
+bumblebee: Read-only developer endpoint scanner for supply-chain exposure
+bun: Incredibly fast JavaScript runtime, bundler, test runner, and package manager
+cargo-features-manager: TUI like cli tool to manage the features of your rust-project dependencies
+cargo-insta: Snapshot testing CLI for Rust
+cargo-show-asm: Show assembly, LLVM-IR, MIR, and WASM generated for Rust code
+cc-connect: Bridges local AI coding agents to messaging platforms
+cc-switch-cli: All-in-one assistant tool for Claude Code, Codex, Gemini, OpenCode and OpenClaw
+checkpwn: Check Have I Been Pwned and see if it's time for you to change passwords
+chunkah: OCI building tool for content-based layers
+cline: AI-powered coding agent for complex work
+clock-rs: Modern, digital clock that effortlessly runs in your terminal
+cloudflare-speed-cli: Cloudflare-based speed test with optional TUI
+cloudmonkey: Apache CloudStack CloudMonkey CLI
+cni-plugins: Container Network Interface plugins
+codanna: Code intelligence system with semantic search
+codeburn: See where your AI coding tokens go - by task, tool, model, and project
+codex-acp: Use Codex from ACP-compatible clients such as Zed!
+committed: Nitpicking commit history since beabf39
+concord: Terminal user interface client for Discord
+container-use: Dev envs for coding agents. Run multiple agents safely with your stack
+container2wasm: Container to WASM converter
+containerd: Open and reliable container runtime
+cozyhr: Cozy wrapper around Helm and Flux CD for local development
+cozypkg: CLI for managing Cozystack packages
+crip: Tool to extract server certificates
+crit: Your feedback loop with the agent: review plans and code locally
+cronboard: Terminal-based dashboard for managing cron jobs locally and on servers
+ctx7: Manage AI coding skills and documentation context
+cutadapt: Removes adapter sequences from sequencing reads
+cwalk: Cross-platform path library for C/C++
+cyan: iOS app injector and modifier
+cyclonedx-cli: Tool for analysis and manipulation of CycloneDX SBOMs
+dart-sass: Reference implementation of Sass, written in Dart
+dartaotruntime: Command-line tool for running AOT-compiled snapshots of Dart code
+datadog-static-analyzer: Static analysis tool for code quality and security
+dbcsr: Distributed Block Compressed Sparse Row matrix library
+dbx-cli: Command-line interface for DBX database connections, schema, and safe queries
+defuddle: Extract article content and metadata from web pages
+depsguard: Harden package manager configs against supply chain attacks
+dexter-lsp: Elixir LSP optimized for large codebases
+difi: Pixel-perfect terminal diff viewer
+dispenso: High-performance C++ library for parallel programming
+dlpack: Common in-memory tensor structure
+docker-engine: Pack, ship and run any application as a lightweight container (Daemon)
+dovi_convert: Dolby Vision Profile 7 to 8.1 MKV converter
+dtop: Terminal dashboard for Docker monitoring across multiple hosts
+durdraw: Versatile ASCII and ANSI Art text editor for drawing in the terminal
+dz6: Fast Vim-inspired TUI hex editor
+eas-cli: Command-line tool for working with Expo Application Services
+ec: TUI 3-way git mergetool
+echtvar: Rapid variant annotation and filtering
+ekphos: Terminal-based markdown research tool inspired by Obsidian
+elio: Batteries-included terminal file manager with rich previews
+erfa: Essential Routines for Fundamental Astronomy
+erlang@28: Programming language for highly scalable real-time systems
+et: Remote terminal with IP roaming
+expert: Official Elixir Language Server Protocol implementation
+fakecloud: Free, open-source local AWS cloud emulator for integration testing
+fallow: Codebase intelligence for TypeScript and JavaScript
+far2l-tty: Unix TTY port of FAR Manager v2 (with NetRocks support)
+fence: Lightweight sandbox for commands with network and filesystem restrictions
+ffc.h: Single-header C99 accelerated float/double parsing
+ffmpeg-full: Play, record, convert, and stream many audio and video codecs
+floresta: Lightweight and embeddable Bitcoin client, built for sovereignty
+flowrs: TUI application for Apache Airflow
+forgecode: AI-enhanced terminal development environment
+fracturedjson: JSON formatter that produces highly readable but fairly compact output
+freesasa: Solvent Accessible Surface Area calculations
+fvm: Manage Flutter SDK versions per project
+fzf-tab: Replace zsh completion selection menu with fzf
+garden: Grow and cultivate collections of Git trees
+gascity: Orchestration-builder SDK for multi-agent coding workflows
+gemmi: Macromolecular crystallography library and utilities
+ggml: Tensor library for machine learning
+ghc@9.12: Glorious Glasgow Haskell Compilation System
+ghcid: Very low feature GHCi based IDE
+ghcitty: Fast, friendly GHCi
+ginkgo: High-performance numerical linear algebra software package
+git-flow-next: Modern implementation of the Git-flow branching model
+git-format-staged: Git command to transform staged files using a formatting command
+git-pkgs: Track package dependencies across git history
+gittype: CLI code-typing game that turns your source code into typing challenges
+gixy: NGINX configuration static analyzer focused on security
+gmp-ecm: Elliptic Curve Method for integer factorization
+gnhf: Autonomous agent orchestrator for long-running coding tasks
+gnuastro: Astronomical data manipulation and analysis utilities and libraries
+go-air: Live reload for Go apps
+go-hass-agent: Native Home Assistant agent for desktop/laptop devices
+go@1.25: Open source programming language to build simple/reliable/efficient software
+goenv@2: Go version management
+gogcli: Google Suite CLI
+googleworkspace-cli: CLI for Drive, Gmail, Calendar, Sheets, Docs, Chat, Admin, and more
+graalvm: JDK distribution with Graal compiler and Native Image
+grafanactl: CLI to interact with Grafana
+happy-coder: CLI for operating AI coding agents from mobile devices
+hdrhistogram_c: C port of the HdrHistogram
+herdr: Agent multiplexer that lives in your terminal
+hermes-agent: Self-improving AI agent that creates skills from experience
+hexapoda: Colorful modal hex editor
+hf-mount: Mount Hugging Face Buckets and repos as local filesystems
+hindent: Haskell pretty printer
+hookdeck: Forward webhook events from Hookdeck to a local server
+hyphy: Hypothesis testing using Phylogenies
+ic-wasm: CLI tool for performing Wasm transformations specific to ICP canisters
+icestorm: Tools for analyzing and creating Lattice iCE40 FPGA bitstream files
+icp-cli: Development tool for building and deploying canisters on ICP
+imagemagick-full: Tools and libraries to manipulate images in many formats
+ipapatch: CLI tool to patch iOS IPA files and their plugins
+iqtree3: Phylogenetics by maximum likelihood
+ironclaw: Security-first personal AI assistant with WASM sandbox channels
+isponsorblocktv: SponsorBlock client for all YouTube TV clients
+jqfmt: Opinionated formatter for jq
+jsongrep: Query tool for JSON, YAML, TOML, and other structured formats
+jwt-ui: TUI for decoding and encoding JWT tokens
+k0sctl: Bootstrapping and management tool for k0s clusters
+kaf: Modern CLI for Apache Kafka
+kdash: Simple and fast dashboard for Kubernetes
+keyd: Key remapping daemon for Linux
+kimi-code: AI coding agent for your terminal
+kubectl-explore: Better kubectl explain with the fuzzy finder
+kubectl-tree: Kubectl plugin to browse Kubernetes object hierarchies as a tree
+kubefwd: Bulk port forwarding Kubernetes services for local development
+kubernetes-cli@1.35: Kubernetes command-line interface
+ladder: Selfhosted alternative to 12ft.io and 1ft.io HTTP web proxies
+landrun: Lightweight, secure sandbox for running Linux processes using Landlock LSM
+lavinmq: Message broker implementing the AMQP 0-9-1 and MQTT protocols
+lazycut: Terminal-based video trimming TUI
+lazymake: Modern TUI for Makefiles
+leaf-md: Terminal Markdown previewer with a GUI-like experience
+letta-code: Memory-first coding agent
+libbcg729: Encoder and decoder of the ITU G.729 Annex A/B speech codec
+libcext: C utility library for Common Pipeline Library (CPL)
+libchardet: Mozilla's Universal Charset Detector C/C++ API
+libheif-plugins: ISO/IEC 23008-12:2017 HEIF file format decoder and encoder
+libigloo: Generic C framework used and developed by the Icecast project
+libkiwix: Common code base for all Kiwix ports
+libks: Foundational support for signalwire C products
+libnpupnp: C++ base UPnP library, derived from Portable UPnP, a.k.a libupnp
+libpathrs: C-friendly API to make path resolution safer on Linux
+libredwg: DWG utilities
+libthai: Thai language support library
+libupnpp: C++ wrapper for libnpupnp
+lief: Library to Instrument Executable Formats
+likec4: Architecture modeling tool with live diagrams from code
+linux-headers@6.8: Header files of the Linux kernel
+lisette: Language inspired by Rust that compiles to Go
+litra: Control Logitech Litra lights from the command-line
+livereload: Local web server in Python
+lld@21: LLVM Project Linker
+llhttp: Port of http_parser to llparse
+llmfit: Find what models run on your hardware
+llvm@21: Next-gen compiler infrastructure
+ls-hpack: HTTP/2 HPACK header compression library
+lua@5.4: Powerful, lightweight programming language
+m4ri: Library for fast arithmetic with dense matrices over GF(2)
+m4rie: Library for fast arithmetic with dense matrices over GF(2^e), 2<=e<=16
+mac-cleanup-go: TUI macOS cleaner that scans caches/logs and lets you select what to delete
+mado: Fast Markdown linter written in Rust
+magics: ECMWF's meteorological plotting software
+marmot: Open-source data catalog exposing metadata to AI agents
+mcp-remote: Remote proxy for Model Context Protocol with OAuth support
+md-tui: Markdown renderer in the terminal written in rust
+mercury-cli: CLI interface for Mercury banking
+merman-cli: Mermaid.js, but headless, in Rust
+merve: C++ lexer for extracting named exports from CommonJS modules
+miasma: Trap AI web scrapers in an endless poison pit
+micasa: TUI for tracking home projects, maintenance schedules, appliances and quotes
+mimo-code: AI coding agent with cross-session memory
+miniaudio: Audio playback and capture library
+miniz: Lossless, high-performance data compression library (zlib/Deflate)
+minizign: Minisign reimplemented in Zig
+mips-linux-gnu-binutils: GNU Binutils for mips-linux-gnu cross development
+mipsel-linux-gnu-binutils: GNU Binutils for mipsel-linux-gnu cross development
+mkbrr: Is a tool to create, modify and inspect torrent files. Fast
+mlx-c: C API for MLX
+models: Fast TUI and CLI for browsing AI models, benchmarks, and coding agents
+mp4ff: Tools for parsing and manipulating MP4/ISOBMFF files
+nativefiledialog-extended: Native file dialog library with C and C++ bindings
+nbytes: Library of byte handling functions extracted from Node.js core
+nettle@3: Low-level cryptographic library
+netwatch: Cross-platform realtime network diagnostics TUI
+nextpnr-ice40: Portable FPGA place and route tool for Lattice iCE40
+nfd2nfc: Convert filesystem entry names from NFD to NFC for cross-platform compatibility
+nomad-pack: Templating and packaging tool used with HashiCorp Nomad
+nono: Capability-based sandbox shell for AI agents with OS-enforced isolation
+nullclaw: Tiny autonomous AI assistant infrastructure written in Zig
+nuls: NuShell-inspired ls with colorful table output
+oarfish: Long read RNA-seq quantification
+odiff: Very fast SIMD-first image comparison library (with nodejs API)
+odinfmt: Formatter for The Odin Programming Language
+officecli: Read, edit, and automate Office documents (.docx, .xlsx, .pptx)
+oh-my-agent: Portable multi-agent harness for .agents-based skills and workflows
+ols: Language server for The Odin Programming Language
+opendoor: CLI for web reconnaissance, directory discovery, and exposure assessment
+openjdk@25: Development kit for the Java programming language
+openskills: Universal skills loader for AI coding agents
+openspec: Spec-driven development (SDD) for AI coding assistants
+openssl@4: Cryptography and SSL/TLS Toolkit
+opentimestamps-client: Create and verify OpenTimestamps proofs
+osdctl: CLI tool for managed OpenShift clusters
+overturemaps: Python tools for interacting with Overture Maps data
+paml: Phylogenetic analyses of DNA or protein sequences using maximum likelihood
+panache: Language server, formatter, and linter for Markdown, Quarto, and R Markdown
+paneru: Sliding, tiling window manager for MacOS
+pay: HTTP client that automatically handles 402 Payment Required
+pcapmirror: Tool for capturing network traffic on remote host using TZSP or ERSPAN
+pdf.tocgen: CLI toolset to generate table of contents for PDF files automatically
+pet: Simple command-line snippet manager
+pgroll: Postgres zero-downtime migrations made easy
+phpantom-lsp: Fast PHP language server written in Rust
+pi-coding-agent: AI agent toolkit
+picoclaw: Ultra-efficient personal AI assistant in Go
+picoruby: Smallest Ruby implementation for microcontrollers
+pipewire-gstreamer: GStreamer Plugin for PipeWire
+pitchfork: CLI for managing daemons with a focus on developer experience
+pkgsite: Documentation server for Go packages
+playwright-cli: CLI for Playwright: record/generate code, inspect selectors, take screenshots
+plutosvg: Tiny SVG rendering library in C
+pnpm@10: Fast, disk space efficient package manager
+pocket-id: Open-source identity provider for secure user authentication
+pocket-tts: Text-to-speech application designed to run efficiently on CPUs
+pomerium: Identity and context-aware access proxy
+poppler-qt6: PDF rendering library (based on the xpdf-3.0 code base)
+portless: Replace port numbers with stable, named local URLs for humans and agents
+powershell: Command-line shell and scripting language
+protobuf@33: Protocol buffers (Google's data interchange format)
+proxelar: Man-in-the-Middle proxy for HTTP/HTTPS traffic
+pv-migrate: CLI tool to migrate or backup/restore Kubernetes persistent volumes
+pyperformance: Python benchmark suite
+qtcanvaspainter: Accelerated 2D painting solution for Qt Quick and QRhi-based render targets
+qttasktree: General purpose library for asynchronous task execution
+quickjs-ng: QuickJS, the Next Generation: a mighty JavaScript engine
+quien: Better WHOIS and domain intelligence toolkit
+rabbitmqadmin: Command-line tool for RabbitMQ that uses the HTTP API
+radicle: Sovereign code forge built on Git
+ralph-orchestrator: Multi-agent orchestration framework for autonomous AI task completion
+ratty: GPU-rendered terminal emulator with inline 3D graphics
+redli: Humane alternative to redis-cli with TLS support
+repeater: Flashcard program that uses spaced repetition
+resticprofile: Configuration profiles manager and scheduler for restic backup
+rmux: Terminal multiplexer with a tmux-style CLI and daemon runtime
+rootlesskit: Linux-native "fake root" for implementing rootless containers
+rpiboot: Raspberry Pi USB boot tool for Compute Modules
+rtk: CLI proxy to minimize LLM token consumption
+run-kit: Universal multi-language runner and smart REPL
+runc: CLI tool for spawning and running containers according to the OCI specification
+rura: Interactive TUI scratchpad for building shell pipelines
+rustledger: Fast, pure Rust implementation of Beancount double-entry accounting
+rustnet: Cross-platform network monitoring terminal UI with deep packet inspection
+rustpython: Python Interpreter written in Rust
+rustypaste: Minimal file upload/pastebin service
+rustypaste-cli: CLI tool for rustypaste
+rv-r: Declarative R package manager
+rvvm: RISC-V Virtual Machine
+safestringlib: Safe string operations and memory routines
+sandvault: Run AI agents isolated in a sandboxed macOS user account
+sanity: Command-line interface for Sanity
+sarif-fmt: Pretty print SARIF files to easy human readable output
+satellite-tracker: Terminal-based real-time satellite tracking and orbit prediction application
+scala-cli: Scala language runner and build tool
+sdl2-compat: SDL2 compatibility layer that uses SDL3 behind the scenes
+sdl3_mixer: Sample multi-channel audio mixer library
+sdl3_net: Simple cross-platform wrapper over TCP/IP sockets
+sem-cli: Semantic version control CLI with entity-level diffs and blame
+shadcn: CLI for adding components to your project
+sheets: Terminal based spreadsheet tool
+shiki: Beautiful yet powerful syntax highlighter
+signalwire-client-c: SignalWire C Client SDK
+skills: Open agent skills ecosystem
+skillshare: Sync skills across AI CLI tools
+skip: Tool for building Swift apps for Android
+skm: Simple and powerful SSH keys manager
+smlnj: Compiler and programming system for Standard ML
+sol2: C++ <-> Lua API wrapper with advanced features and top notch performance
+speech: On-device speech toolkit for Apple Silicon: ASR, TTS, VAD, diarization
+spicedb: Open Source, Google Zanzibar-inspired database
+splitrail: Real-time token usage tracker and cost monitor for CLI coding agents
+spoa: SIMD partial order alignment tool/library
+sss-cli: Shamir secret share command-line interface
+static-web-apps-cli: SWA CLI serves as a local development tool for Azure Static Web Apps
+stellar-xdr: Stellar command-line tool for encoding/decoding XDR for the Stellar network
+structurizr: Software architecture models as code
+summarize: Multi-modal AI tool to extract and summarize content
+swgp-go: Simple WireGuard proxy with minimal overhead for WireGuard traffic
+syswatch: Cross-platform system diagnostics TUI
+t2sz: Compress a file into a seekable zstd with per-file seeking for tar archives
+tdf: TUI-based PDF viewer
+telegram-send: Command-line tool to send Telegram messages
+termframe: Terminal output SVG screenshot tool
+termusic: Music Player TUI written in Rust
+tftp-now: Single-binary TFTP server and client that you can use right now
+threatdeck: TUI threat intelligence monitoring and alerting platform
+tini: Tiny but valid init for containers
+tinyice: Modern, all-in-one Icecast-compatible audio/video streaming server
+tock: Powerful time tracking tool for the command-line
+topicctl: Declarative Kafka topic management
+torf-cli: CLI tool for creating, reading and editing torrent files
+tpix: Simple terminal image viewer using the Kitty graphics protocol
+transifex-cli: Transifex command-line client
+tree-sitter-go: Go grammar for tree-sitter
+tree-sitter-python: Python grammar for tree-sitter
+tree-sitter-ruby: Ruby grammar for tree-sitter
+try: Quickly manage and navigate project directories for experiments
+try-rs: Temporary workspace manager for fast experimentation in the terminal
+tsshd: UDP-based SSH server with roaming support
+ttl: Modern traceroute/mtr-style TUI with hop stats and ASN/geo enrichment
+tuckr: Super powered replacement for GNU Stow
+umoci: Reference OCI implementation for creating, modifying and inspecting images
+unordered_dense: Hashmap and hashset based on robin-hood backward shift deletion
+upterm: Instant terminal sharing
+vampire: High-performance theorem prover
+vapoursynth-bestsource: Audio/video source and FFmpeg wrapper
+vapoursynth-bm3d: BM3D denoising filter for VapourSynth
+vapoursynth-descale: VapourSynth plugin to undo upscaling
+vcfanno: Annotate a VCF with other VCFs/BEDs/tabixed files
+vcflib: C++ library and cmdline tools for parsing and manipulating VCF files
+vim-classic: Vim 8 long term support version with no LLM-generated code
+vite-plus: Unified toolchain and entry point for web development
+vs-preview: Previewer for VapourSynth scripts
+vtsls: LSP wrapper for typescript extension of vscode
+vtzero: Minimalist vector tile decoder and encoder in C++
+vulcain: Fast and idiomatic client-driven REST APIs
+vuls: Agentless Vulnerability Scanner for Linux/FreeBSD
+weave: Entity-level semantic merge driver for Git using tree-sitter
+whodb-cli: Database management CLI with TUI interface, MCP server support, AI, and more
+whosthere: LAN discovery tool with a modern TUI written in Go
+wik: View Wikipedia pages from your terminal
+wireplumber: Session / policy manager implementation for PipeWire
+wl-clipboard: Command-line copy/paste utilities for Wayland
+wmbusmeters: Read wired or wireless mbus protocol to acquire utility meter readings
+worktrunk: CLI for Git worktree management, designed for parallel AI agent workflows
+wtype: Xdotool type for wayland
+wx-cli: WeChat 4.x local data CLI with daemon architecture
+x-cli: Command-line power tool for Twitter
+xcsift: Swift tool to parse xcodebuild output for coding agents
+xcursorgen: Create an X cursor file from a collection of PNG images
+yap: On-device audio transcription using Speech.framework
+yelp-xsl: Document transformations from Yelp
+zapp: Flash ZSA keyboards from your terminal
+zeptoclaw: Lightweight personal AI gateway with layered safety controls
+zeroclaw: Rust-first autonomous agent runtime
+zerolang: Programming language for agents with explicit effects and predictable memory
+zfp: Compressed numerical arrays that support high-speed random access
+zig@0.15: Programming language designed for robustness, optimality, and clarity
+zot: Lightweight coding agent harness written in Go
+zsign: Cross-platform codesigning tool for iOS apps
+zvbi: Vertical Blanking Interval (VBI) decoding library
+zxc: High-performance asymmetric lossless compression library
+zxing-cpp: Multi-format barcode image processing library written in C++
+zycore-c: Zyan Core Library for C
+

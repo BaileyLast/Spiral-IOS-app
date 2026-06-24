@@ -1,0 +1,49 @@
+Last login: Mon Jun 15 21:28:13 on ttys001
+bailey@Baileys-MacBook-Pro ~ % cd ~/Downloads/Spiral-IOS-app
+bailey@Baileys-MacBook-Pro Spiral-IOS-app % npm install
+npm error Exit handler never called!
+npm error This is an error with npm itself. Please report this error at:
+npm error   <https://github.com/npm/cli/issues>
+npm error A complete log of this run can be found in: /Users/bailey/.npm/_logs/2026-06-15T20_30_51_625Z-debug-0.log
+bailey@Baileys-MacBook-Pro Spiral-IOS-app % tail -40 /Users/bailey/.npm/_logs/2026-06-15T20_30_51_625Z-debug-0.log
+385 http fetch GET http://package-firewall.replit.local/npm/@types/slice-ansi/-/slice-ansi-4.0.0.tgz attempt 2 failed with ENOTFOUND
+386 http fetch GET http://package-firewall.replit.local/npm/@types/fs-extra/-/fs-extra-8.1.5.tgz attempt 2 failed with ENOTFOUND
+387 http fetch GET http://package-firewall.replit.local/npm/@isaacs/fs-minipass/-/fs-minipass-4.0.1.tgz attempt 2 failed with ENOTFOUND
+388 http fetch GET http://package-firewall.replit.local/npm/@ionic/utils-subprocess/-/utils-subprocess-3.0.1.tgz attempt 2 failed with ENOTFOUND
+389 http fetch GET http://package-firewall.replit.local/npm/@ionic/utils-terminal/-/utils-terminal-2.3.5.tgz attempt 2 failed with ENOTFOUND
+390 http fetch GET http://package-firewall.replit.local/npm/@ionic/utils-stream/-/utils-stream-3.1.7.tgz attempt 2 failed with ENOTFOUND
+391 http fetch GET http://package-firewall.replit.local/npm/@ionic/utils-process/-/utils-process-2.1.12.tgz attempt 2 failed with ENOTFOUND
+392 http fetch GET http://package-firewall.replit.local/npm/@ionic/utils-fs/-/utils-fs-3.1.7.tgz attempt 2 failed with ENOTFOUND
+393 http fetch GET http://package-firewall.replit.local/npm/@xmldom/xmldom/-/xmldom-0.9.10.tgz attempt 2 failed with ENOTFOUND
+394 http fetch GET http://package-firewall.replit.local/npm/@ionic/utils-array/-/utils-array-2.1.6.tgz attempt 2 failed with ENOTFOUND
+395 http fetch GET http://package-firewall.replit.local/npm/@ionic/cli-framework-output/-/cli-framework-output-2.2.8.tgz attempt 2 failed with ENOTFOUND
+396 http fetch GET http://package-firewall.replit.local/npm/@ionic/utils-object/-/utils-object-2.1.6.tgz attempt 2 failed with ENOTFOUND
+397 http fetch GET http://package-firewall.replit.local/npm/@capacitor/ios/-/ios-7.6.6.tgz attempt 2 failed with ENOTFOUND
+398 http fetch GET http://package-firewall.replit.local/npm/@capacitor/cli/-/cli-7.6.6.tgz attempt 2 failed with ENOTFOUND
+399 http fetch GET http://package-firewall.replit.local/npm/xmlbuilder/-/xmlbuilder-15.1.1.tgz attempt 2 failed with ENOTFOUND
+400 http fetch GET http://package-firewall.replit.local/npm/@types/slice-ansi/-/slice-ansi-4.0.0.tgz attempt 3 failed with ENOTFOUND
+401 http fetch GET http://package-firewall.replit.local/npm/@types/fs-extra/-/fs-extra-8.1.5.tgz attempt 3 failed with ENOTFOUND
+402 http fetch GET http://package-firewall.replit.local/npm/@isaacs/fs-minipass/-/fs-minipass-4.0.1.tgz attempt 3 failed with ENOTFOUND
+403 http fetch GET http://package-firewall.replit.local/npm/@ionic/utils-subprocess/-/utils-subprocess-3.0.1.tgz attempt 3 failed with ENOTFOUND
+404 http fetch GET http://package-firewall.replit.local/npm/@ionic/utils-terminal/-/utils-terminal-2.3.5.tgz attempt 3 failed with ENOTFOUND
+405 http fetch GET http://package-firewall.replit.local/npm/@ionic/utils-stream/-/utils-stream-3.1.7.tgz attempt 3 failed with ENOTFOUND
+406 http fetch GET http://package-firewall.replit.local/npm/@ionic/utils-process/-/utils-process-2.1.12.tgz attempt 3 failed with ENOTFOUND
+407 http fetch GET http://package-firewall.replit.local/npm/@ionic/utils-fs/-/utils-fs-3.1.7.tgz attempt 3 failed with ENOTFOUND
+408 http fetch GET http://package-firewall.replit.local/npm/@xmldom/xmldom/-/xmldom-0.9.10.tgz attempt 3 failed with ENOTFOUND
+409 http fetch GET http://package-firewall.replit.local/npm/@ionic/utils-array/-/utils-array-2.1.6.tgz attempt 3 failed with ENOTFOUND
+410 http fetch GET http://package-firewall.replit.local/npm/@ionic/cli-framework-output/-/cli-framework-output-2.2.8.tgz attempt 3 failed with ENOTFOUND
+411 http fetch GET http://package-firewall.replit.local/npm/@ionic/utils-object/-/utils-object-2.1.6.tgz attempt 3 failed with ENOTFOUND
+412 http fetch GET http://package-firewall.replit.local/npm/@capacitor/ios/-/ios-7.6.6.tgz attempt 3 failed with ENOTFOUND
+413 http fetch GET http://package-firewall.replit.local/npm/@capacitor/cli/-/cli-7.6.6.tgz attempt 3 failed with ENOTFOUND
+414 http fetch GET http://package-firewall.replit.local/npm/xmlbuilder/-/xmlbuilder-15.1.1.tgz attempt 3 failed with ENOTFOUND
+415 verbose cwd /Users/bailey/Downloads/Spiral-IOS-app
+416 verbose os Darwin 25.3.0
+417 verbose node v24.16.0
+418 verbose npm  v11.13.0
+419 error Exit handler never called!
+420 error This is an error with npm itself. Please report this error at:
+421 error   <https://github.com/npm/cli/issues>
+422 verbose exit 1
+423 verbose code 1
+424 error A complete log of this run can be found in: /Users/bailey/.npm/_logs/2026-06-15T20_30_51_625Z-debug-0.log
+bailey@Baileys-MacBook-Pro Spiral-IOS-app % 

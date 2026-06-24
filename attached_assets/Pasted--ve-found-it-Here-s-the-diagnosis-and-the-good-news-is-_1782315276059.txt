@@ -1,0 +1,19 @@
+'ve found it. Here's the diagnosis — and the good news is your hypothesis is half right but the actual cause is simpler.
+
+What's actually happening
+1. The domain is NOT pointed at the wrong project. It IS the Spiral Core API server (it's Express, /health returns ok, and crucially POST /api/customer/login already returns real JSON: {"error":"Email and password required"}, 400, application/json). So the API works.
+
+2. The real problem: the live deployment is a stale build from June 11 — from before we made this repl headless. That old build still bundles the old shopper web client and has a catch-all that serves index.html for any route it doesn't recognize. That's why:
+
+GET / → the 888-byte "Spiral" SPA page
+GET /api/customer/login → same HTML (because only POST is defined; the GET falls through to the SPA catch-all)
+OPTIONS preflights → also swallowed into HTML
+The current source code is headless (no client, no catch-all), so a redeploy makes / return 404 and /api/* only ever return JSON/404. The proof it's stale: the HTML's last-modified is Thu, 11 Jun 2026, and our current npm run build doesn't produce a client bundle at all.
+
+3. The native app's actual blocker is CORS. The allowlist is only https://spiral-ios-app.replit.app (plus the CORS_ALLOWED_ORIGINS env). Your Capacitor app's origin capacitor://localhost is not in it, so the API returns no Access-Control-Allow-Origin for it (I confirmed: POST from capacitor://localhost got JSON but no CORS headers). A redeploy alone won't fix the native app — we also need to allow the Capacitor origins.
+
+The fix (two parts, both required)
+Add the Capacitor origins to the CORS allowlist in server/routes.ts (capacitor://localhost, ionic://localhost, and the Android http(s)://localhost) as defaults, so preflight + credentialed requests succeed for the native app.
+Redeploy so the headless current code goes live — this removes the SPA catch-all so no route ever returns HTML again, and ships the updated CORS.
+After that: GET / → 404, GET /api/customer/login → JSON 404, POST /api/customer/signup → JSON, and the native app's preflight gets proper CORS headers.
+
