@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
 import { apiRequest, queryClient, setAuthToken } from "@/lib/queryClient";
 import { useInstagramAvatar } from "@/hooks/use-instagram-avatar";
+import { useAuthGuard } from "@/hooks/use-auth-guard";
 import {
   LogOut,
   ChevronRight,
@@ -43,13 +44,17 @@ function formatFollowerCount(count: number | null | undefined): string {
 
 export default function Profile() {
   const [, setLocation] = useLocation();
-  const { data: profile, isLoading: profileLoading } = useQuery<CustomerProfile>({
+  const { data: profile, isLoading: profileLoading, error: profileError } = useQuery<CustomerProfile>({
     queryKey: ["/api/customer/me"],
   });
 
-  const { data: stats } = useQuery<{ totalSaved: number; ordersCompleted: number }>({
+  const { data: stats, error: statsError } = useQuery<{ totalSaved: number; ordersCompleted: number }>({
     queryKey: ["/api/customer/stats"],
   });
+
+  // If the session has expired, redirect to login instead of rendering an empty
+  // signed-in shell.
+  useAuthGuard(profileError, statsError);
 
   const avatarUrl = useInstagramAvatar(!!profile?.instagramProfilePicture);
 

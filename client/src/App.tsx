@@ -19,7 +19,6 @@ import Splash from "@/pages/Splash";
 import ManageAccount from "@/pages/ManageAccount";
 import Privacy from "@/pages/Privacy";
 import DataDeletion from "@/pages/DataDeletion";
-import EmailFailures from "@/pages/EmailFailures";
 import { ConnectInstagramHeaderCTA } from "@/components/ConnectInstagramHeaderCTA";
 
 function BottomNav() {
@@ -86,7 +85,6 @@ function Router() {
       <Route path="/manage-account" component={ManageAccount} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/data-deletion" component={DataDeletion} />
-      <Route path="/admin/email-failures" component={EmailFailures} />
     </Switch>
   );
 }
@@ -124,7 +122,7 @@ function ScrollToTop() {
 function AppContent() {
   const [location] = useLocation();
   
-  const hideBottomNav = location === "/" || location === "/login" || location === "/verify-email" || location === "/instagram-help" || location === "/privacy" || location === "/data-deletion" || location === "/manage-account" || location.startsWith("/admin/");
+  const hideBottomNav = location === "/" || location === "/login" || location === "/verify-email" || location === "/instagram-help" || location === "/privacy" || location === "/data-deletion" || location === "/manage-account";
   
   return (
     <div className="min-h-screen md:bg-[#F4F1EC] md:py-8">

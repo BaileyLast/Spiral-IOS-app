@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { useLocation, useRoute } from "wouter";
 import { ChevronLeft, Store, ExternalLink, Instagram } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -148,7 +149,11 @@ export default function MerchantProducts() {
   const brandId = params?.brandId ? decodeURIComponent(params.brandId) : "";
 
   const { data: brands } = useQuery<Brand[]>({ queryKey: ["/api/brands"] });
-  const { data: profile } = useQuery<CustomerProfile>({ queryKey: ["/api/customer/me"] });
+  const { data: profile, error: profileError } = useQuery<CustomerProfile>({ queryKey: ["/api/customer/me"] });
+
+  // If the session has expired, redirect to login instead of rendering an empty
+  // signed-in shell.
+  useAuthGuard(profileError);
 
   const brand = useMemo(() => {
     if (!brands || !brandId) return null;

@@ -10,6 +10,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
@@ -91,10 +92,14 @@ export default function OrderDetail() {
     ? [...MOCK_ACTIVE, ...MOCK_HISTORY].find((m) => m.id === orderId)
     : undefined;
 
-  const { data: queryOrder, isLoading: queryLoading } = useQuery<Order>({
+  const { data: queryOrder, isLoading: queryLoading, error: queryError } = useQuery<Order>({
     queryKey: ["/api/customer/orders", orderId],
     enabled: !!orderId && !isMock,
   });
+
+  // If the session has expired, redirect to login instead of rendering an empty
+  // signed-in shell.
+  useAuthGuard(queryError);
 
   const order = isMock ? mockOrder : queryOrder;
   const isLoading = isMock ? false : queryLoading;

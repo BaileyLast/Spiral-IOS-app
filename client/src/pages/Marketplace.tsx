@@ -5,6 +5,7 @@ import { Store, Sparkles, X, Instagram, ChevronRight, Search, Check } from "luci
 import { getCountryByCode, detectCountryFromLocale } from "@/lib/countries";
 import { normalizeCategoryForDisplay, type BrandCategory } from "@shared/categories";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { useAuthGuard } from "@/hooks/use-auth-guard";
 
 const FALLBACK_GRADIENTS = [
   "linear-gradient(135deg, #A8F5E0 0%, #4ECCA3 100%)",
@@ -668,9 +669,13 @@ export default function Marketplace() {
   const [selectedCategory, setSelectedCategory] = useState<BrandCategory | "all">("all");
   const [bestForMeOn, setBestForMeOn] = useState(false);
 
-  const { data: profile } = useQuery<CustomerProfile>({
+  const { data: profile, error: profileError } = useQuery<CustomerProfile>({
     queryKey: ["/api/customer/me"],
   });
+
+  // If the session has expired, redirect to login instead of rendering an empty
+  // signed-in shell.
+  useAuthGuard(profileError);
 
   const { data: brands, isLoading } = useQuery<Brand[]>({
     queryKey: ["/api/brands"],

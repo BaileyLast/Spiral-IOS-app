@@ -6,6 +6,41 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 // current origin so relative URLs keep working.
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
 
+// Hard cap on how long a single request may hang before failing. On mobile a
+// request can otherwise stay pending forever on a dropped connection; this
+// turns that into a clean, retryable error instead.
+const REQUEST_TIMEOUT_MS = 20000;
+
+function requestSignal(): AbortSignal | undefined {
+  // AbortSignal.timeout is available on iOS Safari 16+. Guard so older or
+  // non-browser environments simply skip the timeout instead of throwing.
+  if (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal) {
+    return AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  }
+  return undefined;
+}
+
+// Build a request path from a React Query key by joining its segments with "/".
+// Only string/number segments are valid path parts. An object segment almost
+// always means a query param or filter was added to the key; joining that would
+// silently produce ".../[object Object]", so fail loudly instead.
+export function buildPathFromKey(queryKey: readonly unknown[]): string {
+  return queryKey
+    .map((part) => {
+      if (part === null || part === undefined) return "";
+      if (typeof part === "object") {
+        throw new Error(
+          "Query key segments must be strings or numbers to build a URL. " +
+            "An object/array segment is not supported — pass a custom queryFn " +
+            "and build the URL (with params) explicitly instead.",
+        );
+      }
+      return String(part);
+    })
+    .filter((part) => part.length > 0)
+    .join("/");
+}
+
 // Prefix a relative API path with the configured Core base URL. Absolute URLs
 // (http/https) are passed through untouched.
 export function withApiBase(url: string): string {
@@ -73,6 +108,7 @@ export async function apiRequest(
     headers: buildHeaders(data ? { "Content-Type": "application/json" } : {}),
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
+    signal: requestSignal(),
   });
 
   await throwIfResNotOk(res);
@@ -85,9 +121,10 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(withApiBase(queryKey.join("/") as string), {
+    const res = await fetch(withApiBase(buildPathFromKey(queryKey)), {
       headers: buildHeaders(),
       credentials: "include",
+      signal: requestSignal(),
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
@@ -98,16 +135,34 @@ export const getQueryFn: <T>(options: {
     return await res.json();
   };
 
+// Retry transient failures (network drop, timeout, 5xx) a couple of times, but
+// never retry an authentication/authorization or other client (4xx) error — the
+// "401: ..." / "4xx: ..." prefix comes from throwIfResNotOk above. This keeps a
+// dead session surfacing immediately (so the auth guard can redirect) while a
+// brief mobile blip recovers on its own.
+function shouldRetry(failureCount: number, error: unknown): boolean {
+  if (error instanceof Error && /^4\d\d:/.test(error.message)) return false;
+  return failureCount < 2;
+}
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
-      refetchOnWindowFocus: false,
-      staleTime: Infinity,
-      retry: false,
+      // Re-pull from Core when the shopper returns to the app or regains
+      // connectivity. Core is the source of truth and statuses (delivery, story
+      // verification, discount, soft-ban) change there, so cached screens must
+      // refresh instead of showing stale state forever.
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
+      // Data is considered fresh for a short window, then re-fetched on the next
+      // mount/focus. Previously Infinity, which meant screens never re-pulled.
+      staleTime: 30_000,
+      retry: shouldRetry,
     },
     mutations: {
+      // Do NOT auto-retry writes — a retried POST could double-submit.
       retry: false,
     },
   },

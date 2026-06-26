@@ -17,6 +17,7 @@ import {
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
 import { apiRequest, queryClient, setAuthToken } from "@/lib/queryClient";
+import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { useInstagramAvatar } from "@/hooks/use-instagram-avatar";
 import { useToast } from "@/hooks/use-toast";
 import { COUNTRIES, getCountryByCode, detectCountryFromLocale } from "@/lib/countries";
@@ -73,9 +74,13 @@ export default function ManageAccount() {
   const [countryPickerOpen, setCountryPickerOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  const { data: profile, isLoading } = useQuery<CustomerProfile>({
+  const { data: profile, isLoading, error: profileError } = useQuery<CustomerProfile>({
     queryKey: ["/api/customer/me"],
   });
+
+  // If the session has expired, redirect to login instead of rendering an empty
+  // signed-in shell.
+  useAuthGuard(profileError);
 
   const avatarUrl = useInstagramAvatar(!!profile?.instagramProfilePicture);
 
