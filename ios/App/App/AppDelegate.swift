@@ -82,6 +82,13 @@ final class StoryShareViewController: CAPBridgeViewController, WKScriptMessageHa
         super.viewDidLoad()
         if let webView = self.webView {
             webView.configuration.userContentController.add(self, name: handlerName)
+            // Stop the rubber-band overscroll bounce so short screens (e.g. the
+            // login screen) stay fixed instead of dragging up and down. Genuine
+            // scrolling on long screens still works — this only removes the
+            // springy overscroll at the very top and bottom.
+            webView.scrollView.bounces = false
+            webView.scrollView.alwaysBounceVertical = false
+            webView.scrollView.alwaysBounceHorizontal = false
         }
     }
 

@@ -165,11 +165,16 @@
 
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    /* Web-layer safety net for the iPhone app: stop the page from rubber-banding
+       / scroll-chaining at the top and bottom. Native bounce is also disabled in
+       the iOS webview; this keeps short screens fixed even on the web. */
+    overscroll-behavior: none;
   }
   
   /* Safe area insets for mobile */
   html {
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    overscroll-behavior: none;
   }
 }
 
