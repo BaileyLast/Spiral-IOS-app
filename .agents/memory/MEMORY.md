@@ -10,3 +10,4 @@
 - [In-app Story share & disclosure](story-share-disclosure.md) — web/fallback share tiers must bake the disclosure into the photo (CMA); native iOS `spiralStoryShare` bridge (separate repo) gets clean photo + movable sticker; native failures fall through to web.
 - [Owed-debt dual source](owed-debt-dual-source.md) — owed-state rules live in BOTH isOrderOwed (schema) and the inherited-debt SQL query (storage); change both in lockstep or auto-unban silently breaks.
 - [deleteEnvVars can't remove secrets](env-secrets-delete-limitation.md) — deleteEnvVars silently no-ops on secrets (echoes success, secret stays); agent can only delete plaintext env vars. Tell user to clear secrets in UI.
+- [Story composer image source](story-composer-image-source.md) — ready-made creative else product template; remote imgs need crossOrigin; broken creative falls back not errors; disclosure always baked.

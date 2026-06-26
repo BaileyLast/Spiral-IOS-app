@@ -185,6 +185,13 @@ export default function OrderDetail() {
   const rawHandle = (order.merchantInstagramHandle || "").replace(/^@/, "");
   const orderNumber = order.shopifyOrderId.slice(-4);
 
+  // Purchased products that carry a usable image, handed to the Story composer
+  // to build the product-photo template (used when the merchant hasn't supplied
+  // a ready-made creative for this order).
+  const storyProducts = lineItems
+    .filter((item) => typeof item.imageUrl === "string" && /^https?:\/\//i.test(item.imageUrl))
+    .map((item) => ({ name: lineItemDisplayName(item), imageUrl: item.imageUrl as string }));
+
   // Resolve the brand's public shop URL by matching the merchant handle, guarded
   // to http(s) only so the composer never passes a non-web link sticker.
   const shopUrl = (() => {
@@ -684,6 +691,10 @@ export default function OrderDetail() {
         onClose={() => setShowComposer(false)}
         merchantHandle={rawHandle}
         shopUrl={shopUrl}
+        storeName={order.storeName}
+        storeLogo={order.storeLogo}
+        creativeUrl={order.storyCreativeUrl}
+        products={storyProducts}
       />
     </div>
   );

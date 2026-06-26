@@ -216,6 +216,11 @@ export const orders = pgTable("orders", {
   // Store & product info for customer display
   storeName: text("store_name"),
   storeLogo: text("store_logo"),
+  // Optional merchant-supplied Story creative for this order's brand/campaign.
+  // When Spiral Core populates it, the customer app shows it as the ready-made
+  // Story image instead of the product-photo template. Null falls back to the
+  // product template. Core is the source of truth; this client only reads it.
+  storyCreativeUrl: text("story_creative_url"),
   // Merchant's Instagram handle, snapshotted at order creation from the brands
   // feed (keyed by shop domain). Stays correct for the lifetime of the order
   // even if the merchant later changes their handle. May be null only if the

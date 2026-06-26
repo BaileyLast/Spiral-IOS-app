@@ -1,11 +1,16 @@
-import { useState, useRef, useEffect } from "react";
-import { Camera, ImageUp, X, Loader2, Instagram, Copy, Check, ShieldCheck, Link2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { X, Loader2, Instagram, Copy, Check, ShieldCheck, ShoppingBag, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 // Plain, CMA-friendly disclosure label. This is the working default rendered in
 // the app; swap DISCLOSURE_LABEL (and/or supply a branded transparent PNG to
 // renderDisclosureSticker) for a Spiral-branded graphic.
 const DISCLOSURE_LABEL = "PAID PARTNERSHIP";
+
+interface StoryProduct {
+  name: string;
+  imageUrl: string;
+}
 
 interface StoryComposerProps {
   open: boolean;
@@ -14,6 +19,17 @@ interface StoryComposerProps {
   merchantHandle: string;
   /** Brand's public shop URL, used for the native link sticker when available. */
   shopUrl?: string | null;
+  /** Store display name, shown on the product-photo template. */
+  storeName?: string | null;
+  /** Store logo URL, shown on the product-photo template when it loads. */
+  storeLogo?: string | null;
+  /**
+   * Optional merchant-supplied Story creative (from Spiral Core). When present
+   * it is used as-is instead of building the product-photo template.
+   */
+  creativeUrl?: string | null;
+  /** Purchased products that carry a usable image, for the product template. */
+  products?: StoryProduct[];
 }
 
 function roundRect(
@@ -57,57 +73,174 @@ function drawDisclosurePill(
   return { pillW, pillH };
 }
 
-// Instagram Story canvas. Every photo is rendered onto this exact frame so the
+// Instagram Story canvas. Every image is rendered onto this exact frame so the
 // output always matches a full-screen Story (1080x1920), regardless of the
-// source photo's shape.
+// source image's shape.
 const STORY_WIDTH = 1080;
 const STORY_HEIGHT = 1920;
 
-// Decodes the photo once and returns two data URLs, both sized to a 1080x1920
-// Story frame with the source center-cropped to fill (no letterbox bars):
-// - `clean`: the cropped photo as-is (native background, where the sticker is movable).
-// - `baked`: the cropped photo with the disclosure pill burned into the bottom
-//   corner (web fallback, where a movable sticker isn't possible so disclosure
-//   must be guaranteed).
-function prepareImages(src: string): Promise<{ clean: string; baked: string }> {
+// Loads an image with CORS enabled so it can be drawn to a canvas and exported
+// without tainting it. Remote product/creative images (Shopify CDN, S3) must
+// serve CORS headers; if they don't the load rejects and the caller degrades.
+function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = "anonymous";
     img.onload = () => {
-      const ow = img.naturalWidth || img.width;
-      const oh = img.naturalHeight || img.height;
-      if (!ow || !oh) {
+      if (!(img.naturalWidth || img.width)) {
         reject(new Error("image-empty"));
         return;
       }
-      const canvas = document.createElement("canvas");
-      canvas.width = STORY_WIDTH;
-      canvas.height = STORY_HEIGHT;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        reject(new Error("no-2d-context"));
-        return;
-      }
-      // Cover-fit: scale so the photo fills the whole 1080x1920 frame, then
-      // center the overflow so the edges are cropped evenly.
-      const scale = Math.max(STORY_WIDTH / ow, STORY_HEIGHT / oh);
-      const drawW = ow * scale;
-      const drawH = oh * scale;
-      const dx = (STORY_WIDTH - drawW) / 2;
-      const dy = (STORY_HEIGHT - drawH) / 2;
-      ctx.fillStyle = "#000000";
-      ctx.fillRect(0, 0, STORY_WIDTH, STORY_HEIGHT);
-      ctx.drawImage(img, dx, dy, drawW, drawH);
-      const clean = canvas.toDataURL("image/jpeg", 0.92);
-      const pad = Math.round(STORY_WIDTH * 0.04);
-      const fontSize = Math.max(20, Math.round(STORY_WIDTH * 0.045));
-      const pillH = Math.round(fontSize * 2);
-      drawDisclosurePill(ctx, pad, STORY_HEIGHT - pad - pillH, STORY_WIDTH);
-      const baked = canvas.toDataURL("image/jpeg", 0.92);
-      resolve({ clean, baked });
+      resolve(img);
     };
     img.onerror = () => reject(new Error("image-load-failed"));
     img.src = src;
   });
+}
+
+// Truncates text with an ellipsis so it fits within maxWidth on the given ctx.
+function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let t = text;
+  while (t.length > 1 && ctx.measureText(`${t}…`).width > maxWidth) {
+    t = t.slice(0, -1);
+  }
+  return `${t.trim()}…`;
+}
+
+// Cover-fits a full image (e.g. a merchant creative) onto the 1080x1920 Story
+// frame and returns two data URLs:
+// - `clean`: the cropped image as-is (native background, movable sticker).
+// - `baked`: the same with the disclosure pill burned into the bottom corner
+//   (web fallback, where a movable sticker isn't possible).
+function composeCover(img: HTMLImageElement): { clean: string; baked: string } {
+  const ow = img.naturalWidth || img.width;
+  const oh = img.naturalHeight || img.height;
+  if (!ow || !oh) throw new Error("image-empty");
+  const canvas = document.createElement("canvas");
+  canvas.width = STORY_WIDTH;
+  canvas.height = STORY_HEIGHT;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("no-2d-context");
+  const scale = Math.max(STORY_WIDTH / ow, STORY_HEIGHT / oh);
+  const drawW = ow * scale;
+  const drawH = oh * scale;
+  const dx = (STORY_WIDTH - drawW) / 2;
+  const dy = (STORY_HEIGHT - drawH) / 2;
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(0, 0, STORY_WIDTH, STORY_HEIGHT);
+  ctx.drawImage(img, dx, dy, drawW, drawH);
+  const clean = canvas.toDataURL("image/jpeg", 0.92);
+  const pad = Math.round(STORY_WIDTH * 0.04);
+  const fontSize = Math.max(20, Math.round(STORY_WIDTH * 0.045));
+  const pillH = Math.round(fontSize * 2);
+  drawDisclosurePill(ctx, pad, STORY_HEIGHT - pad - pillH, STORY_WIDTH);
+  const baked = canvas.toDataURL("image/jpeg", 0.92);
+  return { clean, baked };
+}
+
+// Builds a clean, branded Story from a single product photo: the product is
+// contained (never cropped) on a white card over a brand-green background, with
+// the store name/logo above and the product name below. Returns clean + baked
+// versions, matching composeCover's contract.
+function renderProductTemplate(
+  productImg: HTMLImageElement,
+  opts: { storeName?: string | null; logoImg?: HTMLImageElement | null; productName?: string | null },
+): { clean: string; baked: string } {
+  const canvas = document.createElement("canvas");
+  canvas.width = STORY_WIDTH;
+  canvas.height = STORY_HEIGHT;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("no-2d-context");
+
+  // Brand-green gradient background.
+  const bg = ctx.createLinearGradient(0, 0, 0, STORY_HEIGHT);
+  bg.addColorStop(0, "#4ECCA3");
+  bg.addColorStop(1, "#2C9E81");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, STORY_WIDTH, STORY_HEIGHT);
+
+  const cx = STORY_WIDTH / 2;
+  ctx.textAlign = "center";
+
+  // Header: optional logo, then store name.
+  let headerBottom = 250;
+  const logo = opts.logoImg;
+  if (logo && (logo.naturalWidth || logo.width)) {
+    const lr = 78;
+    const lcy = 250;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, lcy, lr, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+    ctx.clip();
+    const iw = logo.naturalWidth || logo.width;
+    const ih = logo.naturalHeight || logo.height;
+    const s = Math.max((lr * 2) / iw, (lr * 2) / ih);
+    const dw = iw * s;
+    const dh = ih * s;
+    ctx.drawImage(logo, cx - dw / 2, lcy - dh / 2, dw, dh);
+    ctx.restore();
+    headerBottom = lcy + lr + 64;
+  } else {
+    headerBottom = 240;
+  }
+
+  const storeName = (opts.storeName || "").trim();
+  ctx.textBaseline = "alphabetic";
+  if (storeName) {
+    ctx.fillStyle = "rgba(255,255,255,0.82)";
+    ctx.font = `700 30px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif`;
+    ctx.fillText("I SHOPPED AT", cx, headerBottom);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `800 58px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif`;
+    ctx.fillText(fitText(ctx, storeName, STORY_WIDTH - 180), cx, headerBottom + 70);
+    headerBottom += 70;
+  }
+
+  // White product card.
+  const cardX = 96;
+  const cardW = STORY_WIDTH - cardX * 2;
+  const cardTop = headerBottom + 80;
+  const cardBottomLimit = STORY_HEIGHT - 320;
+  const cardH = cardBottomLimit - cardTop;
+  ctx.fillStyle = "#ffffff";
+  roundRect(ctx, cardX, cardTop, cardW, cardH, 56);
+  ctx.fill();
+
+  // Product image, contained inside the card with padding (no crop).
+  const ipad = 80;
+  const innerX = cardX + ipad;
+  const innerY = cardTop + ipad;
+  const innerW = cardW - ipad * 2;
+  const innerH = cardH - ipad * 2;
+  const piw = productImg.naturalWidth || productImg.width;
+  const pih = productImg.naturalHeight || productImg.height;
+  if (piw && pih) {
+    const s = Math.min(innerW / piw, innerH / pih);
+    const dw = piw * s;
+    const dh = pih * s;
+    ctx.drawImage(productImg, innerX + (innerW - dw) / 2, innerY + (innerH - dh) / 2, dw, dh);
+  }
+
+  // Product name under the card.
+  const pname = (opts.productName || "").trim();
+  if (pname) {
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `700 42px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif`;
+    ctx.fillText(fitText(ctx, pname, STORY_WIDTH - 180), cx, cardBottomLimit + 100);
+  }
+
+  const clean = canvas.toDataURL("image/jpeg", 0.92);
+  const pad = Math.round(STORY_WIDTH * 0.04);
+  const fontSize = Math.max(20, Math.round(STORY_WIDTH * 0.045));
+  const pillH = Math.round(fontSize * 2);
+  ctx.textAlign = "left";
+  drawDisclosurePill(ctx, pad, STORY_HEIGHT - pad - pillH, STORY_WIDTH);
+  const baked = canvas.toDataURL("image/jpeg", 0.92);
+  return { clean, baked };
 }
 
 // Transparent PNG of just the disclosure pill — passed to the native bridge so
@@ -176,237 +309,122 @@ function tryNativeBridge(
   return false;
 }
 
-// Custom in-app camera. Uses the live device camera so we can overlay framing
-// guides (where the disclosure pill / link sticker land) on top of the preview.
-// The preview box is locked to the 1080x1920 Story aspect with object-cover, so
-// what the shopper sees is what prepareImages() center-crops on capture.
-function CameraCapture({
+type Status = "loading" | "picker" | "empty" | "error";
+
+export default function StoryComposer({
+  open,
+  onClose,
+  merchantHandle,
   shopUrl,
-  onCapture,
-  onCancel,
-  onUnavailable,
-}: {
-  shopUrl?: string | null;
-  onCapture: (src: string) => void;
-  onCancel: () => void;
-  onUnavailable: () => void;
-}) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    const start = async () => {
-      const md = navigator.mediaDevices;
-      if (!md || typeof md.getUserMedia !== "function") {
-        onUnavailable();
-        return;
-      }
-      try {
-        const stream = await md.getUserMedia({
-          video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1080 },
-            height: { ideal: 1920 },
-          },
-          audio: false,
-        });
-        if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        streamRef.current = stream;
-        const video = videoRef.current;
-        if (video) {
-          video.srcObject = stream;
-          try {
-            await video.play();
-          } catch {
-            // Autoplay can reject; the stream still renders once decoded.
-          }
-        }
-        if (!cancelled) setReady(true);
-      } catch {
-        if (!cancelled) onUnavailable();
-      }
-    };
-    void start();
-    return () => {
-      cancelled = true;
-      const s = streamRef.current;
-      if (s) s.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const capture = () => {
-    const video = videoRef.current;
-    if (!video) return;
-    const vw = video.videoWidth;
-    const vh = video.videoHeight;
-    if (!vw || !vh) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = vw;
-    canvas.height = vh;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0, vw, vh);
-    onCapture(canvas.toDataURL("image/jpeg", 0.95));
-  };
-
-  return (
-    <>
-      <header className="flex items-center justify-between px-4 py-4">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center"
-          aria-label="Back"
-          data-testid="button-camera-back"
-        >
-          <X className="w-5 h-5 text-white" />
-        </button>
-        <span className="text-white font-bold text-sm">Frame your shot</span>
-        <span className="w-10" />
-      </header>
-
-      <div
-        className="flex-1 flex items-center justify-center px-4 min-h-0"
-        style={{ containerType: "size" }}
-      >
-        {/* Locked to a true 9:16 Story frame that fits within the available area
-            on every screen: height-led when vertical space is tight, width-led
-            otherwise. Keeps preview === prepareImages() center-crop. */}
-        <div
-          className="relative overflow-hidden rounded-2xl bg-black"
-          style={{
-            height: "min(100cqh, calc(100cqw * 16 / 9))",
-            width: "min(100cqw, calc(100cqh * 9 / 16))",
-          }}
-        >
-          <video
-            ref={videoRef}
-            playsInline
-            muted
-            autoPlay
-            className="absolute inset-0 w-full h-full object-cover"
-            data-testid="video-camera-preview"
-          />
-
-          {!ready && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/60">
-              <Loader2 className="w-8 h-8 animate-spin text-white" />
-            </div>
-          )}
-
-          {/* Top hint */}
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-black/45 backdrop-blur-sm">
-            <span className="text-[11px] font-medium text-white/90 whitespace-nowrap">
-              Keep your product clear of the dashed areas
-            </span>
-          </div>
-
-          {/* Link sticker ghost (native app only) */}
-          {shopUrl && (
-            <div
-              className="absolute left-1/2 -translate-x-1/2 bottom-[12%] flex items-center gap-1.5 rounded-lg border border-dashed border-white/70 bg-black/35 px-3 py-1.5 backdrop-blur-sm"
-              data-testid="guide-link-sticker"
-            >
-              <Link2 className="w-3.5 h-3.5 text-white/90" />
-              <span className="text-[10px] font-bold tracking-wide text-white/90">SHOP LINK</span>
-            </div>
-          )}
-
-          {/* Disclosure pill ghost — matches the baked bottom-left position */}
-          <div
-            className="absolute left-[4%] bottom-[2.5%] flex items-center gap-1.5 rounded-full border border-dashed border-white/70 bg-black/45 px-3 py-1.5 backdrop-blur-sm"
-            data-testid="guide-disclosure"
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-white/90" />
-            <span className="text-[10px] font-bold tracking-wide text-white/90">
-              {DISCLOSURE_LABEL}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="py-6 flex items-center justify-center">
-        <button
-          type="button"
-          onClick={capture}
-          disabled={!ready}
-          aria-label="Take photo"
-          data-testid="button-shutter"
-          className="w-[72px] h-[72px] rounded-full bg-white ring-4 ring-white/30 flex items-center justify-center active:scale-95 transition-transform disabled:opacity-50"
-        >
-          <span className="w-[58px] h-[58px] rounded-full border-2 border-black/10" />
-        </button>
-      </div>
-    </>
-  );
-}
-
-export default function StoryComposer({ open, onClose, merchantHandle, shopUrl }: StoryComposerProps) {
+  storeName,
+  storeLogo,
+  creativeUrl,
+  products,
+}: StoryComposerProps) {
   const { toast } = useToast();
   const [composed, setComposed] = useState<string | null>(null);
   const [original, setOriginal] = useState<string | null>(null);
-  const [working, setWorking] = useState(false);
+  const [status, setStatus] = useState<Status>("loading");
   const [sharing, setSharing] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [showCamera, setShowCamera] = useState(false);
-  const [cameraFallback, setCameraFallback] = useState(false);
-
-  if (!open) return null;
 
   const handle = `@${merchantHandle.replace(/^@/, "")}`;
+  const productList = (products ?? []).filter(
+    (p) => typeof p.imageUrl === "string" && /^https?:\/\//i.test(p.imageUrl),
+  );
+  const hasCreative = typeof creativeUrl === "string" && /^https?:\/\//i.test(creativeUrl);
+  const canChooseAnother = !hasCreative && productList.length > 1;
 
-  const reset = () => {
+  // Monotonic token so only the most recent build can mutate state — guards
+  // against a slow earlier request overwriting a newer pick.
+  const buildVersion = useRef(0);
+
+  const buildFrom = async (
+    src: string,
+    mode: "cover" | "template",
+    productName?: string,
+  ) => {
+    const version = ++buildVersion.current;
+    setStatus("loading");
     setComposed(null);
     setOriginal(null);
-    setCopied(false);
-  };
-
-  const close = () => {
-    reset();
-    setShowCamera(false);
-    onClose();
-  };
-
-  const processSrc = async (src: string) => {
-    setWorking(true);
     try {
-      const { clean, baked } = await prepareImages(src);
-      setOriginal(clean);
-      setComposed(baked);
+      const img = await loadImage(src);
+      let result: { clean: string; baked: string };
+      if (mode === "template") {
+        let logoImg: HTMLImageElement | null = null;
+        if (storeLogo) {
+          try {
+            logoImg = await loadImage(storeLogo);
+          } catch {
+            logoImg = null;
+          }
+        }
+        result = renderProductTemplate(img, { storeName, logoImg, productName });
+      } else {
+        result = composeCover(img);
+      }
+      if (version !== buildVersion.current) return;
+      setOriginal(result.clean);
+      setComposed(result.baked);
     } catch {
-      toast({
-        title: "Couldn't load that photo",
-        description: "Please try a different one.",
-        variant: "destructive",
-      });
-    } finally {
-      setWorking(false);
+      if (version !== buildVersion.current) return;
+      // Degrade gracefully. If a merchant creative fails to load but we have a
+      // product photo, fall back to the template; if several products exist,
+      // return to the picker so the shopper can choose a working one.
+      if (mode === "cover" && productList.length === 1) {
+        void buildFrom(productList[0].imageUrl, "template", productList[0].name);
+        return;
+      }
+      if (productList.length > 1) {
+        setStatus("picker");
+        return;
+      }
+      setStatus("error");
     }
   };
 
-  const onPick = (file?: File) => {
-    if (!file) return;
-    setWorking(true);
-    const reader = new FileReader();
-    reader.onload = () => {
-      void processSrc(reader.result as string);
-    };
-    reader.onerror = () => {
-      setWorking(false);
-      toast({
-        title: "Couldn't read that photo",
-        description: "Please try again.",
-        variant: "destructive",
-      });
-    };
-    reader.readAsDataURL(file);
+  // Decide what to show whenever the composer opens: the merchant creative if
+  // present, otherwise auto-build from a single product, otherwise a picker for
+  // multiple products, otherwise an empty state.
+  const startAuto = () => {
+    setCopied(false);
+    setComposed(null);
+    setOriginal(null);
+    if (hasCreative) {
+      void buildFrom(creativeUrl as string, "cover");
+    } else if (productList.length === 1) {
+      void buildFrom(productList[0].imageUrl, "template", productList[0].name);
+    } else if (productList.length > 1) {
+      setStatus("picker");
+    } else {
+      setStatus("empty");
+    }
+  };
+
+  useEffect(() => {
+    if (open) startAuto();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  if (!open) return null;
+
+  const close = () => {
+    setComposed(null);
+    setOriginal(null);
+    setCopied(false);
+    onClose();
+  };
+
+  const pickProduct = (p: StoryProduct) => {
+    void buildFrom(p.imageUrl, "template", p.name);
+  };
+
+  const chooseAnother = () => {
+    setComposed(null);
+    setOriginal(null);
+    setCopied(false);
+    setStatus("picker");
   };
 
   const copyHandle = async () => {
@@ -462,26 +480,6 @@ export default function StoryComposer({ open, onClose, merchantHandle, shopUrl }
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col safe-top" data-testid="overlay-story-composer">
-      {showCamera ? (
-        <CameraCapture
-          shopUrl={shopUrl}
-          onCancel={() => setShowCamera(false)}
-          onCapture={(src) => {
-            setShowCamera(false);
-            void processSrc(src);
-          }}
-          onUnavailable={() => {
-            setShowCamera(false);
-            setCameraFallback(true);
-            toast({
-              title: "Using your phone's camera",
-              description:
-                "We couldn't open the in-app camera, so we'll use your phone's camera instead.",
-            });
-          }}
-        />
-      ) : (
-        <>
       <header className="flex items-center justify-between px-4 py-4">
         <button
           type="button"
@@ -496,61 +494,7 @@ export default function StoryComposer({ open, onClose, merchantHandle, shopUrl }
         <span className="w-10" />
       </header>
 
-      {!composed ? (
-        <div className="flex-1 flex flex-col items-center justify-center px-8 text-center">
-          <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center mb-6">
-            <Camera className="w-10 h-10 text-white" />
-          </div>
-          <h2 className="text-white text-2xl font-black mb-2">Add your photo</h2>
-          <p className="text-white/70 text-sm mb-8 max-w-[280px]">
-            Snap your purchase or pick one from your camera roll. We'll add the disclosure for you.
-          </p>
-          {cameraFallback ? (
-            <label
-              className="tactile-btn bg-white text-black w-full max-w-[320px] py-4 text-lg mb-3 flex items-center justify-center gap-2 cursor-pointer"
-              data-testid="button-take-photo"
-            >
-              {working ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}
-              Take photo
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="sr-only"
-                disabled={working}
-                onChange={(e) => onPick(e.target.files?.[0])}
-                data-testid="input-camera"
-              />
-            </label>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setShowCamera(true)}
-              disabled={working}
-              className="tactile-btn bg-white text-black w-full max-w-[320px] py-4 text-lg mb-3 flex items-center justify-center gap-2"
-              data-testid="button-take-photo"
-            >
-              {working ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}
-              Take photo
-            </button>
-          )}
-          <label
-            className="w-full max-w-[320px] py-4 text-lg font-bold text-white rounded-full bg-white/10 flex items-center justify-center gap-2 active:opacity-80 cursor-pointer"
-            data-testid="button-upload-photo"
-          >
-            <ImageUp className="w-5 h-5" />
-            Upload from library
-            <input
-              type="file"
-              accept="image/*"
-              className="sr-only"
-              disabled={working}
-              onChange={(e) => onPick(e.target.files?.[0])}
-              data-testid="input-library"
-            />
-          </label>
-        </div>
-      ) : (
+      {composed ? (
         <div className="flex-1 flex flex-col px-5 pb-6 overflow-y-auto">
           <div className="flex-1 flex items-center justify-center min-h-0">
             <img
@@ -564,7 +508,7 @@ export default function StoryComposer({ open, onClose, merchantHandle, shopUrl }
           <ul className="mt-5 text-white/90 text-xs font-medium bg-white/10 px-4 py-3 rounded-2xl space-y-1.5 text-left">
             <li className="flex items-start gap-2">
               <ShieldCheck className="w-4 h-4 mt-0.5 flex-shrink-0" />
-              <span>Disclosure added to your photo automatically.</span>
+              <span>Your Story image is ready, with the disclosure added for you.</span>
             </li>
             <li className="flex items-start gap-2">
               <Instagram className="w-4 h-4 mt-0.5 flex-shrink-0" />
@@ -586,22 +530,20 @@ export default function StoryComposer({ open, onClose, merchantHandle, shopUrl }
               className="tactile-btn bg-white text-black w-full py-4 text-lg flex items-center justify-center gap-2"
               data-testid="button-share-story"
             >
-              {sharing ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Instagram className="w-5 h-5" />
-              )}
+              {sharing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Instagram className="w-5 h-5" />}
               Share to Instagram
             </button>
             <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={reset}
-                className="flex-1 py-3 font-bold text-white rounded-full bg-white/10 active:opacity-80"
-                data-testid="button-retake"
-              >
-                Retake
-              </button>
+              {canChooseAnother && (
+                <button
+                  type="button"
+                  onClick={chooseAnother}
+                  className="flex-1 py-3 font-bold text-white rounded-full bg-white/10 active:opacity-80"
+                  data-testid="button-choose-another"
+                >
+                  Choose another
+                </button>
+              )}
               <button
                 type="button"
                 onClick={copyHandle}
@@ -614,8 +556,65 @@ export default function StoryComposer({ open, onClose, merchantHandle, shopUrl }
             </div>
           </div>
         </div>
-      )}
-        </>
+      ) : status === "loading" ? (
+        <div className="flex-1 flex flex-col items-center justify-center px-8 text-center" data-testid="state-preparing">
+          <Loader2 className="w-10 h-10 animate-spin text-white mb-5" />
+          <p className="text-white/80 text-sm">Preparing your Story…</p>
+        </div>
+      ) : status === "picker" ? (
+        <div className="flex-1 flex flex-col px-6 pt-1 pb-6 overflow-y-auto">
+          <div className="text-center mb-6">
+            <h2 className="text-white text-2xl font-black mb-2">Choose your photo</h2>
+            <p className="text-white/70 text-sm max-w-[280px] mx-auto">
+              Pick the product you want to feature in your Story.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {productList.map((p, i) => (
+              <button
+                key={`${p.name}-${i}`}
+                type="button"
+                onClick={() => pickProduct(p)}
+                className="relative rounded-2xl overflow-hidden bg-white/10 aspect-[4/5] active:scale-95 transition-transform"
+                data-testid={`button-pick-product-${i}`}
+              >
+                <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+                  <p className="text-white text-xs font-bold line-clamp-2 text-left">{p.name}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : status === "error" ? (
+        <div className="flex-1 flex flex-col items-center justify-center px-8 text-center" data-testid="state-error">
+          <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center mb-6">
+            <RefreshCw className="w-9 h-9 text-white" />
+          </div>
+          <h2 className="text-white text-2xl font-black mb-2">Couldn't load the image</h2>
+          <p className="text-white/70 text-sm mb-8 max-w-[280px]">
+            Something went wrong preparing your Story. Please try again.
+          </p>
+          <button
+            type="button"
+            onClick={startAuto}
+            className="tactile-btn bg-white text-black w-full max-w-[320px] py-4 text-lg flex items-center justify-center gap-2"
+            data-testid="button-retry"
+          >
+            <RefreshCw className="w-5 h-5" />
+            Try again
+          </button>
+        </div>
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center px-8 text-center" data-testid="state-empty">
+          <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center mb-6">
+            <ShoppingBag className="w-9 h-9 text-white" />
+          </div>
+          <h2 className="text-white text-2xl font-black mb-2">No image yet</h2>
+          <p className="text-white/70 text-sm max-w-[280px]">
+            We don't have a Story image for this order yet. Please check back shortly.
+          </p>
+        </div>
       )}
     </div>
   );
