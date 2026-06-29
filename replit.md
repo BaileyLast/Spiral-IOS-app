@@ -24,7 +24,7 @@ Simple, everyday language. No emojis.
 
 ## Talking to Spiral Core
 
-- `VITE_API_BASE_URL` points the client at Spiral Core (`https://api.joinspiral.app`). When unset (local dev against a co-located server) calls fall back to the current origin.
+- `VITE_API_BASE_URL` points the client at Spiral Core. It is baked in at **build time**. When unset, the client defaults to the production Core (`https://api.joinspiral.app`) — see `DEFAULT_API_BASE_URL` in `queryClient.ts`. This default is what makes the native iOS build work: that bundle has no env vars, so without it every request (including login) would hit the app's own `capacitor://localhost` origin and fail. Set the env var only to override the target (e.g. a staging Core).
 - `client/src/lib/queryClient.ts` is the single networking layer:
   - `withApiBase(url)` prefixes relative `/api/...` paths with `VITE_API_BASE_URL` (absolute URLs pass through). Applied to both `apiRequest` and the default React Query `getQueryFn`.
   - Auth is a **bearer token**. `setAuthToken(token)` / `getAuthToken()` persist it in localStorage (`spiral_auth_token`); every request sends `Authorization: Bearer <token>` when present. Requests also keep `credentials: "include"` so cookie-based sessions still work if Core uses them.

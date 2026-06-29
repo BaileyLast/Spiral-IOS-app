@@ -35,9 +35,11 @@ So the steps below are done on a Mac with Xcode.
    npx cap sync ios
    ```
 
-> The Story share talks to the Spiral backend at `https://api.joinspiral.app`.
-> That address is baked into the build. If you ever need to point at a different
-> backend, set `VITE_API_BASE_URL` before `npm run build`.
+> The app talks to the Spiral backend at `https://api.joinspiral.app`. That
+> address is the built-in default, so a plain `npm run build` on your Mac will
+> point the app at the live backend — you do not need to set anything for
+> sign-in to work. If you ever need to point at a different backend (e.g. a
+> staging server), set `VITE_API_BASE_URL` before `npm run build`.
 
 ## Open it in Xcode
 

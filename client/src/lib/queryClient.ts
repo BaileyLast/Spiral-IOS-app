@@ -1,10 +1,13 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 // All API calls target the Spiral Core backend (single source of truth).
-// Set VITE_API_BASE_URL to the Core origin (e.g. https://api.joinspiral.app).
-// When unset (local dev against a co-located server), calls fall back to the
-// current origin so relative URLs keep working.
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
+// VITE_API_BASE_URL overrides the target (e.g. to point at a staging Core).
+// When unset, we default to the production Core. This matters for the native
+// iOS build: it is bundled without env vars, so without a baked-in default the
+// app would call its own capacitor://localhost origin (which has no API) and
+// every request — including login — would fail.
+const DEFAULT_API_BASE_URL = "https://api.joinspiral.app";
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? DEFAULT_API_BASE_URL).replace(/\/+$/, "");
 
 // Hard cap on how long a single request may hang before failing. On mobile a
 // request can otherwise stay pending forever on a dropped connection; this
