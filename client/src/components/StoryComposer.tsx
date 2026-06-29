@@ -25,6 +25,15 @@ interface StoryComposerProps {
   creativeUrls?: (string | null | undefined)[];
   /** Purchased product images, used as the fallback when no brand creative exists. */
   products?: StoryProduct[];
+  /**
+   * True while the source images are still being fetched from Core. Keeps the
+   * composer in its loading state instead of flashing the empty state.
+   */
+  sourcePending?: boolean;
+  /** True when fetching the source images from Core failed. Shows the error state. */
+  sourceError?: boolean;
+  /** Re-runs the Core source fetch when the shopper taps "Try again". */
+  onRetrySource?: () => void;
 }
 
 function roundRect(
@@ -223,6 +232,9 @@ export default function StoryComposer({
   shopUrl,
   creativeUrls,
   products,
+  sourcePending,
+  sourceError,
+  onRetrySource,
 }: StoryComposerProps) {
   const { toast } = useToast();
   const [composed, setComposed] = useState<string | null>(null);
@@ -256,6 +268,17 @@ export default function StoryComposer({
     const version = ++buildVersion.current;
     setCopied(false);
     setComposed(null);
+    // The source images come from Core: stay in loading while that request is
+    // in flight, and surface the error state if it failed — only decide
+    // "empty" once Core has answered with nothing usable.
+    if (sourcePending) {
+      setStatus("loading");
+      return;
+    }
+    if (sourceError) {
+      setStatus("error");
+      return;
+    }
     setStatus("loading");
     if (!creatives.length && !productUrls.length) {
       setStatus("empty");
@@ -285,9 +308,20 @@ export default function StoryComposer({
   useEffect(() => {
     if (open) void build();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, sourceKey]);
+  }, [open, sourceKey, sourcePending, sourceError]);
 
   if (!open) return null;
+
+  // "Try again" re-runs the Core fetch when that's what failed; otherwise it
+  // just rebuilds from the images we already have (e.g. an image-load failure).
+  const handleRetry = () => {
+    if (sourceError) {
+      setStatus("loading");
+      onRetrySource?.();
+      return;
+    }
+    void build();
+  };
 
   const close = () => {
     setComposed(null);
@@ -427,7 +461,7 @@ export default function StoryComposer({
           </p>
           <button
             type="button"
-            onClick={() => void build()}
+            onClick={handleRetry}
             className="tactile-btn bg-white text-black w-full max-w-[320px] py-4 text-lg flex items-center justify-center gap-2"
             data-testid="button-retry"
           >

@@ -67,6 +67,15 @@ function BrandHandle({ handle, className = "" }: { handle: string; className?: s
   );
 }
 
+// Shape of GET /api/customer/orders/:id/story-image from Spiral Core. When
+// `imageUrl` is non-null the shopper posts that single image; otherwise the app
+// assembles a collage from `productImages` (skipping any with no image).
+interface StoryImageResponse {
+  mode: string;
+  imageUrl: string | null;
+  productImages?: { productId: string; imageUrl: string | null }[];
+}
+
 function getStatusLabel(order: Order) {
   if (order.status === "cancelled") return "cancelled";
   if (order.status === "refunded") return "refunded";
@@ -113,6 +122,14 @@ export default function OrderDetail() {
   >({
     queryKey: ["/api/brands"],
     enabled: !!orderId,
+  });
+
+  // What the shopper should post for this order, fetched from Spiral Core only
+  // when the composer is open. Core is the single source of truth for the
+  // Story creative; we no longer build it from the order object.
+  const storyImageQuery = useQuery<StoryImageResponse>({
+    queryKey: ["/api/customer/orders", orderId, "story-image"],
+    enabled: !!orderId && !isMock && showComposer,
   });
 
   const markReceivedMutation = useMutation({
@@ -190,12 +207,41 @@ export default function OrderDetail() {
   const rawHandle = (order.merchantInstagramHandle || "").replace(/^@/, "");
   const orderNumber = order.shopifyOrderId.slice(-4);
 
-  // Purchased products that carry a usable image, handed to the Story composer
-  // to build the product-photo template (used when the merchant hasn't supplied
-  // a ready-made creative for this order).
-  const storyProducts = lineItems
+  // Purchased products that carry a usable image. Used only for the dev mock
+  // preview now; real orders source their Story creative from Core below.
+  const mockStoryProducts = lineItems
     .filter((item) => typeof item.imageUrl === "string" && /^https?:\/\//i.test(item.imageUrl))
     .map((item) => ({ name: lineItemDisplayName(item), imageUrl: item.imageUrl as string }));
+
+  // Map Core's story-image response to the composer. A single `imageUrl` is the
+  // ready-made creative; otherwise pass the per-product pieces (dropping any
+  // without an image) so the composer assembles the collage.
+  const storyImage = storyImageQuery.data;
+  const endpointCreativeUrls = storyImage?.imageUrl ? [storyImage.imageUrl] : [];
+  const endpointProducts =
+    storyImage && !storyImage.imageUrl
+      ? (storyImage.productImages ?? [])
+          .filter((p) => typeof p.imageUrl === "string" && /^https?:\/\//i.test(p.imageUrl as string))
+          .map((p) => ({ name: "", imageUrl: p.imageUrl as string }))
+      : [];
+
+  // Dev mocks have no Core endpoint, so they keep sourcing from the order object.
+  const composerCreativeUrls = isMock ? [order.storyCreativeUrl] : endpointCreativeUrls;
+  const composerProducts = isMock ? mockStoryProducts : endpointProducts;
+
+  // Keep the composer in its loading state while Core is being asked (including
+  // the first render after it opens, before the fetch flips to "fetching", which
+  // is when status is still "pending"), and surface a retryable error state once
+  // the request has settled on a failure.
+  const sourcePending =
+    !isMock &&
+    showComposer &&
+    (storyImageQuery.isPending || storyImageQuery.fetchStatus === "fetching");
+  const sourceError =
+    !isMock &&
+    showComposer &&
+    storyImageQuery.isError &&
+    storyImageQuery.fetchStatus !== "fetching";
 
   // Resolve the brand's public shop URL by matching the merchant handle, guarded
   // to http(s) only so the composer never passes a non-web link sticker.
@@ -696,8 +742,11 @@ export default function OrderDetail() {
         onClose={() => setShowComposer(false)}
         merchantHandle={rawHandle}
         shopUrl={shopUrl}
-        creativeUrls={[order.storyCreativeUrl]}
-        products={storyProducts}
+        creativeUrls={composerCreativeUrls}
+        products={composerProducts}
+        sourcePending={sourcePending}
+        sourceError={sourceError}
+        onRetrySource={() => storyImageQuery.refetch()}
       />
     </div>
   );
