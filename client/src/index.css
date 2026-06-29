@@ -259,6 +259,12 @@
     padding-top: env(safe-area-inset-top, 0px);
   }
 
+  /* Full-height screens that must fit exactly inside the html safe-area padding
+     (so short, non-scrolling screens like Splash/Login don't slide vertically). */
+  .min-h-screen-safe {
+    min-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  }
+
   /* Brand gradient utilities */
   .bg-cta-gradient {
     background: linear-gradient(135deg, #A8F5E0, #4ECCA3, #2BAE88);

@@ -1,0 +1,44 @@
+aileys-MacBook-Pro Spiral-IOS-app % cd ~/Downloads/spiral-customer
+cd: no such file or directory: /Users/bailey/Downloads/spiral-customer
+bailey@Baileys-MacBook-Pro Spiral-IOS-app % git pull
+There is no tracking information for the current branch.
+Please specify which branch you want to merge with.
+See git-pull(1) for details.
+
+    git pull <remote> <branch>
+
+If you wish to set tracking information for this branch you can do so with:
+
+    git branch --set-upstream-to=<remote>/<branch> main
+
+bailey@Baileys-MacBook-Pro Spiral-IOS-app % npm run build
+
+> rest-express@1.0.0 build
+> vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+
+vite v5.4.20 building for production...
+transforming (2) ../vite/modulepreload-polyfill.jsBrowserslist: browsers data (caniuse-lite) is 8 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+transforming (4) src/App.tsx
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 2045 modules transformed.
+../dist/public/index.html                                                   0.89 kB │ gzip:   0.49 kB
+../dist/public/assets/Spiral_logo_(1)_1779303755271-t8fe3xdl.png           67.83 kB
+../dist/public/assets/Spiral_logo_transparent_1779298156773-BF2aaIlK.png  115.01 kB
+../dist/public/assets/index-CFR8xaX0.css                                   96.97 kB │ gzip:  15.93 kB
+../dist/public/assets/index-CmcH7KqG.js                                   484.73 kB │ gzip: 145.52 kB
+✓ built in 2.50s
+
+  dist/index.js  3.5kb
+
+⚡ Done in 9ms
+bailey@Baileys-MacBook-Pro Spiral-IOS-app % npx cap sync ios
+✔ Copying web assets from public to ios/App/App/public in 8.47ms
+✔ Creating capacitor.config.json in ios/App/App in 853.67μs
+✔ copy ios in 42.93ms
+✔ Updating iOS plugins in 9.43ms
+✔ Updating iOS native dependencies with pod install in 5.86s
+✔ update ios in 5.93s
+[info] Sync finished in 6.114s
+bailey@Baileys-MacBook-Pro Spiral-IOS-app % 

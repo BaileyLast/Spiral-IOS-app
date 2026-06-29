@@ -1,0 +1,116 @@
+  git pull <remote> <branch>
+
+If you wish to set tracking information for this branch you can do so with:
+
+    git branch --set-upstream-to=<remote>/<branch> main
+
+bailey@Baileys-MacBook-Pro Spiral-IOS-app % npm run build
+
+> rest-express@1.0.0 build
+> vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+
+vite v5.4.20 building for production...
+transforming (2) ../vite/modulepreload-polyfill.jsBrowserslist: browsers data (caniuse-lite) is 8 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+transforming (4) src/App.tsx
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 2045 modules transformed.
+../dist/public/index.html                                                   0.89 kB │ gzip:   0.49 kB
+../dist/public/assets/Spiral_logo_(1)_1779303755271-t8fe3xdl.png           67.83 kB
+../dist/public/assets/Spiral_logo_transparent_1779298156773-BF2aaIlK.png  115.01 kB
+../dist/public/assets/index-CFR8xaX0.css                                   96.97 kB │ gzip:  15.93 kB
+../dist/public/assets/index-CmcH7KqG.js                                   484.73 kB │ gzip: 145.52 kB
+✓ built in 2.50s
+
+  dist/index.js  3.5kb
+
+⚡ Done in 9ms
+bailey@Baileys-MacBook-Pro Spiral-IOS-app % npx cap sync ios
+✔ Copying web assets from public to ios/App/App/public in 8.47ms
+✔ Creating capacitor.config.json in ios/App/App in 853.67μs
+✔ copy ios in 42.93ms
+✔ Updating iOS plugins in 9.43ms
+✔ Updating iOS native dependencies with pod install in 5.86s
+✔ update ios in 5.93s
+[info] Sync finished in 6.114s
+bailey@Baileys-MacBook-Pro Spiral-IOS-app % git remote -v
+gitsafe-backup	git://gitsafe:5418/backup.git (fetch)
+gitsafe-backup	git://gitsafe:5418/backup.git (push)
+subrepl-4pnmlqub	git+ssh://git@ssh.worf.replit.dev:/home/runner/workspace (fetch)
+subrepl-4pnmlqub	git+ssh://git@ssh.worf.replit.dev:/home/runner/workspace (push)
+subrepl-5oot557r	git+ssh://git@ssh.picard.replit.dev:/home/runner/workspace (fetch)
+subrepl-5oot557r	git+ssh://git@ssh.picard.replit.dev:/home/runner/workspace (push)
+subrepl-c9dw23r6	git+ssh://git@ssh.worf.replit.dev:/home/runner/workspace (fetch)
+subrepl-c9dw23r6	git+ssh://git@ssh.worf.replit.dev:/home/runner/workspace (push)
+subrepl-djobj9lm	git+ssh://git@ssh.worf.replit.dev:/home/runner/workspace (fetch)
+subrepl-djobj9lm	git+ssh://git@ssh.worf.replit.dev:/home/runner/workspace (push)
+subrepl-dq9kqznd	git+ssh://git@ssh.worf.replit.dev:/home/runner/workspace (fetch)
+subrepl-dq9kqznd	git+ssh://git@ssh.worf.replit.dev:/home/runner/workspace (push)
+subrepl-e0jhxqdg	git+ssh://git@ssh.worf.replit.dev:/home/runner/workspace (fetch)
+subrepl-e0jhxqdg	git+ssh://git@ssh.worf.replit.dev:/home/runner/workspace (push)
+subrepl-mdfilhr7	git+ssh://git@ssh.worf.replit.dev:/home/runner/workspace (fetch)
+subrepl-mdfilhr7	git+ssh://git@ssh.worf.replit.dev:/home/runner/workspace (push)
+subrepl-uweyo2n3	git+ssh://git@ssh.worf.replit.dev:/home/runner/workspace (fetch)
+subrepl-uweyo2n3	git+ssh://git@ssh.worf.replit.dev:/home/runner/workspace (push)
+subrepl-y8xdvtw8	git+ssh://git@ssh.worf.replit.dev:/home/runner/workspace (fetch)
+subrepl-y8xdvtw8	git+ssh://git@ssh.worf.replit.dev:/home/runner/workspace (push)
+bailey@Baileys-MacBook-Pro Spiral-IOS-app % git clone https://github.com/BaileyLast/Spiral-IOS-app.git ~/Desktop/spiral-app
+Cloning into '/Users/bailey/Desktop/spiral-app'...
+remote: Enumerating objects: 4359, done.
+remote: Total 4359 (delta 0), reused 0 (delta 0), pack-reused 4359 (from 1)
+Receiving objects: 100% (4359/4359), 98.00 MiB | 25.50 MiB/s, done.
+Resolving deltas: 100% (3380/3380), done.
+bailey@Baileys-MacBook-Pro Spiral-IOS-app % cd ~/Desktop/spiral-app
+bailey@Baileys-MacBook-Pro spiral-app % npm install
+npm warn deprecated @esbuild-kit/esm-loader@2.6.5: Merged into tsx: https://tsx.is
+npm warn deprecated @esbuild-kit/core-utils@3.3.2: Merged into tsx: https://tsx.is
+npm warn deprecated whatwg-encoding@3.1.1: Use @exodus/bytes instead for a more spec-conformant and faster implementation
+
+added 644 packages, and audited 645 packages in 8s
+
+95 packages are looking for funding
+  run `npm fund` for details
+
+26 vulnerabilities (3 low, 12 moderate, 11 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+bailey@Baileys-MacBook-Pro spiral-app % npm run build
+
+> rest-express@1.0.0 build
+> vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+
+vite v5.4.20 building for production...
+transforming (3) src/main.tsxBrowserslist: browsers data (caniuse-lite) is 8 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+transforming (4) src/App.tsx
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 1740 modules transformed.
+../dist/public/index.html                                                   0.89 kB │ gzip:   0.49 kB
+../dist/public/assets/Spiral_logo_(1)_1779303755271-t8fe3xdl.png           67.83 kB
+../dist/public/assets/Spiral_logo_transparent_1779298156773-BF2aaIlK.png  115.01 kB
+../dist/public/assets/index-CI7nkfqu.css                                   90.44 kB │ gzip:  15.03 kB
+../dist/public/assets/index-BzTmbNkd.js                                   467.42 kB │ gzip: 140.55 kB
+✓ built in 2.08s
+
+  dist/index.js  3.5kb
+
+⚡ Done in 12ms
+bailey@Baileys-MacBook-Pro spiral-app % npx cap sync ios
+✔ Copying web assets from public to ios/App/App/public in 11.82ms
+✔ Creating capacitor.config.json in ios/App/App in 1.90ms
+✔ copy ios in 47.42ms
+✔ Updating iOS plugins in 8.64ms
+✔ Updating iOS native dependencies with pod install in 4.28s
+✔ update ios in 4.32s
+[info] Sync finished in 4.52s
+bailey@Baileys-MacBook-Pro spiral-app % npx cap open ios
+✔ Opening the Xcode workspace... in 3.05s
+bailey@Baileys-MacBook-Pro spiral-app % 

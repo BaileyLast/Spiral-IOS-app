@@ -117,7 +117,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-warm safe-top pb-12">
+    <div className="min-h-screen-safe bg-warm safe-top pb-12">
       <main className="px-6 pt-8 space-y-6">
         {/* HERO */}
         <div className="pt-8 pb-2 text-center flex flex-col items-center">

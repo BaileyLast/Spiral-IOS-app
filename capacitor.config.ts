@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: "Spiral",
   webDir: "dist/public",
   ios: {
-    contentInset: "always",
+    contentInset: "never",
     limitsNavigationsToAppBoundDomains: false,
   },
 };
