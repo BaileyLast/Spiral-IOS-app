@@ -696,9 +696,7 @@ export default function OrderDetail() {
         onClose={() => setShowComposer(false)}
         merchantHandle={rawHandle}
         shopUrl={shopUrl}
-        storeName={order.storeName}
-        storeLogo={order.storeLogo}
-        creativeUrl={order.storyCreativeUrl}
+        creativeUrls={[order.storyCreativeUrl]}
         products={storyProducts}
       />
     </div>
