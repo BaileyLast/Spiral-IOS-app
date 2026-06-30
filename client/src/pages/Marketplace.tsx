@@ -463,6 +463,36 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
     setImgErrors((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
   }, []);
 
+  // Distinguish a tap from a swipe on the product carousel. On iOS a horizontal
+  // drag to scroll the carousel was firing the card's click (opening the
+  // product) before the scroll could happen. We record where the finger lands
+  // and flag the gesture as "moved" once it travels past a small threshold; the
+  // card click then only navigates when the gesture was a clean tap, letting any
+  // drag scroll the carousel instead.
+  const TAP_MOVE_THRESHOLD = 10;
+  const TAP_MAX_MS = 500;
+  const dragRef = useRef<{ x: number; y: number; startedAt: number; moved: boolean }>({
+    x: 0,
+    y: 0,
+    startedAt: 0,
+    moved: false,
+  });
+  const handleCarouselTouchStart = useCallback((e: React.TouchEvent) => {
+    const t = e.touches[0];
+    if (!t) return;
+    dragRef.current = { x: t.clientX, y: t.clientY, startedAt: Date.now(), moved: false };
+  }, []);
+  const handleCarouselTouchMove = useCallback((e: React.TouchEvent) => {
+    const t = e.touches[0];
+    if (!t || dragRef.current.moved) return;
+    if (
+      Math.abs(t.clientX - dragRef.current.x) > TAP_MOVE_THRESHOLD ||
+      Math.abs(t.clientY - dragRef.current.y) > TAP_MOVE_THRESHOLD
+    ) {
+      dragRef.current.moved = true;
+    }
+  }, []);
+
   // Hero fallback when there's no IG media: existing first-product image,
   // then IG profile pic, then deterministic gradient+initial.
   const heroFallbackImageUrl =
@@ -550,6 +580,8 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
             <div
               className="flex gap-4 overflow-x-auto pl-4 pr-4 scroll-pl-4 snap-x snap-mandatory scrollbar-none"
               style={{ scrollbarWidth: "none" }}
+              onTouchStart={handleCarouselTouchStart}
+              onTouchMove={handleCarouselTouchMove}
               data-testid={`carousel-products-${testKey}`}
             >
               {carouselProducts.map((p) => {
@@ -569,6 +601,12 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
                     onClick={(e) => {
                       e.stopPropagation();
                       e.preventDefault();
+                      // Only a clean, quick tap opens the product. A swipe
+                      // (moved past the threshold) scrolls the carousel, and a
+                      // press-and-hold is ignored so holding the screen never
+                      // counts as a tap.
+                      const heldFor = Date.now() - dragRef.current.startedAt;
+                      if (dragRef.current.moved || heldFor > TAP_MAX_MS) return;
                       openExternalUrl(p.productUrl);
                     }}
                   >
