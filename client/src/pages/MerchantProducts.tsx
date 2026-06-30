@@ -181,7 +181,7 @@ export default function MerchantProducts() {
   const palette = paletteFor(brand?.instagramUsername || displayName);
 
   return (
-    <div className="min-h-screen safe-top bg-white">
+    <div className="min-h-screen-safe bg-white">
       <header className="px-4 pt-6 pb-4 sticky top-0 bg-white z-10 border-b border-gray-100">
         <div className="flex items-center gap-2">
           <button

@@ -55,7 +55,7 @@ export default function InstagramHelp() {
         }}
       />
       
-      <div className="relative z-10 flex-1 flex flex-col px-6 py-8 overflow-y-auto">
+      <div className="relative z-10 flex-1 flex flex-col px-6 py-8 overflow-y-auto safe-top">
         <button 
           onClick={() => setLocation("/home")}
           className="flex items-center gap-2 text-white/80 hover:text-white transition-colors mb-6 w-fit"

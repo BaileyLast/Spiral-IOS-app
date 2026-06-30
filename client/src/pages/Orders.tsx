@@ -426,7 +426,7 @@ export default function Orders() {
   const isSoftBanned = me?.accountStatus === "soft_banned";
 
   return (
-    <div className="min-h-screen bg-warm safe-top pb-12">
+    <div className="min-h-screen-safe bg-warm pb-12">
       <header className="px-6 pt-10 pb-6">
         <h1
           className="text-3xl font-black tracking-tight text-gray-900 mb-2"

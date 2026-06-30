@@ -164,7 +164,7 @@ export default function OrderDetail() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-warm">
+      <div className="min-h-screen-safe flex items-center justify-center bg-warm">
         <Loader2 className="w-8 h-8 animate-spin text-[#4ECCA3]" />
       </div>
     );
@@ -172,7 +172,7 @@ export default function OrderDetail() {
 
   if (!order) {
     return (
-      <div className="min-h-screen safe-top bg-warm">
+      <div className="min-h-screen-safe bg-warm">
         <header className="flex items-center px-4 h-14">
           <Link href="/discounts">
             <Button variant="ghost" size="icon" className="text-gray-500" data-testid="button-back">
@@ -299,7 +299,7 @@ export default function OrderDetail() {
       ];
 
   return (
-    <div className="min-h-screen safe-top bg-warm pb-12">
+    <div className="min-h-screen-safe bg-warm pb-12">
       <header className="px-4 py-4 flex items-center">
         <Link href="/discounts">
           <button

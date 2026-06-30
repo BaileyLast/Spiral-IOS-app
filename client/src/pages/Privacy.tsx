@@ -8,7 +8,7 @@ export default function Privacy() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-50 bg-background border-b px-4 py-3">
+      <header className="sticky top-0 z-50 bg-background border-b px-4 py-3 safe-top">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
@@ -22,7 +22,7 @@ export default function Privacy() {
         </div>
       </header>
 
-      <main className="p-4 pb-8 max-w-2xl mx-auto">
+      <main className="p-4 pb-8 max-w-2xl mx-auto safe-bottom">
         <Card>
           <CardHeader>
             <CardTitle>Spiral Privacy Policy</CardTitle>

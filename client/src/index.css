@@ -171,9 +171,13 @@
     overscroll-behavior: none;
   }
   
-  /* Safe area insets for mobile */
+  /* Safe areas are owned per-screen, not globally on <html>. The app shell adds the
+     top inset for bottom-nav pages (see App.tsx), full-bleed colored screens use the
+     safe-top / safe-bottom utilities so their background can still extend under the
+     notch and home-indicator, and the fixed nav / Story overlay carry their own
+     env() insets. A global html padding would white-bar the full-bleed screens and
+     double the inset on screens that already pad themselves. */
   html {
-    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     overscroll-behavior: none;
   }
 }

@@ -67,7 +67,7 @@ export default function CustomerHome() {
       : null;
 
   return (
-    <div className="min-h-screen bg-warm safe-top pb-12">
+    <div className="min-h-screen-safe bg-warm pb-12">
       <main className="px-6 pt-10 space-y-6">
         {profile && !profile.instagramHandle && <HomeInstagramConnect />}
 

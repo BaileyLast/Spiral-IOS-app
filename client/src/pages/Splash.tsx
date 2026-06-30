@@ -6,7 +6,7 @@ export default function Splash() {
 
   return (
     <div
-      className="min-h-screen-safe flex flex-col safe-top bg-gradient-to-b from-[#5FD9B0] via-[#4ECCA3] to-[#3FB893]"
+      className="min-h-screen flex flex-col safe-top bg-gradient-to-b from-[#5FD9B0] via-[#4ECCA3] to-[#3FB893]"
       style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
       data-testid="page-splash"
     >

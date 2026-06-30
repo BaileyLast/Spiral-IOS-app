@@ -127,7 +127,7 @@ function AppContent() {
   return (
     <div className="min-h-screen md:bg-[#F4F1EC] md:py-8">
       <ScrollToTop />
-      <div className="min-h-screen bg-white md:min-h-[calc(100vh-4rem)] md:max-w-md md:mx-auto md:rounded-[2.5rem] md:shadow-[0_30px_80px_-20px_rgba(0,0,0,0.25)] md:overflow-hidden md:relative">
+      <div className={`min-h-screen bg-white md:min-h-[calc(100vh-4rem)] md:max-w-md md:mx-auto md:rounded-[2.5rem] md:shadow-[0_30px_80px_-20px_rgba(0,0,0,0.25)] md:overflow-hidden md:relative${hideBottomNav ? "" : " safe-top"}`}>
         {!hideBottomNav && location !== "/discounts" && location !== "/home" && <ConnectInstagramHeaderCTA />}
         <main className={hideBottomNav ? "" : "pb-20"}>
           <Router />

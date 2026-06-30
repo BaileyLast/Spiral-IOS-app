@@ -792,7 +792,7 @@ export default function Marketplace() {
   };
 
   return (
-    <div className="min-h-screen bg-warm safe-top pb-12">
+    <div className="min-h-screen-safe bg-warm pb-12">
       <header className="px-6 pt-10 pb-4 space-y-4">
         <h1
           className="text-3xl font-black tracking-tight text-gray-900"

@@ -82,7 +82,7 @@ export default function Profile() {
 
   if (profileLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-warm">
+      <div className="min-h-screen-safe flex items-center justify-center bg-warm">
         <Loader2 className="w-8 h-8 animate-spin text-[#4ECCA3]" />
       </div>
     );
@@ -96,7 +96,7 @@ export default function Profile() {
   const ordersCompleted = stats?.ordersCompleted ?? 0;
 
   return (
-    <div className="min-h-screen bg-warm safe-top pb-12">
+    <div className="min-h-screen-safe bg-warm pb-12">
       <main className="px-6 pt-10 space-y-6">
         {/* Profile header card */}
         <div className="creator-card p-6 flex flex-col items-center text-center" data-testid="card-profile-header">
