@@ -58,6 +58,13 @@ export default function Login() {
         localStorage.setItem("spiral_signup_token", data.signupToken);
       }
 
+      // A fully verified sign-in has no pending signup, so drop any stale signup
+      // token left over from an abandoned earlier signup. Otherwise VerifyEmail
+      // could replay it on a future visit.
+      if (variables.mode === "login" && data.emailVerified) {
+        localStorage.removeItem("spiral_signup_token");
+      }
+
       if (variables.mode === "signup") {
         setLocation("/verify-email");
       } else if (!data.emailVerified) {

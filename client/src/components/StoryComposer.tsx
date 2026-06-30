@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { X, Loader2, Instagram, Copy, Check, ShieldCheck, ShoppingBag, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { openExternalUrl } from "@/lib/native";
 
 // Plain, CMA-friendly disclosure label. This is the working default rendered in
 // the app; swap DISCLOSURE_LABEL for a Spiral-branded graphic later.
@@ -360,7 +361,7 @@ export default function StoryComposer({
       }
       // 3) Fallback: save the image and open Instagram for a manual post.
       downloadDataUrl(composed, "spiral-story.jpg");
-      window.open(`https://instagram.com/${merchantHandle.replace(/^@/, "")}`, "_blank");
+      await openExternalUrl(`https://instagram.com/${merchantHandle.replace(/^@/, "")}`);
       toast({
         title: "Photo saved",
         description: "Open Instagram, add it to your Story, then paste the tag.",

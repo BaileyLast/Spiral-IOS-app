@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Store, Sparkles, X, Instagram, ChevronRight, Search, Check } from "lucide-react";
 import { getCountryByCode, detectCountryFromLocale } from "@/lib/countries";
+import { openExternalUrl } from "@/lib/native";
 import { normalizeCategoryForDisplay, type BrandCategory } from "@shared/categories";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
@@ -565,7 +566,11 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
                     rel="noopener noreferrer"
                     className="flex-shrink-0 w-[44%] snap-start rounded-lg bg-white shadow-lg p-2 hover-elevate active-elevate-2"
                     data-testid={`link-product-${p.id}`}
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      openExternalUrl(p.productUrl);
+                    }}
                   >
                     <div className="w-full aspect-square bg-gray-100 rounded-md overflow-hidden">
                       {showThumbImage && p.image ? (

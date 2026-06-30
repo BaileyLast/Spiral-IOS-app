@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { ArrowLeft, Instagram, CheckCircle2, ExternalLink, Link2 } from "lucide-react";
 import { SiFacebook } from "react-icons/si";
+import { openExternalUrl } from "@/lib/native";
 const spiralLogoUrl = "/spiral-logo.png";
 
 export default function InstagramHelp() {
@@ -159,6 +160,10 @@ export default function InstagramHelp() {
           rel="noopener noreferrer"
           className="flex items-center justify-center gap-2 w-full h-12 text-white/80 hover:text-white transition-colors"
           data-testid="link-instagram-help"
+          onClick={(e) => {
+            e.preventDefault();
+            openExternalUrl("https://help.instagram.com/502981923235522");
+          }}
         >
           <span>Instagram's official guide</span>
           <ExternalLink className="w-4 h-4" />

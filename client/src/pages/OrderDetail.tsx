@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import type { Order } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
+import { openExternalUrl } from "@/lib/native";
 import { useToast } from "@/hooks/use-toast";
 import StoryComposer from "@/components/StoryComposer";
 import {
@@ -613,6 +614,10 @@ export default function OrderDetail() {
                       rel="noopener noreferrer"
                       className="flex-shrink-0 w-40 snap-start"
                       data-testid={`link-line-item-${name}`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        openExternalUrl(productUrl);
+                      }}
                     >
                       {card}
                     </a>

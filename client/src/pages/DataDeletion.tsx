@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Mail, Trash2 } from "lucide-react";
 import { useLocation } from "wouter";
+import { openExternalUrl } from "@/lib/native";
 
 export default function DataDeletion() {
   const [, setLocation] = useLocation();
@@ -99,6 +100,10 @@ export default function DataDeletion() {
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="text-primary hover:underline ml-1"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    openExternalUrl("https://www.facebook.com/settings?tab=business_tools");
+                  }}
                 >
                   Facebook Business Integrations settings
                 </a>.

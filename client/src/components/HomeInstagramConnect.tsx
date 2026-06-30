@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { openExternalUrl } from "@/lib/native";
 import { useToast } from "@/hooks/use-toast";
 import {
   CheckCircle,
@@ -101,7 +102,7 @@ export default function HomeInstagramConnect() {
       await navigator.clipboard.writeText(spiralCode.code);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-      window.open("https://ig.me/m/joinspiral", "_blank");
+      await openExternalUrl("https://ig.me/m/joinspiral");
     } catch (error) {
       toast({
         title: "Copy failed",

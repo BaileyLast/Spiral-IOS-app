@@ -111,6 +111,7 @@ export default function ManageAccount() {
     onSuccess: () => {
       setAuthToken(null);
       localStorage.removeItem("spiral_customer");
+      localStorage.removeItem("spiral_signup_token");
       queryClient.clear();
       setDeleteOpen(false);
       toast({ title: "Account deleted", description: "Your Spiral account has been permanently removed." });

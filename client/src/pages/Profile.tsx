@@ -70,6 +70,7 @@ export default function Profile() {
     onSuccess: () => {
       setAuthToken(null);
       localStorage.removeItem("spiral_customer");
+      localStorage.removeItem("spiral_signup_token");
       queryClient.clear();
       setLocation("/");
     },

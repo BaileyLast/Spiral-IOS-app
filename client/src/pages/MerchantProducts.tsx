@@ -5,6 +5,7 @@ import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { useLocation, useRoute } from "wouter";
 import { ChevronLeft, Store, ExternalLink, Instagram } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { openExternalUrl } from "@/lib/native";
 import spiralLogoUrl from "@assets/Spiral_logo_transparent_1779298156773.png";
 
 interface DiscountTier {
@@ -211,6 +212,10 @@ export default function MerchantProducts() {
                 className="w-9 h-9 rounded-full flex items-center justify-center hover-elevate"
                 aria-label="Visit store"
                 data-testid="link-visit-store"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (brand.storefrontUrl) openExternalUrl(brand.storefrontUrl);
+                }}
               >
                 <ExternalLink className="w-4 h-4 text-gray-500" />
               </a>
@@ -312,6 +317,10 @@ export default function MerchantProducts() {
                   rel="noopener noreferrer"
                   className="block rounded-2xl bg-gray-50 border border-gray-100 overflow-hidden hover-elevate active-elevate-2"
                   data-testid={`card-product-${p.id}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    openExternalUrl(p.productUrl);
+                  }}
                 >
                   <div className="relative aspect-square bg-white flex items-center justify-center overflow-hidden">
                     {p.image ? (
