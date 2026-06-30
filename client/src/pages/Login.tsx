@@ -23,6 +23,7 @@ interface AuthResponse {
   instagramHandle?: string;
   followerCount?: number;
   token?: string;
+  signupToken?: string;
 }
 
 export default function Login() {
@@ -49,6 +50,13 @@ export default function Login() {
     onSuccess: (data: AuthResponse, variables) => {
       if (data.token) setAuthToken(data.token);
       localStorage.setItem("spiral_customer", JSON.stringify(data));
+      // The native iOS WebView does not persist the cross-site session cookie
+      // (connect.sid, SameSite=None) that the web app relies on, so carry the
+      // signup identity explicitly: store the signupToken and replay it on the
+      // verify/resend calls. See VerifyEmail.tsx.
+      if (data.signupToken) {
+        localStorage.setItem("spiral_signup_token", data.signupToken);
+      }
 
       if (variables.mode === "signup") {
         setLocation("/verify-email");

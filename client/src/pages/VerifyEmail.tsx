@@ -24,10 +24,15 @@ export default function VerifyEmail() {
 
   const verifyMutation = useMutation({
     mutationFn: async (verificationCode: string) => {
-      const response = await apiRequest("POST", "/api/customer/verify-email", { code: verificationCode });
+      // The native iOS WebView drops the cross-site session cookie, so the
+      // backend can't find the pending signup by cookie. Replay the signupToken
+      // saved at signup (Login.tsx) so it links the code to the right signup.
+      const signupToken = localStorage.getItem("spiral_signup_token") || undefined;
+      const response = await apiRequest("POST", "/api/customer/verify-email", { code: verificationCode, signupToken });
       return response.json();
     },
     onSuccess: (data) => {
+      localStorage.removeItem("spiral_signup_token");
       if (data.token) setAuthToken(data.token);
       localStorage.setItem("spiral_customer", JSON.stringify({
         id: data.id,
@@ -53,7 +58,8 @@ export default function VerifyEmail() {
 
   const resendMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/customer/resend-code");
+      const signupToken = localStorage.getItem("spiral_signup_token") || undefined;
+      const response = await apiRequest("POST", "/api/customer/resend-code", { signupToken });
       return response.json();
     },
     onSuccess: () => {
