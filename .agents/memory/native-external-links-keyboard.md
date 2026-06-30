@@ -9,12 +9,25 @@ In the Capacitor iOS WebView (WKWebView), `window.open(url, "_blank")` and plain
 `<a target="_blank">` clicks **silently do nothing** — there is no browser tab to
 open into, so "open Instagram / open this product / open help" links appear dead.
 
-**Rule:** every external (off-app) URL must go through `openExternalUrl()` in
-`client/src/lib/native.ts`, which calls the `@capacitor/browser` `Browser.open()`
-on native (an in-app Safari view that also hands off to the Instagram app for
-ig.me / instagram.com), and falls back to `window.open` on the web. For anchors,
-keep `href` + `target="_blank"` for web accessibility/long-press and add an
-`onClick` that `preventDefault()`s and calls `openExternalUrl`.
+**Rule:** every external (off-app) URL must go through `client/src/lib/native.ts`.
+Two helpers, two purposes:
+- `openExternalUrl()` — for ordinary web pages you want to keep the user inside
+  the app for (product pages, help articles). Uses `@capacitor/browser`
+  `Browser.open()` (an in-app Safari view = SFSafariViewController) on native,
+  `window.open` on web.
+- `openInstagram()` — for links that must launch the **native Instagram app**.
+  Uses `@capacitor/app-launcher` `AppLauncher.openUrl()` (= `UIApplication.open`),
+  falling back to `openExternalUrl` if it reports `completed:false` or throws.
+
+For anchors, keep `href` + `target="_blank"` for web accessibility/long-press and
+add an `onClick` that `preventDefault()`s and calls the right helper.
+
+**CRITICAL gotcha:** `Browser.open()` / SFSafariViewController **NEVER hands off
+to another app** — Instagram universal links (`ig.me`, `instagram.com`) opened
+through it always render the *web* version, even when the IG app is installed.
+Only `UIApplication.open` (via `@capacitor/app-launcher`) triggers universal-link
+app handoff. HTTPS universal links need NO `LSApplicationQueriesSchemes` /
+Info.plist entry (those are only for custom-scheme `canOpenUrl` checks).
 
 **Why:** native shoppers reported tapping external links and nothing happening.
 **How to apply:** when adding ANY link that leaves the app, route it through
@@ -32,6 +45,6 @@ the focused field into view. This only works because `body`/`html` are scrollabl
 
 ## Capacitor plugin versions
 Plugins must match the installed `@capacitor/core` major (currently 7). Installing
-`@capacitor/browser` / `@capacitor/keyboard` without a version pulls v8 and fails
-the peer-dep resolve — pin `@^7.0.0`. After adding plugins, the Mac must run
-`npm install` + `npx cap sync ios` before the next native build.
+`@capacitor/browser` / `@capacitor/keyboard` / `@capacitor/app-launcher` without a
+version pulls v8 and fails the peer-dep resolve — pin `@^7`. After adding plugins,
+the Mac must run `npm install` + `npx cap sync ios` before the next native build.

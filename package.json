@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1058.0",
+    "@capacitor/app-launcher": "^7.0.4",
     "@capacitor/browser": "^7.0.5",
     "@capacitor/cli": "^7.6.6",
     "@capacitor/core": "^7.6.6",
