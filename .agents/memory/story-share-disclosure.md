@@ -32,3 +32,16 @@ burns the disclosure in.
 
 **How to apply:** Any change to the share flow must keep the baked-disclosure guarantee on
 the web tiers, and must keep native failures falling through to web tiers.
+
+## Native Story share needs a real Facebook App ID
+`instagram-stories://share?source_application=<id>` REQUIRES a valid Facebook App ID as the
+source. It lives in `ios/App/App/Info.plist` under `IGSourceApplicationID`. If blank,
+`StoryShareViewController` falls back to the bundle id (`app.joinspiral.customer`), which is
+NOT a valid FB App ID — Instagram then opens the Story composer but silently DROPS the
+background image (empty Story). Symptom of a blank/invalid id is "Story opens but my photo
+isn't there," which is easy to mistake for the bridge not firing.
+
+**Why:** Instagram only accepts a shared-sticker payload from an app that identifies itself
+with a recognized Meta app id; no Graph API scopes / app review / business verification are
+needed for this pasteboard handoff — just the id + Instagram installed + the
+`instagram-stories`/`instagram` schemes whitelisted in LSApplicationQueriesSchemes.
