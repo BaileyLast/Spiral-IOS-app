@@ -17,3 +17,4 @@
 - [VITE_ env baked at build](vite-env-baked-at-build.md) — VITE_API_BASE_URL is build-time only & absent on the Mac/native build; client MUST default to prod Core in code or native login hits capacitor://localhost & fails. Core CORS already allows that origin.
 - [Native WebView drops cross-site cookies](native-webview-cookie-drop.md) — cookie-threaded flows (signup→verify) work on web but 401 in the iOS app b/c WKWebView blocks the SameSite=None session cookie; replay the server's signupToken in the JSON body instead.
 - [Story composer image source](story-composer-image-source.md) — ready-made creative else product template; remote imgs need crossOrigin; broken creative falls back not errors; disclosure always baked.
+- [iOS keyboard light-then-dark flash](ios-keyboard-color-scheme-flash.md) — WKWebView keyboard opens wrong appearance then corrects unless color-scheme:light is set in BOTH :root CSS and an index.html meta tag.
