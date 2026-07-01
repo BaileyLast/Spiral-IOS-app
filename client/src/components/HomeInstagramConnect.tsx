@@ -174,6 +174,12 @@ export default function HomeInstagramConnect() {
               className="w-full block !bg-gray-900 text-white text-center px-6 pt-6 pb-5 transition-opacity active:opacity-90"
               data-testid="button-copy-code"
             >
+              <span
+                className="block text-sm font-medium text-gray-300 mb-4 leading-snug"
+                data-testid="text-connect-instruction"
+              >
+                DM this code to @joinspiral to connect your Instagram
+              </span>
               <span className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">
                 Your Spiral code
               </span>
