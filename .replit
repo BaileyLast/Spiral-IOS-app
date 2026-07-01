@@ -51,7 +51,7 @@ integrations = ["javascript_mem_db:1.0.0", "javascript_database:1.0.0"]
 [userenv]
 
 [userenv.shared]
-VITE_API_BASE_URL = "https://api.joinspiral.app"
+VITE_API_BASE_URL = "https://4aa87220-4718-49e1-936d-8ad1fd0ad04a-00-1bnw7yz43h80g.worf.replit.dev"
 
 [postMerge]
 path = "scripts/post-merge.sh"
