@@ -29,20 +29,48 @@ export async function openExternalUrl(url: string): Promise<void> {
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
+// Turn a normal Instagram https link into Instagram's custom app URL scheme
+// (instagram://...). Opening an https link with UIApplication.open just launches
+// Safari (iOS does NOT reliably route a programmatically-opened universal link
+// into the installed app), so to actually open the Instagram APP we must hand it
+// an instagram:// URL. Returns null when we don't recognise the link.
+//   instagram.com/<handle>      -> instagram://user?username=<handle>
+//   ig.me/m/<handle> (DM link)  -> instagram://user?username=<handle>
+// There is no reliable public scheme for a direct DM compose, so we open the
+// profile instead — it's one tap from Message, matching the on-screen steps.
+function instagramAppSchemeUrl(url: string): string | null {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, "").toLowerCase();
+    const parts = u.pathname.split("/").filter(Boolean);
+    if (host === "ig.me" && parts[0] === "m" && parts[1]) {
+      return `instagram://user?username=${encodeURIComponent(parts[1])}`;
+    }
+    if (host === "instagram.com" && parts[0]) {
+      return `instagram://user?username=${encodeURIComponent(parts[0])}`;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 // Open a link that should hand off to the native Instagram app when possible.
-// The in-app Safari view used by openExternalUrl (SFSafariViewController) never
-// launches another app, so Instagram links always showed the web version. Here
-// we use AppLauncher (UIApplication.open), which honours Instagram's universal
-// links (ig.me / instagram.com) and opens the installed app; if the app is not
-// installed iOS opens the link in the system browser instead. If anything fails
-// we fall back to the in-app browser so the link still works.
+// On native we FIRST try Instagram's custom instagram:// scheme (the only thing
+// that opens the actual app); the `instagram` scheme is whitelisted in
+// Info.plist's LSApplicationQueriesSchemes. If the app isn't installed (open
+// returns completed:false or throws) we fall back to opening the original https
+// link in the in-app browser so the flow never dead-ends.
 export async function openInstagram(url: string): Promise<void> {
   if (isNativePlatform()) {
-    try {
-      const { completed } = await AppLauncher.openUrl({ url });
-      if (completed) return;
-    } catch {
-      // Fall through to the in-app browser below.
+    const schemeUrl = instagramAppSchemeUrl(url);
+    if (schemeUrl) {
+      try {
+        const { completed } = await AppLauncher.openUrl({ url: schemeUrl });
+        if (completed) return;
+      } catch {
+        // App not installed / scheme blocked — fall back to the web link below.
+      }
     }
   }
   await openExternalUrl(url);
