@@ -96,13 +96,12 @@ export default function HomeInstagramConnect() {
     }
   }, [verificationStatus?.status]);
 
-  const handleCopyAndMessage = async () => {
+  const handleCopyCode = async () => {
     if (!spiralCode?.code) return;
     try {
       await navigator.clipboard.writeText(spiralCode.code);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-      await openInstagram("https://ig.me/m/joinspiral");
     } catch (error) {
       toast({
         title: "Copy failed",
@@ -110,6 +109,22 @@ export default function HomeInstagramConnect() {
         variant: "destructive",
       });
     }
+  };
+
+  const handleDmSpiral = async () => {
+    if (!spiralCode?.code) return;
+    try {
+      await navigator.clipboard.writeText(spiralCode.code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      // Clipboard can fail without permissions; still open Instagram so the
+      // shopper can send the code (it's shown on screen) manually.
+    }
+    // Opens Spiral's page in the Instagram app (not a web page). openInstagram
+    // maps this to the instagram:// app scheme on device, falling back to the
+    // browser only when Instagram isn't installed.
+    await openInstagram("https://instagram.com/joinspiral");
   };
 
   return (
@@ -150,41 +165,52 @@ export default function HomeInstagramConnect() {
       {/* CODE FLOW */}
       {spiralCode?.status === "pending" && (
         <>
-          {/* CODE CARD */}
-          <div className="creator-card p-6 !bg-gray-900 text-white text-center">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">
-              Your Spiral code
-            </p>
-            <p
-              className="text-5xl font-black tracking-widest text-[#A8F0D1] mb-5"
-              data-testid="text-spiral-code"
+          {/* CODE + DM (one connected card) */}
+          <div className="creator-card overflow-hidden">
+            {/* Tap the code to copy it */}
+            <button
+              type="button"
+              onClick={handleCopyCode}
+              className="w-full block !bg-gray-900 text-white text-center px-6 pt-6 pb-5 transition-opacity active:opacity-90"
+              data-testid="button-copy-code"
             >
-              {spiralCode.code}
-            </p>
-            <p className="text-sm text-gray-400 font-medium">
-              DM this code to <span className="text-white font-bold">@joinspiral</span> on Instagram
-            </p>
-          </div>
+              <span className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">
+                Your Spiral code
+              </span>
+              <span
+                className="block text-5xl font-black tracking-widest text-[#A8F0D1] mb-3"
+                data-testid="text-spiral-code"
+              >
+                {spiralCode.code}
+              </span>
+              <span className="inline-flex items-center justify-center gap-1.5 text-sm font-bold text-gray-300">
+                {copied ? (
+                  <>
+                    <CheckCircle className="w-4 h-4 text-[#A8F0D1]" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" />
+                    Tap to copy
+                  </>
+                )}
+              </span>
+            </button>
 
-          {/* CTA */}
-          <button
-            onClick={handleCopyAndMessage}
-            className="tactile-btn w-full py-4 text-base flex items-center justify-center gap-2"
-            data-testid="button-copy-message"
-          >
-            {copied ? (
-              <>
-                <CheckCircle className="w-5 h-5" />
-                Copied! Opening Instagram…
-              </>
-            ) : (
-              <>
-                <Copy className="w-5 h-5" />
-                Open Instagram &amp; DM @joinspiral
+            {/* DM Spiral opens Spiral's page in the Instagram app */}
+            <div className="p-4">
+              <button
+                onClick={handleDmSpiral}
+                className="tactile-btn w-full py-4 text-base flex items-center justify-center gap-2"
+                data-testid="button-dm-spiral"
+              >
+                <Instagram className="w-5 h-5" />
+                DM Spiral
                 <ExternalLink className="w-4 h-4" />
-              </>
-            )}
-          </button>
+              </button>
+            </div>
+          </div>
 
           {/* POLLING INDICATOR */}
           <div className="flex justify-center">
@@ -201,9 +227,9 @@ export default function HomeInstagramConnect() {
             <h3 className="font-black text-gray-900 text-lg mb-4">How it works</h3>
             <ol className="space-y-4">
               {[
-                "Tap the button above to copy your code",
-                "Instagram opens to @joinspiral — paste and send the code",
-                "We'll verify your account so you can begin earning discounts",
+                "Tap your code above to copy it",
+                "Tap DM Spiral — Instagram opens to @joinspiral",
+                "Send the code in a DM and we'll verify you",
               ].map((step, i) => (
                 <li key={i} className="flex items-start gap-3">
                   <div className="w-8 h-8 rounded-full bg-[#E6F8F0] text-[#1A996E] flex items-center justify-center font-black text-sm flex-shrink-0">
