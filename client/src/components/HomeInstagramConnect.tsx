@@ -212,7 +212,7 @@ export default function HomeInstagramConnect() {
                 data-testid="button-dm-spiral"
               >
                 <Instagram className="w-5 h-5" />
-                Direct message code
+                Direct Message code to @joinspiral
                 <ExternalLink className="w-4 h-4" />
               </button>
             </div>
