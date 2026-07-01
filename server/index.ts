@@ -87,6 +87,14 @@ app.set("trust proxy", 1);
           }
 
           const buf = Buffer.from(await upstream.arrayBuffer());
+          // TEMP DEBUG: log the spiral-code response so we can see why the code
+          // card isn't rendering on home. Remove once diagnosed.
+          if (req.originalUrl.includes("/spiral-code")) {
+            console.log(
+              `[DEV PROXY DEBUG] ${req.method} ${req.originalUrl} -> ${upstream.status} body=`,
+              buf.toString("utf8").slice(0, 500),
+            );
+          }
           res.send(buf);
         } catch (err) {
           console.error("[DEV PROXY] error", err);
