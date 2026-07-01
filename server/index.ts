@@ -50,6 +50,17 @@ app.set("trust proxy", 1);
             headers[key] = Array.isArray(value) ? value.join(", ") : value;
           }
 
+          // The dev backend runs a CSRF origin check that rejects the preview's
+          // browser Origin (csrf_origin_rejected). Because this is a server-side
+          // proxy, present the backend's own origin so the request looks
+          // same-origin and passes the gate — the same trust the native/prod
+          // builds get.
+          const targetOrigin = new URL(proxyTarget).origin;
+          headers["origin"] = targetOrigin;
+          if (headers["referer"]) {
+            headers["referer"] = targetOrigin + "/";
+          }
+
           const hasBody = req.method !== "GET" && req.method !== "HEAD";
           let body: Buffer | undefined;
           if (hasBody) {
