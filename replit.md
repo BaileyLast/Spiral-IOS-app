@@ -4,7 +4,7 @@
 
 The iOS customer-facing Spiral app. Shoppers earn an instant checkout discount for posting one Instagram Story after delivery.
 
-This repl is a **thin shopper client**. It is the frontend only. All data, identity, verifications, discount eligibility, soft-ban, tier config, push, and Instagram/Shopify integrations live in a **separate backend, "Spiral Core"** (`https://api.joinspiral.app`), which is the single source of truth. This repl runs **no API routes, no database, and no background jobs** — it serves the built client and proxies nothing; the browser talks to Spiral Core directly.
+This repl is a **thin shopper client**. It is the frontend only. All data, identity, verifications, discount eligibility, soft-ban, tier config, push, and Instagram/Shopify integrations live in a **separate backend, "Spiral Core"** (`https://api.joinspiral.app`), which is the single source of truth. This repl runs **no API routes, no database, and no background jobs**. In production/native it serves the built client and the browser talks to Spiral Core directly. The one exception is a **development-only `/api` proxy** (see Architecture → Server) that forwards to a dev Core so the Replit web preview can log in despite Core not sending CORS headers; it never runs in the native iOS / production build.
 
 ## User Preferences
 
@@ -17,6 +17,7 @@ Simple, everyday language. No emojis.
   - logs requests with the `[INCOMING]` prefix,
   - serves `/health` → `ok` (200),
   - serves the Vite dev middleware in development and the built static client in production.
+  - **Development only**: proxies `/api/*` to the dev Spiral Core given by `VITE_API_BASE_URL`. This exists solely so the Replit web preview can reach Core (the browser blocks direct cross-origin calls because Core sends no CORS headers). Gated to `app.get("env") === "development"`, so the production/native build never proxies. In dev, `queryClient.ts` calls same-origin `/api` (empty base URL) so requests hit this proxy.
   - Listener: `Number(process.env.PORT) || 3000`. Dev workflow sets `PORT=5000`.
   - `server/vite.ts` is the only other server file (do not edit it).
 - **Build**: Vite (client), esbuild (the thin `server/index.ts`).

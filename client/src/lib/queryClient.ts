@@ -7,7 +7,15 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 // app would call its own capacitor://localhost origin (which has no API) and
 // every request — including login — would fail.
 const DEFAULT_API_BASE_URL = "https://api.joinspiral.app";
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? DEFAULT_API_BASE_URL).replace(/\/+$/, "");
+// In the Replit web preview (Vite dev) we route API calls through this app's own
+// same-origin dev proxy (see server/index.ts) instead of calling Spiral Core
+// directly. Cross-origin calls from the preview are blocked by the browser because
+// Core sends no CORS headers; a same-origin call sidesteps that. This branch is
+// never taken in the native iOS / production build (import.meta.env.DEV is false),
+// so that build keeps talking to Core directly via VITE_API_BASE_URL / the default.
+const API_BASE_URL = import.meta.env.DEV
+  ? ""
+  : (import.meta.env.VITE_API_BASE_URL ?? DEFAULT_API_BASE_URL).replace(/\/+$/, "");
 
 // Hard cap on how long a single request may hang before failing. On mobile a
 // request can otherwise stay pending forever on a dropped connection; this
