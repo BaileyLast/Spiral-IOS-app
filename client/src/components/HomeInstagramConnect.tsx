@@ -227,25 +227,6 @@ export default function HomeInstagramConnect() {
               </span>
             </div>
           </div>
-
-          {/* STEPS */}
-          <div className="creator-card p-5">
-            <h3 className="font-black text-gray-900 text-lg mb-4">How it works</h3>
-            <ol className="space-y-4">
-              {[
-                "Tap your code above to copy it",
-                "Tap DM Spiral — Instagram opens to @joinspiral",
-                "Send the code in a DM and we'll verify you",
-              ].map((step, i) => (
-                <li key={i} className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[#E6F8F0] text-[#1A996E] flex items-center justify-center font-black text-sm flex-shrink-0">
-                    {i + 1}
-                  </div>
-                  <p className="text-sm text-gray-700 font-medium pt-1.5">{step}</p>
-                </li>
-              ))}
-            </ol>
-          </div>
         </>
       )}
     </div>
