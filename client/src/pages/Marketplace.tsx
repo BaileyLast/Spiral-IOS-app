@@ -579,7 +579,7 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
           <div className="absolute inset-x-0 top-1/2 -translate-y-1/2">
             <div
               className="flex gap-4 overflow-x-auto pl-4 pr-4 scroll-pl-4 snap-x snap-mandatory scrollbar-none"
-              style={{ scrollbarWidth: "none" }}
+              style={{ scrollbarWidth: "none", touchAction: "pan-x pan-y" }}
               onTouchStart={handleCarouselTouchStart}
               onTouchMove={handleCarouselTouchMove}
               data-testid={`carousel-products-${testKey}`}
@@ -591,23 +591,32 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
                 const thumbKey = `thumb-${p.id}`;
                 const showThumbImage = !!p.image && !imgErrors[thumbKey];
                 return (
-                  <a
+                  <div
                     key={p.id}
-                    href={p.productUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-shrink-0 w-[44%] snap-start rounded-lg bg-white shadow-lg p-2 hover-elevate active-elevate-2"
+                    role="button"
+                    tabIndex={0}
+                    draggable={false}
+                    className="flex-shrink-0 w-[44%] snap-start rounded-lg bg-white shadow-lg p-2 hover-elevate active-elevate-2 cursor-pointer"
+                    style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none", userSelect: "none" }}
                     data-testid={`link-product-${p.id}`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      e.preventDefault();
                       // Only a clean, quick tap opens the product. A swipe
                       // (moved past the threshold) scrolls the carousel, and a
                       // press-and-hold is ignored so holding the screen never
-                      // counts as a tap.
+                      // counts as a tap. This is a div (not an <a>) on purpose:
+                      // iOS WKWebView hijacks a drag that starts on a link as a
+                      // native link-drag, which cancelled the swipe and left the
+                      // release firing as a tap.
                       const heldFor = Date.now() - dragRef.current.startedAt;
                       if (dragRef.current.moved || heldFor > TAP_MAX_MS) return;
                       openExternalUrl(p.productUrl);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        openExternalUrl(p.productUrl);
+                      }
                     }}
                   >
                     <div className="w-full aspect-square bg-gray-100 rounded-md overflow-hidden">
@@ -658,7 +667,7 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
                         </p>
                       )
                     )}
-                  </a>
+                  </div>
                 );
               })}
             </div>
