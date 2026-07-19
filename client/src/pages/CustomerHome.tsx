@@ -68,8 +68,9 @@ export default function CustomerHome() {
   });
   const pendingCount = owedOrders.length;
 
-  const hasStats =
-    !!stats && (stats.totalSaved > 0 || stats.ordersCompleted > 0);
+  // Always show the "Your Spiral" card once stats have loaded — even for brand
+  // new shoppers (Saved 0 / Orders 0) so the Home screen is never blank.
+  const hasStats = !!stats;
 
   // Honest "average saved per order": the mean of the discount percent that was
   // actually applied to each completed order. We deliberately do NOT show the
@@ -102,22 +103,20 @@ export default function CustomerHome() {
           >
             <h3 className="font-black text-lg mb-5">Your Spiral</h3>
 
-            {discountText && (
-              <div
-                className="mb-5 pb-5 border-b border-gray-800"
-                data-testid="card-discount"
+            <div
+              className="mb-5 pb-5 border-b border-gray-800"
+              data-testid="card-discount"
+            >
+              <p className="text-xs uppercase tracking-widest text-gray-400 font-bold mb-1">
+                Average saved per order
+              </p>
+              <p
+                className="text-5xl font-black tracking-tight text-[#A8F0D1]"
+                data-testid="text-discount-percent"
               >
-                <p className="text-xs uppercase tracking-widest text-gray-400 font-bold mb-1">
-                  Average saved per order
-                </p>
-                <p
-                  className="text-5xl font-black tracking-tight text-[#A8F0D1]"
-                  data-testid="text-discount-percent"
-                >
-                  {discountText}%
-                </p>
-              </div>
-            )}
+                {discountText ? `${discountText}%` : "—"}
+              </p>
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
