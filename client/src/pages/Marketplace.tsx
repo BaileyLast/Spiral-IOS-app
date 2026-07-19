@@ -15,7 +15,7 @@ const FALLBACK_GRADIENTS = [
   "linear-gradient(135deg, #2BAE88 0%, #1A996E 100%)",
 ];
 
-function cleanBrandName(storeName: string, instagramUsername: string | null): string {
+export function cleanBrandName(storeName: string, instagramUsername: string | null): string {
   const looksLikeShopify = /\.myshopify\.com$/i.test(storeName);
   if (looksLikeShopify) {
     const slug = storeName
@@ -31,12 +31,12 @@ function cleanBrandName(storeName: string, instagramUsername: string | null): st
   return storeName;
 }
 
-function brandInitial(name: string): string {
+export function brandInitial(name: string): string {
   const trimmed = name.trim();
   return trimmed ? trimmed[0].toUpperCase() : "?";
 }
 
-function gradientFor(seed: string): string {
+export function gradientFor(seed: string): string {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
   return FALLBACK_GRADIENTS[h % FALLBACK_GRADIENTS.length];
@@ -66,7 +66,7 @@ interface DiscountTier {
   discountPercent: number;
 }
 
-interface Brand {
+export interface Brand {
   id: string;
   storeName: string;
   storefrontUrl: string;
@@ -82,7 +82,7 @@ interface Brand {
   instagramMedia?: InstagramMediaItem[];
 }
 
-function maxDiscountPercent(brand: Brand): number {
+export function maxDiscountPercent(brand: Brand): number {
   const tiers = brand.discountTiers ?? [];
   if (tiers.length === 0) return 0;
   return tiers.reduce((max, t) => (t.discountPercent > max ? t.discountPercent : max), 0);
@@ -90,7 +90,7 @@ function maxDiscountPercent(brand: Brand): number {
 
 // Returns the discount % a shopper with `followerCount` followers unlocks at
 // `brand`, or 0 if no tier matches (i.e. they're below the brand's minimum).
-function discountForFollowers(brand: Brand, followerCount: number | null | undefined): number {
+export function discountForFollowers(brand: Brand, followerCount: number | null | undefined): number {
   const tiers = brand.discountTiers ?? [];
   if (!followerCount || followerCount <= 0 || tiers.length === 0) return 0;
   for (const t of tiers) {
@@ -109,7 +109,7 @@ interface CustomerProfile {
   instagramUserId?: string | null;
 }
 
-function isSafeHttpUrl(url: string | null | undefined): boolean {
+export function isSafeHttpUrl(url: string | null | undefined): boolean {
   if (!url) return false;
   try {
     const parsed = new URL(url);
@@ -119,7 +119,7 @@ function isSafeHttpUrl(url: string | null | undefined): boolean {
   }
 }
 
-function brandShipsToCountry(brand: Brand, country: string | null): boolean {
+export function brandShipsToCountry(brand: Brand, country: string | null): boolean {
   if (brand.shippingCountries == null) return true;
   if (brand.shippingCountries.length === 0) return false;
   if (brand.shippingCountries.includes("*")) return true;
@@ -724,8 +724,17 @@ export default function Marketplace() {
   const [, setLocation] = useLocation();
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<BrandCategory | "all">("all");
-  const [bestForMeOn, setBestForMeOn] = useState(false);
+  // Home-screen tiles deep-link here with ?category=X and ?sort=best so the
+  // marketplace opens pre-filtered. Read once on mount.
+  const [selectedCategory, setSelectedCategory] = useState<BrandCategory | "all">(() => {
+    const c = normalizeCategoryForDisplay(
+      new URLSearchParams(window.location.search).get("category"),
+    );
+    return c ?? "all";
+  });
+  const [bestForMeOn, setBestForMeOn] = useState(
+    () => new URLSearchParams(window.location.search).get("sort") === "best",
+  );
 
   const { data: profile, error: profileError } = useQuery<CustomerProfile>({
     queryKey: ["/api/customer/me"],
@@ -754,15 +763,11 @@ export default function Marketplace() {
   // hide the toggle entirely.
   const followerCount = profile?.followerCount ?? 0;
   const personalAvailable = !!profile?.instagramUserId && followerCount > 0;
+  // Best-sort works for everyone: personal % when Instagram is linked,
+  // otherwise the brand's best tier. This keeps the Home "Best discounts"
+  // deep link (?sort=best) meaningful even before IG is connected. Badges
+  // that claim a personal % remain gated on personalAvailable separately.
   const personalMode = personalAvailable && bestForMeOn;
-
-  // If the shopper disconnects Instagram while the toggle was on, silently
-  // turn it off so the badges/sort don't claim a personal % we can't compute.
-  useEffect(() => {
-    if (!personalAvailable && bestForMeOn) {
-      setBestForMeOn(false);
-    }
-  }, [personalAvailable, bestForMeOn]);
 
   // Country + product-count filter — runs before search/category so the
   // category chip row only shows categories that actually have shippable brands.
@@ -830,15 +835,20 @@ export default function Marketplace() {
       return true;
     });
 
-    if (!personalMode) return filtered;
+    if (!bestForMeOn) return filtered;
 
-    // Stable sort by personal discount desc. Brands the shopper doesn't
-    // qualify for (0%) sink to the bottom but stay in their original order.
+    // Stable sort by discount desc: the shopper's personal % when Instagram
+    // is linked, otherwise the brand's best tier. Brands at 0% sink to the
+    // bottom but stay in their original order.
     return filtered
-      .map((b, idx) => ({ b, idx, pct: discountForFollowers(b, followerCount) }))
+      .map((b, idx) => ({
+        b,
+        idx,
+        pct: personalAvailable ? discountForFollowers(b, followerCount) : maxDiscountPercent(b),
+      }))
       .sort((a, z) => (z.pct - a.pct) || (a.idx - z.idx))
       .map((x) => x.b);
-  }, [countryFilteredBrands, selectedCategory, normalizedQuery, personalMode, followerCount]);
+  }, [countryFilteredBrands, selectedCategory, normalizedQuery, bestForMeOn, personalAvailable, followerCount]);
 
   const hasActiveFilters =
     normalizedQuery.length > 0 || selectedCategory !== "all" || bestForMeOn;
