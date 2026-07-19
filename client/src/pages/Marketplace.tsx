@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Store, Sparkles, X, Instagram, ChevronRight, Search, Check } from "lucide-react";
 import { getCountryByCode, detectCountryFromLocale } from "@/lib/countries";
-import { openExternalUrl } from "@/lib/native";
+import { openStoreUrl } from "@/lib/native";
 import { normalizeCategoryForDisplay, type BrandCategory } from "@shared/categories";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
@@ -614,12 +614,12 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
                       // release firing as a tap.
                       const heldFor = Date.now() - dragRef.current.startedAt;
                       if (dragRef.current.moved || heldFor > TAP_MAX_MS) return;
-                      openExternalUrl(p.productUrl);
+                      openStoreUrl(p.productUrl, "marketplace");
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        openExternalUrl(p.productUrl);
+                        openStoreUrl(p.productUrl, "marketplace");
                       }
                     }}
                   >

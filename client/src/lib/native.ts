@@ -1,6 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 import { AppLauncher } from "@capacitor/app-launcher";
+import { queryClient } from "@/lib/queryClient";
 
 // True when running inside the native iOS shell (Capacitor), false on the web.
 export function isNativePlatform(): boolean {
@@ -27,6 +28,33 @@ export async function openExternalUrl(url: string): Promise<void> {
     }
   }
   window.open(url, "_blank", "noopener,noreferrer");
+}
+
+// Append Spiral tracking params to a brand store/product URL so the Spiral
+// storefront pixel (Core-side) can instantly tie the browsing session to this
+// shopper — no login or checkout needed. Param names are a fixed contract with
+// Spiral Core: spiral_sid = shopper id, spiral_src = where in the app the tap
+// happened. If anything goes wrong (bad URL, no profile loaded yet) we return
+// the original URL untouched — the link must never break for the shopper.
+// IMPORTANT: only use for links the shopper opens themselves inside the app.
+// Never tag URLs that get shared publicly (e.g. the Story link sticker) — that
+// would attribute every viewer's browsing to the poster.
+export function tagStoreUrl(url: string, source: string): string {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return url;
+    const me = queryClient.getQueryData<{ id?: string }>(["/api/customer/me"]);
+    if (me?.id) u.searchParams.set("spiral_sid", me.id);
+    u.searchParams.set("spiral_src", source);
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+// Open a brand store/product link with Spiral tracking params attached.
+export async function openStoreUrl(url: string, source: string): Promise<void> {
+  await openExternalUrl(tagStoreUrl(url, source));
 }
 
 // Turn a normal Instagram https link into Instagram's custom app URL scheme
