@@ -390,13 +390,13 @@ export default function CustomerHome() {
                 className="relative h-40 rounded-2xl overflow-hidden text-left p-4 flex flex-col items-start justify-start story-bg-gradient hover-elevate"
                 data-testid="tile-best-discounts"
               >
-                <p className="text-white font-black text-base leading-tight">Best discounts</p>
+                <Tag className="absolute -bottom-6 -right-4 w-32 h-32 text-white/25 rotate-[-15deg] pointer-events-none" />
+                <p className="relative z-10 text-white font-black text-base leading-tight">Best discounts</p>
                 {bestPercent > 0 && (
-                  <p className="text-white/90 text-xs font-bold mt-0.5">
+                  <p className="relative z-10 text-white/90 text-xs font-bold mt-0.5">
                     {igLinked ? `Up to ${bestPercent}% for you` : `Up to ${bestPercent}% off`}
                   </p>
                 )}
-                <Tag className="absolute -bottom-4 -right-3 w-24 h-24 text-white/85 rotate-[-15deg] drop-shadow-lg" />
               </button>
 
               {categoryTiles.map((tile, i) => (
