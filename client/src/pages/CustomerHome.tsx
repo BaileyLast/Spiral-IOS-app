@@ -387,7 +387,7 @@ export default function CustomerHome() {
               <button
                 type="button"
                 onClick={() => setLocation("/marketplace?sort=best")}
-                className="relative h-40 rounded-2xl overflow-hidden text-left p-4 story-bg-gradient hover-elevate"
+                className="relative h-40 rounded-2xl overflow-hidden text-left p-4 flex flex-col items-start justify-start story-bg-gradient hover-elevate"
                 data-testid="tile-best-discounts"
               >
                 <p className="text-white font-black text-base leading-tight">Best discounts</p>
