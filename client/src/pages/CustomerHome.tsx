@@ -8,7 +8,8 @@ import HomeInstagramConnect from "@/components/HomeInstagramConnect";
 import { OrderCard, isCompleted } from "@/pages/Orders";
 import { formatCurrency, detectCountryFromLocale } from "@/lib/countries";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
-import { normalizeCategoryForDisplay, type BrandCategory } from "@shared/categories";
+import { BRAND_CATEGORIES, normalizeCategoryForDisplay, type BrandCategory } from "@shared/categories";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   type Brand,
   cleanBrandName,
@@ -29,6 +30,29 @@ const CATEGORY_TILE_COLORS = [
   "#7A8B4C",
   "#3E8FA3",
 ];
+
+// Shape served by Spiral Core's GET /api/customer/interests — built from the
+// shopper's last 90 days of linked storefront browsing (spiral_sid tagging).
+// `count` is a weighted score (view=1, add-to-cart=3, checkout=5), only ever
+// used for ordering — never displayed as a number of visits.
+interface CustomerInterests {
+  topCategories?: { category: string; count: number }[];
+  recentBrands?: { shopDomain: string; lastSeenAt: string }[];
+}
+
+// Hostname of a URL or bare domain, normalized for comparison ("www." and
+// case stripped). Returns null when the value can't be parsed.
+function normalizedHost(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const raw = value.trim();
+  if (!raw) return null;
+  try {
+    const u = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+    return u.hostname.replace(/^www\./i, "").toLowerCase() || null;
+  } catch {
+    return null;
+  }
+}
 
 interface CustomerProfile {
   id: string;
@@ -70,6 +94,15 @@ export default function CustomerHome() {
     gcTime: 60 * 60_000,
   });
 
+  // Personalized interest signals from Core. Any failure (endpoint missing,
+  // no data yet, network) simply hides the section — Home never shows an
+  // error or empty shell for this.
+  const { data: interests } = useQuery<CustomerInterests>({
+    queryKey: ["/api/customer/interests"],
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
   const localeCountry = useMemo(() => detectCountryFromLocale(), []);
   const effectiveCountry =
     profile?.country?.toUpperCase() || (localeCountry ? localeCountry.toUpperCase() : null);
@@ -98,6 +131,68 @@ export default function CustomerHome() {
       })
       .slice(0, 6);
   }, [eligibleBrands, followerCount]);
+
+  // "Brands you may like": personal suggestions from the shopper's browsing.
+  // Recently browsed brands first (most recent first), then brands from their
+  // top browsed categories that aren't already listed. Category names arrive
+  // as raw Shopify values from the pixel, so they're matched tolerantly
+  // (case/whitespace-insensitive) against our category list; anything that
+  // doesn't match is silently skipped. Capped at 6; brands already shown in
+  // the discount carousel are only excluded from the category-based fillers
+  // (a brand the shopper actually visited always deserves its spot).
+  const likedBrands = useMemo(() => {
+    if (!interests) return [];
+    const byHost = new Map<string, Brand>();
+    for (const b of eligibleBrands) {
+      const host = normalizedHost(b.storefrontUrl);
+      if (host && !byHost.has(host)) byHost.set(host, b);
+    }
+
+    const picked: Brand[] = [];
+    const pickedIds = new Set<string>();
+
+    // Core-controlled payload: guard the shape so a malformed response can
+    // never crash Home — it just means no suggestions.
+    const recent = (Array.isArray(interests.recentBrands) ? interests.recentBrands : [])
+      .filter((r) => r && typeof r.shopDomain === "string")
+      .sort((a, z) => new Date(z.lastSeenAt ?? 0).getTime() - new Date(a.lastSeenAt ?? 0).getTime());
+    for (const r of recent) {
+      const host = normalizedHost(r.shopDomain);
+      const brand = host ? byHost.get(host) : undefined;
+      if (brand && !pickedIds.has(brand.id)) {
+        picked.push(brand);
+        pickedIds.add(brand.id);
+      }
+    }
+
+    // Tolerant category matching: raw Shopify name -> canonical BrandCategory.
+    const canonical = new Map<string, BrandCategory>();
+    for (const c of BRAND_CATEGORIES) canonical.set(c.trim().toLowerCase(), c);
+    const topCats = (Array.isArray(interests.topCategories) ? interests.topCategories : [])
+      .filter((c) => c && typeof c.category === "string")
+      .sort((a, z) => (Number(z.count) || 0) - (Number(a.count) || 0))
+      .map((c) => canonical.get(c.category.trim().toLowerCase()))
+      .filter((c): c is BrandCategory => !!c);
+
+    const alreadyOnHome = new Set(recommendedBrands.map((b) => b.id));
+    for (const cat of topCats) {
+      if (picked.length >= 6) break;
+      for (const b of eligibleBrands) {
+        if (picked.length >= 6) break;
+        if (pickedIds.has(b.id) || alreadyOnHome.has(b.id)) continue;
+        const cats = [
+          normalizeCategoryForDisplay(b.category),
+          ...(b.secondaryCategories ?? []).map((c) => normalizeCategoryForDisplay(c)),
+        ];
+        if (cats.includes(cat)) {
+          picked.push(b);
+          pickedIds.add(b.id);
+        }
+      }
+    }
+
+    return picked.slice(0, 6);
+  }, [interests, eligibleBrands, recommendedBrands]);
 
   // Best % this shopper can get anywhere (falls back to best tier when IG isn't linked).
   const bestPercent = useMemo(() => {
@@ -372,6 +467,51 @@ export default function CustomerHome() {
                       </div>
                     </div>
                   </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {likedBrands.length > 0 && (
+          <section className="space-y-4" data-testid="section-liked-brands">
+            <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest">
+              Brands you may like
+            </h2>
+            <div className="creator-card overflow-hidden divide-y divide-gray-100">
+              {likedBrands.map((b) => {
+                const name = cleanBrandName(b.storeName, b.instagramUsername);
+                const myPct = igLinked ? discountForFollowers(b, followerCount) : 0;
+                const pct = myPct > 0 ? myPct : maxDiscountPercent(b);
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => setLocation(`/marketplace/${encodeURIComponent(b.id)}`)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover-elevate"
+                    data-testid={`row-liked-brand-${b.id}`}
+                  >
+                    <Avatar className="w-9 h-9">
+                      {b.instagramProfilePictureUrl ? (
+                        <AvatarImage src={b.instagramProfilePictureUrl} alt={name} />
+                      ) : null}
+                      <AvatarFallback
+                        className="text-sm font-black text-white"
+                        style={{ background: gradientFor(b.instagramUsername || name) }}
+                      >
+                        {brandInitial(b.instagramUsername || name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-black text-gray-900 truncate">{name}</p>
+                      {pct > 0 && (
+                        <p className="text-xs font-bold text-[#1A996E]">
+                          {myPct > 0 ? `${pct}% off for you` : `Up to ${pct}% off`}
+                        </p>
+                      )}
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  </button>
                 );
               })}
             </div>
