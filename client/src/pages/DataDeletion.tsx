@@ -14,7 +14,10 @@ export default function DataDeletion() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setLocation("/")}
+            onClick={() => {
+              if (window.history.length > 1) window.history.back();
+              else setLocation("/");
+            }}
             data-testid="button-back"
           >
             <ArrowLeft className="h-5 w-5" />
