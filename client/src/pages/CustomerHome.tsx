@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { Link } from "wouter";
 import { ChevronRight, Instagram, Lock } from "lucide-react";
 import type { Order } from "@shared/schema";
@@ -37,6 +39,15 @@ export default function CustomerHome() {
   }>({
     queryKey: ["/api/customer/stats"],
   });
+
+  // Warm the marketplace brand list while the shopper is still on Home so the
+  // Marketplace tab opens instantly instead of showing skeletons.
+  useEffect(() => {
+    queryClient.prefetchQuery({
+      queryKey: ["/api/brands"],
+      staleTime: 5 * 60_000,
+    });
+  }, []);
 
   // If the session is dead, treat the shopper as logged out instead of rendering
   // the signed-in shell with stale/empty data (e.g. on-hold banner + no orders).

@@ -265,6 +265,8 @@ function HeroSlideshow({
           <img
             src={fallbackImageUrl}
             alt={fallbackImageAlt}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover"
             onError={() => setFallbackImgFailed(true)}
           />
@@ -417,6 +419,8 @@ function SlideMedia({
     <img
       src={stillUrl}
       alt={alt}
+      loading="lazy"
+      decoding="async"
       className="w-full h-full object-cover"
       onError={() => setImgFailed(true)}
     />
@@ -624,6 +628,8 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
                         <img
                           src={p.image}
                           alt={p.title}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover"
                           onError={() => markImgError(thumbKey)}
                         />
@@ -731,6 +737,10 @@ export default function Marketplace() {
 
   const { data: brands, isLoading } = useQuery<Brand[]>({
     queryKey: ["/api/brands"],
+    // Brand list changes rarely; keep it fresh for 5 minutes and cached for an
+    // hour so returning to the tab renders instantly instead of refetching.
+    staleTime: 5 * 60_000,
+    gcTime: 60 * 60_000,
   });
 
   const localeCountry = useMemo(() => detectCountryFromLocale(), []);
