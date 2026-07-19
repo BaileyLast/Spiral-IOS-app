@@ -69,12 +69,25 @@ export default function CustomerHome() {
   const pendingCount = owedOrders.length;
 
   const hasStats =
-    !!stats && (stats.totalSaved > 0 || stats.ordersCompleted > 0 || stats.discountPercent > 0);
+    !!stats && (stats.totalSaved > 0 || stats.ordersCompleted > 0);
+
+  // Honest "average saved per order": the mean of the discount percent that was
+  // actually applied to each completed order. We deliberately do NOT show the
+  // tier percent from the backend — every brand sets its own discount rules, so
+  // a single "your discount" number would be a promise the app can't keep.
+  const completedWithPercent = orders.filter(
+    (o) => isCompleted(o) && Number(o.discountPercent) > 0,
+  );
+  const avgPercent =
+    completedWithPercent.length > 0
+      ? completedWithPercent.reduce((sum, o) => sum + Number(o.discountPercent), 0) /
+        completedWithPercent.length
+      : 0;
   const discountText =
-    stats && stats.discountPercent > 0
-      ? stats.discountPercent % 1 === 0
-        ? stats.discountPercent.toFixed(0)
-        : stats.discountPercent.toFixed(1)
+    avgPercent > 0
+      ? avgPercent % 1 === 0
+        ? avgPercent.toFixed(0)
+        : avgPercent.toFixed(1)
       : null;
 
   return (
@@ -95,7 +108,7 @@ export default function CustomerHome() {
                 data-testid="card-discount"
               >
                 <p className="text-xs uppercase tracking-widest text-gray-400 font-bold mb-1">
-                  Discount on every order
+                  Average saved per order
                 </p>
                 <p
                   className="text-5xl font-black tracking-tight text-[#A8F0D1]"
