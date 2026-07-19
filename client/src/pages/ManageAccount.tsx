@@ -167,7 +167,7 @@ export default function ManageAccount() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-warm">
+      <div className="min-h-screen-safe flex items-center justify-center bg-warm">
         <Loader2 className="w-8 h-8 animate-spin text-[#4ECCA3]" />
       </div>
     );
@@ -186,7 +186,7 @@ export default function ManageAccount() {
   ];
 
   return (
-    <div className="min-h-screen bg-warm safe-top pb-12">
+    <div className="min-h-screen-safe bg-warm safe-top pb-12">
       <header className="px-4 py-4 flex items-center justify-between sticky top-0 bg-[#FCFCFB]/80 backdrop-blur-md z-10">
         <Link href="/profile">
           <button

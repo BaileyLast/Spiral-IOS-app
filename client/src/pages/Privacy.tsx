@@ -7,7 +7,7 @@ export default function Privacy() {
   const [, setLocation] = useLocation();
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen-safe bg-background">
       <header className="sticky top-0 z-50 bg-background border-b px-4 py-3 safe-top">
         <div className="flex items-center gap-3">
           <Button
