@@ -10,7 +10,17 @@ const DISCLOSURE_LABEL = "PAID PARTNERSHIP";
 interface StoryProduct {
   name: string;
   imageUrl: string;
+  /**
+   * Unit price, when Core includes it on the order's line items. Optional —
+   * older orders (and Core today) may not send it. Used only to rank which
+   * products make the capped collage; never displayed.
+   */
+  price?: number | null;
 }
+
+// The collage caps at 4 photos (a clean 2x2). More than that makes the image
+// very tall, shrinks every photo, and Instagram crops the top/bottom.
+const MAX_COLLAGE_IMAGES = 4;
 
 interface StoryComposerProps {
   open: boolean;
@@ -250,7 +260,13 @@ export default function StoryComposer({
   const isWebUrl = (u: unknown): u is string =>
     typeof u === "string" && /^https?:\/\//i.test(u);
   const creatives = (creativeUrls ?? []).filter(isWebUrl);
-  const productUrls = (products ?? []).map((p) => p.imageUrl).filter(isWebUrl);
+  // Most expensive products first when prices are known; unpriced items keep
+  // their original order after all priced ones (stable sort). The cap itself is
+  // applied after images load, so a broken URL can't waste a collage slot.
+  const productUrls = [...(products ?? [])]
+    .sort((a, z) => (Number(z?.price) || 0) - (Number(a?.price) || 0))
+    .map((p) => p.imageUrl)
+    .filter(isWebUrl);
   const sourceKey = `${creatives.join("|")}##${productUrls.join("|")}`;
 
   // Monotonic token so only the most recent build can mutate state.
@@ -296,6 +312,7 @@ export default function StoryComposer({
         setStatus("error");
         return;
       }
+      imgs = imgs.slice(0, MAX_COLLAGE_IMAGES);
       const out = imgs.length === 1 ? bakeSingle(imgs[0]) : bakeCollage(imgs);
       if (version !== buildVersion.current) return;
       setComposed(out);

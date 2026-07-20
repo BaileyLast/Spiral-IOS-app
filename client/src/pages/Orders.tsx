@@ -16,6 +16,10 @@ export interface LineItem {
   // older orders and widget-confirm orders leave it undefined (fallback to the
   // single order-level discount line). 0 means the item was not discounted.
   discountedAmount?: number | null;
+  // Unit price of the item. Core may not send this yet (older orders never
+  // will); read tolerantly — number or numeric string. Used only to rank
+  // which products appear in the capped Story collage.
+  price?: number | string | null;
 }
 
 export function parseLineItems(raw: string | null | undefined): LineItem[] {

@@ -74,7 +74,15 @@ function BrandHandle({ handle, className = "" }: { handle: string; className?: s
 interface StoryImageResponse {
   mode: string;
   imageUrl: string | null;
-  productImages?: { productId: string; imageUrl: string | null }[];
+  productImages?: { productId: string; imageUrl: string | null; price?: number | string | null }[];
+}
+
+// Tolerant unit-price read: Core may send a number, a numeric string, or
+// nothing at all. Keeps a genuine 0 (free item) distinct from missing/invalid.
+function toUnitPrice(raw: number | string | null | undefined): number | null {
+  if (raw == null) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
 }
 
 function getStatusLabel(order: Order) {
@@ -212,7 +220,11 @@ export default function OrderDetail() {
   // preview now; real orders source their Story creative from Core below.
   const mockStoryProducts = lineItems
     .filter((item) => typeof item.imageUrl === "string" && /^https?:\/\//i.test(item.imageUrl))
-    .map((item) => ({ name: lineItemDisplayName(item), imageUrl: item.imageUrl as string }));
+    .map((item) => ({
+      name: lineItemDisplayName(item),
+      imageUrl: item.imageUrl as string,
+      price: toUnitPrice(item.price),
+    }));
 
   // Map Core's story-image response to the composer. A single `imageUrl` is the
   // ready-made creative; otherwise pass the per-product pieces (dropping any
@@ -223,7 +235,11 @@ export default function OrderDetail() {
     storyImage && !storyImage.imageUrl
       ? (storyImage.productImages ?? [])
           .filter((p) => typeof p.imageUrl === "string" && /^https?:\/\//i.test(p.imageUrl as string))
-          .map((p) => ({ name: "", imageUrl: p.imageUrl as string }))
+          .map((p) => ({
+            name: "",
+            imageUrl: p.imageUrl as string,
+            price: toUnitPrice(p.price),
+          }))
       : [];
 
   // Dev mocks have no Core endpoint, so they keep sourcing from the order object.
