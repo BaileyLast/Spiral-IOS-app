@@ -216,15 +216,25 @@ export default function OrderDetail() {
   const rawHandle = (order.merchantInstagramHandle || "").replace(/^@/, "");
   const orderNumber = order.shopifyOrderId.slice(-4);
 
-  // Purchased products that carry a usable image. Used only for the dev mock
-  // preview now; real orders source their Story creative from Core below.
-  const mockStoryProducts = lineItems
-    .filter((item) => typeof item.imageUrl === "string" && /^https?:\/\//i.test(item.imageUrl))
-    .map((item) => ({
-      name: lineItemDisplayName(item),
-      imageUrl: item.imageUrl as string,
-      price: toUnitPrice(item.price),
-    }));
+  // Purchased products that carry a usable image. The Story collage is built
+  // from the order's own line items so it can prefer Spiral-discounted items:
+  // when a per-item discount breakdown exists and at least one discounted item
+  // has a photo, only those are offered; otherwise all photographed items are.
+  const photographedItems = lineItems.filter(
+    (item) => typeof item.imageUrl === "string" && /^https?:\/\//i.test(item.imageUrl),
+  );
+  const discountedPhotographedItems = photographedItems.filter((item) =>
+    itemWasDiscounted(item),
+  );
+  const collageItems =
+    hasPerItemDiscount && discountedPhotographedItems.length > 0
+      ? discountedPhotographedItems
+      : photographedItems;
+  const lineItemStoryProducts = collageItems.map((item) => ({
+    name: lineItemDisplayName(item),
+    imageUrl: item.imageUrl as string,
+    price: toUnitPrice(item.price),
+  }));
 
   // Map Core's story-image response to the composer. A single `imageUrl` is the
   // ready-made creative; otherwise pass the per-product pieces (dropping any
@@ -243,13 +253,22 @@ export default function OrderDetail() {
       : [];
 
   // Dev mocks have no Core endpoint, so they keep sourcing from the order object.
+  // Real orders prefer the order's own line items for the collage (so the
+  // discount filter applies); Core's productImages remain a fallback when the
+  // line items carry no usable photos.
   const composerCreativeUrls = isMock ? [order.storyCreativeUrl] : endpointCreativeUrls;
-  const composerProducts = isMock ? mockStoryProducts : endpointProducts;
+  const composerProducts = isMock
+    ? lineItemStoryProducts
+    : lineItemStoryProducts.length > 0
+      ? lineItemStoryProducts
+      : endpointProducts;
 
   // Keep the composer in its loading state while Core is being asked (including
   // the first render after it opens, before the fetch flips to "fetching", which
   // is when status is still "pending"), and surface a retryable error state once
-  // the request has settled on a failure.
+  // the request has settled on a failure. If the order's own line items already
+  // provide collage photos, a story-image failure degrades to that collage
+  // (only the ready-made brand creative is lost) instead of blocking.
   const sourcePending =
     !isMock &&
     showComposer &&
@@ -258,7 +277,8 @@ export default function OrderDetail() {
     !isMock &&
     showComposer &&
     storyImageQuery.isError &&
-    storyImageQuery.fetchStatus !== "fetching";
+    storyImageQuery.fetchStatus !== "fetching" &&
+    lineItemStoryProducts.length === 0;
 
   // Resolve the brand's public shop URL by matching the merchant handle, guarded
   // to http(s) only so the composer never passes a non-web link sticker.
