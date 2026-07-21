@@ -299,9 +299,11 @@ export default function OrderDetail() {
     }
   })();
 
-  // Journey middle-step label is dynamic per delivery mode.
-  // Pickup journey: Order placed → Almost ready → Ready for pickup (→ Collected) → Post a story
-  // Shipping journey: Order placed → On the way / In transit / Out for delivery → Delivered → Post a story
+  // Journey middle-step label is dynamic per delivery mode. The Story step is
+  // not part of the timeline — posting is unlocked from the moment the order
+  // exists, so the journey only tracks the physical delivery.
+  // Pickup journey: Order placed → Almost ready → Ready for pickup (→ Collected)
+  // Shipping journey: Order placed → On the way / In transit / Out for delivery → Delivered
   const middleLabel = (() => {
     if (isPickup) {
       // Once the order is ready_for_pickup we show "Ready for pickup" on step 2;
@@ -315,7 +317,6 @@ export default function OrderDetail() {
     }
   })();
 
-  const storyComplete = status === "verified";
   const isTerminal = status === "cancelled" || status === "refunded";
   const steps = isTerminal
     ? [
@@ -331,7 +332,6 @@ export default function OrderDetail() {
         { id: "ordered", label: "Order placed", icon: Package, complete: true },
         { id: "shipped", label: middleLabel, icon: isPickup ? Store : Clock, complete: status !== "ordered" },
         { id: "delivered", label: isPickup ? "Collected" : "Delivered", icon: CheckCircle, complete: ["awaiting", "story_received", "awaiting_review", "quick_verified", "not_public", "taken_down_early", "verified"].includes(status) },
-        { id: "verified", label: storyComplete ? "Story posted" : "Post a story", icon: CheckCircle, complete: storyComplete },
       ];
 
   return (
@@ -361,7 +361,7 @@ export default function OrderDetail() {
                   Your order is ready to pick up
                 </h3>
                 <p className="text-sm text-indigo-700 mt-1">
-                  Once you've grabbed it, tap below to unlock your Story step.
+                  Once you've grabbed it, tap below to let us know.
                 </p>
               </div>
             </div>
@@ -388,7 +388,7 @@ export default function OrderDetail() {
           </div>
         )}
 
-        {status === "awaiting" && (
+        {["awaiting", "ordered", "shipped"].includes(status) && (
           <div className="creator-card story-bg-gradient p-6 text-white text-center relative overflow-hidden" data-testid="card-post-story">
             <div className="relative z-10 flex flex-col items-center">
               <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-[#4ECCA3] shadow-lg mb-4">
@@ -537,9 +537,10 @@ export default function OrderDetail() {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Confirm you've received it?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Once you've got it, post an Instagram Story tagging{" "}
+                    This helps us keep your order tracking accurate. And remember —
+                    posting a public Story tagging{" "}
                     {rawHandle ? <BrandHandle handle={rawHandle} /> : "the brand"}{" "}
-                    to unlock your next discount.
+                    unlocks your next discount.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -736,40 +737,19 @@ export default function OrderDetail() {
             {steps.map((step, index) => {
               const isLast = index === steps.length - 1;
               const Icon = step.icon;
-              const isVerifiedStep = step.id === "verified";
-              const deliveredComplete = steps[2]?.complete ?? false;
-              const teaseGoal = isVerifiedStep && deliveredComplete && !step.complete;
-              const isPostStoryStep = isVerifiedStep && !step.complete;
               return (
                 <div key={step.id} className={`flex gap-4 relative z-10 ${isLast ? "" : "pb-6"}`}>
                   <div className="relative shrink-0">
-                    {teaseGoal && (
-                      <span
-                        aria-hidden="true"
-                        className="absolute inset-0 rounded-full bg-[#4ECCA3]/30 animate-[ping_2.4s_cubic-bezier(0,0,0.2,1)_infinite]"
-                      />
-                    )}
                     <div
                       className={`relative w-8 h-8 rounded-full border-4 border-[#FCFCFB] flex items-center justify-center ${
-                        step.complete ? "bg-[#4ECCA3] text-white" : teaseGoal ? "bg-[#4ECCA3]/30 text-white" : "bg-gray-200 text-transparent"
+                        step.complete ? "bg-[#4ECCA3] text-white" : "bg-gray-200 text-transparent"
                       }`}
                     >
                       <Icon className="w-4 h-4" />
                     </div>
                   </div>
-                  <div className={`pt-1 ${step.complete || isPostStoryStep ? "" : "opacity-50"}`}>
-                    {isPostStoryStep ? (
-                      <button
-                        type="button"
-                        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-                        className="font-bold text-gray-900 text-sm underline underline-offset-2 hover:opacity-80 active:opacity-70 text-left"
-                        data-testid="button-post-story-scroll-top"
-                      >
-                        {step.label}
-                      </button>
-                    ) : (
-                      <p className="font-bold text-gray-900 text-sm">{step.label}</p>
-                    )}
+                  <div className={`pt-1 ${step.complete ? "" : "opacity-50"}`}>
+                    <p className="font-bold text-gray-900 text-sm">{step.label}</p>
                   </div>
                 </div>
               );
