@@ -1,0 +1,92 @@
+`UIScene` lifecycle will soon be required. Failure to adopt will result in an assert in the future.
+Reading from public effective user settings.
+Could not create a sandbox extension for '/var/containers/Bundle/Application/EF84A1A9-3169-4A41-8A81-158AFD7B0654/App.app'
+KeyboardPlugin: resize mode - native
+⚡️  Loading app at capacitor://localhost...
+WebContent[5550] Unable to hide query parameters from script (missing data)
+WebContent[5550] xpc_user_sessions_get_foreground_uid() failed with error 1 - Operation not permitted
+⚡️  WebView loaded
+Updated list with error: DownloadFailed
+Updated list with error: DownloadFailed
+Updated list with error: DownloadFailed
+Updated list with error: DownloadFailed
+Updated list with error: DownloadFailed
+Updated list with error: DownloadFailed
+autoVacuumModeStatus: Running PRAGMA auto_vacuum query to get vacuum mode
+-[RTIInputSystemClient remoteTextInputSessionWithID:textSuggestionsChanged:]  Can only set suggestions for an active session. sessionID = 8CA1FB8D-24ED-4B0A-83DA-301B4C1BA897
+The variant selector cell index number could not be found.
+The variant selector cell index number could not be found.
+The variant selector cell index number could not be found.
+The variant selector cell index number could not be found.
+The variant selector cell index number could not be found.
+The variant selector cell index number could not be found.
+The variant selector cell index number could not be found.
+The variant selector cell index number could not be found.
+The variant selector cell index number could not be found.
+The variant selector cell index number could not be found.
+The variant selector cell index number could not be found.
+The variant selector cell index number could not be found.
+The variant selector cell index number could not be found.
+The variant selector cell index number could not be found.
+The variant selector cell index number could not be found.
+-[RTIInputSystemClient remoteTextInputSessionWithID:textSuggestionsChanged:]  Can only set suggestions for an active session. sessionID = 8CA1FB8D-24ED-4B0A-83DA-301B4C1BA897
+The variant selector cell index number could not be found.
+The variant selector cell index number could not be found.
+The variant selector cell index number could not be found.
+The variant selector cell index number could not be found.
+The variant selector cell index number could not be found.
+The variant selector cell index number could not be found.
+The variant selector cell index number could not be found.
+WebContent[5550] makeImagePlus:3799: *** ERROR: 'WEBP'-_reader->initImage[0] failed err=-50
+WebContent[5550] Invalid profile 'c2ci': tags 'rTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'bTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'gTRC' and 'desc' overlap
+WebContent[5550] makeImagePlus:3799: *** ERROR: 'WEBP'-_reader->initImage[0] failed err=-50
+WebContent[5550] Invalid profile 'c2ci': tags 'rTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'bTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'gTRC' and 'desc' overlap
+WebContent[5550] makeImagePlus:3799: *** ERROR: 'WEBP'-_reader->initImage[0] failed err=-50
+WebContent[5550] Invalid profile 'c2ci': tags 'rTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'bTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'gTRC' and 'desc' overlap
+WebContent[5550] makeImagePlus:3799: *** ERROR: 'WEBP'-_reader->initImage[0] failed err=-50
+WebContent[5550] Invalid profile 'c2ci': tags 'rTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'bTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'gTRC' and 'desc' overlap
+WebContent[5550] makeImagePlus:3799: *** ERROR: 'WEBP'-_reader->initImage[0] failed err=-50
+WebContent[5550] Invalid profile 'c2ci': tags 'rTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'bTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'gTRC' and 'desc' overlap
+WebContent[5550] makeImagePlus:3799: *** ERROR: 'WEBP'-_reader->initImage[0] failed err=-50
+WebContent[5550] Invalid profile 'c2ci': tags 'rTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'bTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'gTRC' and 'desc' overlap
+WebContent[5550] makeImagePlus:3799: *** ERROR: 'WEBP'-_reader->initImage[0] failed err=-50
+WebContent[5550] Invalid profile 'c2ci': tags 'rTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'bTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'gTRC' and 'desc' overlap
+WebContent[5550] makeImagePlus:3799: *** ERROR: 'WEBP'-_reader->initImage[0] failed err=-50
+WebContent[5550] Invalid profile 'c2ci': tags 'rTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'bTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'gTRC' and 'desc' overlap
+WebContent[5550] makeImagePlus:3799: *** ERROR: 'WEBP'-_reader->initImage[0] failed err=-50
+WebContent[5550] Invalid profile 'c2ci': tags 'rTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'bTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'gTRC' and 'desc' overlap
+WebContent[5550] makeImagePlus:3799: *** ERROR: 'WEBP'-_reader->initImage[0] failed err=-50
+WebContent[5550] Invalid profile 'c2ci': tags 'rTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'bTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'gTRC' and 'desc' overlap
+WebContent[5550] makeImagePlus:3799: *** ERROR: 'WEBP'-_reader->initImage[0] failed err=-50
+WebContent[5550] Invalid profile 'c2ci': tags 'rTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'bTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'gTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'rTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'bTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'gTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'rTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'bTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'gTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'rTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'bTRC' and 'desc' overlap
+WebContent[5550] Invalid profile 'c2ci': tags 'gTRC' and 'desc' overlap

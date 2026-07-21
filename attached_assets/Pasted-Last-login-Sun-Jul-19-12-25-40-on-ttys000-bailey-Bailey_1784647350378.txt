@@ -1,0 +1,39 @@
+Last login: Sun Jul 19 12:25:40 on ttys000
+bailey@Baileys-MacBook-Pro ~ % git pull
+fatal: not a git repository (or any of the parent directories): .git
+bailey@Baileys-MacBook-Pro ~ % cd
+bailey@Baileys-MacBook-Pro ~ % find ~ -maxdepth 5 -name "capacitor.config.ts" 2>/dev/null
+/Users/bailey/Desktop/spiral-app/capacitor.config.ts
+/Users/bailey/Downloads/Spiral-IOS-app/capacitor.config.ts
+bailey@Baileys-MacBook-Pro ~ % git -C /Users/bailey/Desktop/spiral-app pull
+remote: Enumerating objects: 119, done.
+remote: Counting objects: 100% (119/119), done.
+remote: Compressing objects: 100% (13/13), done.
+remote: Total 99 (delta 86), reused 99 (delta 86), pack-reused 0 (from 0)
+Unpacking objects: 100% (99/99), 1.99 MiB | 12.15 MiB/s, done.
+From https://github.com/BaileyLast/Spiral-IOS-app
+   70b4dcc..e771163  main       -> origin/main
+Updating 70b4dcc..e771163
+Fast-forward
+ ...8-56-on-ttys000-bailey-Bailey_1784460380427.txt |  55 +++
+ ...ot_2026-07-19_at_13.24.40_(2)_1784463883419.png | Bin 0 -> 437108 bytes
+ ...enshot_2026-07-19_at_13.24.40_1784463883418.png | Bin 0 -> 992260 bytes
+ attached_assets/image_1784469566698.png            | Bin 0 -> 719624 bytes
+ client/src/components/StoryComposer.tsx            |  19 +-
+ client/src/components/ui/toast.tsx                 |   2 +-
+ client/src/lib/native.ts                           |  28 ++
+ client/src/pages/CustomerHome.tsx                  | 457 +++++++++++++++++++--
+ client/src/pages/DataDeletion.tsx                  |   7 +-
+ client/src/pages/InstagramHelp.tsx                 |   5 +-
+ client/src/pages/ManageAccount.tsx                 |   4 +-
+ client/src/pages/Marketplace.tsx                   |  72 ++--
+ client/src/pages/MerchantProducts.tsx              |   6 +-
+ client/src/pages/OrderDetail.tsx                   |  60 ++-
+ client/src/pages/Orders.tsx                        |   4 +
+ client/src/pages/Privacy.tsx                       |   7 +-
+ 16 files changed, 652 insertions(+), 74 deletions(-)
+ create mode 100644 attached_assets/Pasted-Last-login-Sun-Jul-19-12-18-56-on-ttys000-bailey-Bailey_1784460380427.txt
+ create mode 100644 attached_assets/Screenshot_2026-07-19_at_13.24.40_(2)_1784463883419.png
+ create mode 100644 attached_assets/Screenshot_2026-07-19_at_13.24.40_1784463883418.png
+ create mode 100644 attached_assets/image_1784469566698.png
+bailey@Baileys-MacBook-Pro ~ % 

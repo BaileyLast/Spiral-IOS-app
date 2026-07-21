@@ -1,0 +1,76 @@
+Last login: Sun Jul 19 12:25:40 on ttys000
+bailey@Baileys-MacBook-Pro ~ % git pull
+fatal: not a git repository (or any of the parent directories): .git
+bailey@Baileys-MacBook-Pro ~ % cd
+bailey@Baileys-MacBook-Pro ~ % find ~ -maxdepth 5 -name "capacitor.config.ts" 2>/dev/null
+/Users/bailey/Desktop/spiral-app/capacitor.config.ts
+/Users/bailey/Downloads/Spiral-IOS-app/capacitor.config.ts
+bailey@Baileys-MacBook-Pro ~ % git -C /Users/bailey/Desktop/spiral-app pull
+remote: Enumerating objects: 119, done.
+remote: Counting objects: 100% (119/119), done.
+remote: Compressing objects: 100% (13/13), done.
+remote: Total 99 (delta 86), reused 99 (delta 86), pack-reused 0 (from 0)
+Unpacking objects: 100% (99/99), 1.99 MiB | 12.15 MiB/s, done.
+From https://github.com/BaileyLast/Spiral-IOS-app
+   70b4dcc..e771163  main       -> origin/main
+Updating 70b4dcc..e771163
+Fast-forward
+ ...8-56-on-ttys000-bailey-Bailey_1784460380427.txt |  55 +++
+ ...ot_2026-07-19_at_13.24.40_(2)_1784463883419.png | Bin 0 -> 437108 bytes
+ ...enshot_2026-07-19_at_13.24.40_1784463883418.png | Bin 0 -> 992260 bytes
+ attached_assets/image_1784469566698.png            | Bin 0 -> 719624 bytes
+ client/src/components/StoryComposer.tsx            |  19 +-
+ client/src/components/ui/toast.tsx                 |   2 +-
+ client/src/lib/native.ts                           |  28 ++
+ client/src/pages/CustomerHome.tsx                  | 457 +++++++++++++++++++--
+ client/src/pages/DataDeletion.tsx                  |   7 +-
+ client/src/pages/InstagramHelp.tsx                 |   5 +-
+ client/src/pages/ManageAccount.tsx                 |   4 +-
+ client/src/pages/Marketplace.tsx                   |  72 ++--
+ client/src/pages/MerchantProducts.tsx              |   6 +-
+ client/src/pages/OrderDetail.tsx                   |  60 ++-
+ client/src/pages/Orders.tsx                        |   4 +
+ client/src/pages/Privacy.tsx                       |   7 +-
+ 16 files changed, 652 insertions(+), 74 deletions(-)
+ create mode 100644 attached_assets/Pasted-Last-login-Sun-Jul-19-12-18-56-on-ttys000-bailey-Bailey_1784460380427.txt
+ create mode 100644 attached_assets/Screenshot_2026-07-19_at_13.24.40_(2)_1784463883419.png
+ create mode 100644 attached_assets/Screenshot_2026-07-19_at_13.24.40_1784463883418.png
+ create mode 100644 attached_assets/image_1784469566698.png
+bailey@Baileys-MacBook-Pro ~ % cd /Users/bailey/Desktop/spiral-app
+bailey@Baileys-MacBook-Pro spiral-app % npm run build
+
+> rest-express@1.0.0 build
+> vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+
+vite v5.4.20 building for production...
+transforming (2) ../vite/modulepreload-polyfill.jsBrowserslist: browsers data (caniuse-lite) is 9 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+transforming (4) src/App.tsx
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 1750 modules transformed.
+../dist/public/index.html                                                   0.96 kB │ gzip:   0.52 kB
+../dist/public/assets/Spiral_logo_(1)_1779303755271-t8fe3xdl.png           67.83 kB
+../dist/public/assets/Spiral_logo_transparent_1779298156773-BF2aaIlK.png  115.01 kB
+../dist/public/assets/index-DAAC9TbD.css                                   91.52 kB │ gzip:  15.19 kB
+../dist/public/assets/web-DNfBxqPi.js                                       0.19 kB │ gzip:   0.17 kB
+../dist/public/assets/web-Dh9iYHAp.js                                       0.38 kB │ gzip:   0.25 kB
+../dist/public/assets/index-GD44L28l.js                                   488.09 kB │ gzip: 147.28 kB
+✓ built in 2.24s
+
+  dist/index.js  5.8kb
+
+⚡ Done in 9ms
+bailey@Baileys-MacBook-Pro spiral-app % npx cap sync ios
+✔ Copying web assets from public to ios/App/App/public in 7.45ms
+✔ Creating capacitor.config.json in ios/App/App in 532.67μs
+✔ copy ios in 61.88ms
+✔ Updating iOS plugins in 14.80ms
+✔ Updating iOS native dependencies with pod install in 4.42s
+[info] Found 3 Capacitor plugins for ios:
+       @capacitor/app-launcher@7.0.4
+       @capacitor/browser@7.0.5
+       @capacitor/keyboard@7.0.6
+✔ update ios in 4.48s
+[info] Sync finished in 4.663s
+bailey@Baileys-MacBook-Pro spiral-app % 
