@@ -5,7 +5,7 @@ import { openInstagram } from "@/lib/native";
 
 // Plain, CMA-friendly disclosure label. This is the working default rendered in
 // the app; swap DISCLOSURE_LABEL for a Spiral-branded graphic later.
-const DISCLOSURE_LABEL = "PAID PARTNERSHIP";
+const DISCLOSURE_LABEL = "SPIRAL AD";
 
 interface StoryProduct {
   name: string;
