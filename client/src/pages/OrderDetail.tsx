@@ -516,50 +516,6 @@ export default function OrderDetail() {
           </div>
         )}
 
-        {(status === "ordered" || status === "shipped") && !awaitingPickup && (
-          <div data-testid="section-mark-received">
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="w-full rounded-full h-12 text-sm font-bold"
-                  disabled={markReceivedMutation.isPending}
-                  data-testid="button-mark-received"
-                >
-                  {markReceivedMutation.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    "I've received this order"
-                  )}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Confirm you've received it?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This helps us keep your order tracking accurate. And remember —
-                    posting a public Story tagging{" "}
-                    {rawHandle ? <BrandHandle handle={rawHandle} /> : "the brand"}{" "}
-                    unlocks your next discount.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel data-testid="button-mark-received-cancel">Not yet</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => markReceivedMutation.mutate()}
-                    data-testid="button-mark-received-confirm"
-                  >
-                    Yes, I have it
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-            <p className="text-xs text-gray-400 text-center mt-2">
-              Only tap once the order is in your hands.
-            </p>
-          </div>
-        )}
-
         {/* PRODUCTS */}
         {lineItems.length > 0 && (
           <div className="creator-card p-5" data-testid="card-items">
@@ -756,6 +712,50 @@ export default function OrderDetail() {
             })}
           </div>
         </div>
+
+        {(status === "ordered" || status === "shipped") && !awaitingPickup && (
+          <div data-testid="section-mark-received">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full rounded-full h-12 text-sm font-bold"
+                  disabled={markReceivedMutation.isPending}
+                  data-testid="button-mark-received"
+                >
+                  {markReceivedMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    "I've received this order"
+                  )}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Confirm you've received it?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This helps us keep your order tracking accurate. And remember —
+                    posting a public Story tagging{" "}
+                    {rawHandle ? <BrandHandle handle={rawHandle} /> : "the brand"}{" "}
+                    unlocks your next discount.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel data-testid="button-mark-received-cancel">Not yet</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => markReceivedMutation.mutate()}
+                    data-testid="button-mark-received-confirm"
+                  >
+                    Yes, I have it
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <p className="text-xs text-gray-400 text-center mt-2">
+              Only tap once the order is in your hands.
+            </p>
+          </div>
+        )}
       </main>
 
       <StoryComposer
