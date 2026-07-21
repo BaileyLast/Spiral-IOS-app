@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
@@ -38,10 +39,11 @@ export default function Login() {
   const detectedCountry = useMemo(() => detectCountryFromLocale(), []);
   const [country, setCountry] = useState<string | null>(detectedCountry);
   const [countryPickerOpen, setCountryPickerOpen] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const selectedCountry = getCountryByCode(country);
 
   const authMutation = useMutation({
-    mutationFn: async (data: { mode: AuthMode; email: string; password: string; firstName?: string; lastName?: string; country?: string }) => {
+    mutationFn: async (data: { mode: AuthMode; email: string; password: string; firstName?: string; lastName?: string; country?: string; ageConfirmed?: boolean }) => {
       const endpoint = data.mode === "login" ? "/api/customer/login" : "/api/customer/signup";
       const { mode: _mode, ...payload } = data;
       const response = await apiRequest("POST", endpoint, payload);
@@ -103,6 +105,16 @@ export default function Login() {
         return;
       }
 
+      const AGE_ERROR = "You must confirm you are over 18 to create an account";
+      if (variables.mode === "signup" && error.message.includes(AGE_ERROR)) {
+        toast({
+          title: "Sign up failed",
+          description: AGE_ERROR,
+          variant: "destructive",
+        });
+        return;
+      }
+
       toast({
         title: mode === "login" ? "Login failed" : "Sign up failed",
         description: error.message || "Please check your details and try again",
@@ -121,6 +133,14 @@ export default function Login() {
       });
       return;
     }
+    if (mode === "signup" && !ageConfirmed) {
+      toast({
+        title: "Age confirmation needed",
+        description: "Please confirm you are over 18 to create an account",
+        variant: "destructive",
+      });
+      return;
+    }
     authMutation.mutate({
       mode,
       email,
@@ -128,6 +148,7 @@ export default function Login() {
       ...(mode === "signup" && firstName.trim() && { firstName: firstName.trim() }),
       ...(mode === "signup" && lastName.trim() && { lastName: lastName.trim() }),
       ...(mode === "signup" && country && { country }),
+      ...(mode === "signup" && { ageConfirmed: true }),
     });
   };
 
@@ -271,6 +292,24 @@ export default function Login() {
                 </button>
               </div>
             </div>
+
+            {mode === "signup" && (
+              <div className="flex items-start gap-3 pt-2">
+                <Checkbox
+                  id="ageConfirmed"
+                  checked={ageConfirmed}
+                  onCheckedChange={(checked) => setAgeConfirmed(checked === true)}
+                  className="mt-0.5"
+                  data-testid="checkbox-age-confirm"
+                />
+                <Label
+                  htmlFor="ageConfirmed"
+                  className="text-gray-700 text-sm font-medium leading-snug cursor-pointer"
+                >
+                  I confirm I am over 18
+                </Label>
+              </div>
+            )}
 
             <button
               type="submit"
