@@ -1,10 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient, apiRequest } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Home, Store, Percent, User } from "lucide-react";
+import { Home, Store, Percent, User, KeyRound } from "lucide-react";
 import { Link } from "wouter";
 import Login from "@/pages/Login";
 import VerifyEmail from "@/pages/VerifyEmail";
@@ -21,9 +21,11 @@ import Privacy from "@/pages/Privacy";
 import DataDeletion from "@/pages/DataDeletion";
 import PreviewCodeCard from "@/pages/PreviewCodeCard";
 import { ConnectInstagramHeaderCTA } from "@/components/ConnectInstagramHeaderCTA";
+import CheckoutCodeDialog from "@/components/CheckoutCodeDialog";
 
 function BottomNav() {
   const [location] = useLocation();
+  const [codeOpen, setCodeOpen] = useState(false);
   
   const navItems = [
     { path: "/home", icon: Home, label: "Home" },
@@ -65,7 +67,20 @@ function BottomNav() {
             </Link>
           );
         })}
+        {/* Spiral Code (checkout login) — opens a popup, not a route. */}
+        <button
+          onClick={() => setCodeOpen(true)}
+          className="relative flex items-center gap-2 px-4 h-11 rounded-full transition-all text-gray-400"
+          aria-label="Spiral Code"
+          data-testid="nav-spiral-code"
+        >
+          <KeyRound className="w-5 h-5 stroke-[2]" />
+        </button>
       </div>
+      {/* Mounted only while open so the query observer unmounts on close and
+          gcTime: 0 actually clears the cached code — reopening always shows a
+          fresh fetch (loading spinner), never a stale/used code. */}
+      {codeOpen && <CheckoutCodeDialog open={codeOpen} onOpenChange={setCodeOpen} />}
     </nav>
   );
 }
