@@ -33,7 +33,9 @@ export async function openExternalUrl(url: string): Promise<void> {
 // Append Spiral tracking params to a brand store/product URL so the Spiral
 // storefront pixel (Core-side) can instantly tie the browsing session to this
 // shopper — no login or checkout needed. Param names are a fixed contract with
-// Spiral Core: spiral_sid = shopper id, spiral_src = where in the app the tap
+// Spiral Core: spiral_sid = signed shopper token (s1.…) minted by Core and
+// returned as `spiralSid` on GET /api/customer/me (valid ~30 days, refreshed
+// with the profile), spiral_src = where in the app the tap
 // happened. If anything goes wrong (bad URL, no profile loaded yet) we return
 // the original URL untouched — the link must never break for the shopper.
 // IMPORTANT: only use for links the shopper opens themselves inside the app.
@@ -43,8 +45,11 @@ export function tagStoreUrl(url: string, source: string): string {
   try {
     const u = new URL(url);
     if (u.protocol !== "https:" && u.protocol !== "http:") return url;
-    const me = queryClient.getQueryData<{ id?: string }>(["/api/customer/me"]);
-    if (me?.id) u.searchParams.set("spiral_sid", me.id);
+    const me = queryClient.getQueryData<{ spiralSid?: string }>(["/api/customer/me"]);
+    // Only the signed token (s1.…) is ever sent — never the raw customer id.
+    // If the token isn't loaded yet, the link opens untagged rather than
+    // leaking a forgeable identifier.
+    if (me?.spiralSid) u.searchParams.set("spiral_sid", me.spiralSid);
     u.searchParams.set("spiral_src", source);
     return u.toString();
   } catch {

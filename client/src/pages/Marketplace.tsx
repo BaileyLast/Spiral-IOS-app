@@ -104,6 +104,7 @@ export function discountForFollowers(brand: Brand, followerCount: number | null 
 }
 
 interface CustomerProfile {
+  spiralSid?: string | null;
   country?: string;
   followerCount?: number | null;
   instagramUserId?: string | null;

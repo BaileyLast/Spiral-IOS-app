@@ -41,6 +41,7 @@ interface Product {
 
 interface CustomerProfile {
   id: string;
+  spiralSid?: string | null;
   instagramHandle?: string | null;
   instagramUserId?: string | null;
   followerCount?: number | null;
