@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
@@ -39,11 +38,26 @@ export default function Login() {
   const detectedCountry = useMemo(() => detectCountryFromLocale(), []);
   const [country, setCountry] = useState<string | null>(detectedCountry);
   const [countryPickerOpen, setCountryPickerOpen] = useState(false);
-  const [ageConfirmed, setAgeConfirmed] = useState(false);
+  // Replaces the old "I confirm I am over 18" checkbox: the server now derives
+  // 18+ from an actual date of birth. Default per Core spec: year 2000, so the
+  // native picker opens on a plausible year instead of today.
+  const [dateOfBirth, setDateOfBirth] = useState("2000-01-01");
+  const [dobError, setDobError] = useState<string | null>(null);
+  // Optional; empty string = skipped (the field is then omitted entirely).
+  const [gender, setGender] = useState<"" | "male" | "female" | "other" | "prefer_not_to_say">("");
   const selectedCountry = getCountryByCode(country);
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  // Friendly client-side pre-check only — the server is the source of truth.
+  const isUnder18 = (dob: string): boolean => {
+    const birth = new Date(dob + "T00:00:00");
+    if (isNaN(birth.getTime())) return false;
+    const cutoff = new Date(birth.getFullYear() + 18, birth.getMonth(), birth.getDate());
+    return new Date() < cutoff;
+  };
 
   const authMutation = useMutation({
-    mutationFn: async (data: { mode: AuthMode; email: string; password: string; firstName?: string; lastName?: string; country?: string; ageConfirmed?: boolean }) => {
+    mutationFn: async (data: { mode: AuthMode; email: string; password: string; firstName?: string; lastName?: string; country?: string; dateOfBirth?: string; gender?: string }) => {
       const endpoint = data.mode === "login" ? "/api/customer/login" : "/api/customer/signup";
       const { mode: _mode, ...payload } = data;
       const response = await apiRequest("POST", endpoint, payload);
@@ -105,13 +119,14 @@ export default function Login() {
         return;
       }
 
-      const AGE_ERROR = "You must confirm you are over 18 to create an account";
-      if (variables.mode === "signup" && error.message.includes(AGE_ERROR)) {
-        toast({
-          title: "Sign up failed",
-          description: AGE_ERROR,
-          variant: "destructive",
-        });
+      // DOB-related 400s from Core render inline next to the field, per spec.
+      const DOB_ERRORS = [
+        "You must be 18 or over to create an account",
+        "Date of birth must be a valid date in YYYY-MM-DD format",
+      ];
+      const dobMessage = DOB_ERRORS.find((m) => error.message.includes(m));
+      if (variables.mode === "signup" && dobMessage) {
+        setDobError(dobMessage);
         return;
       }
 
@@ -133,13 +148,16 @@ export default function Login() {
       });
       return;
     }
-    if (mode === "signup" && !ageConfirmed) {
-      toast({
-        title: "Age confirmation needed",
-        description: "Please confirm you are over 18 to create an account",
-        variant: "destructive",
-      });
-      return;
+    if (mode === "signup") {
+      setDobError(null);
+      if (!dateOfBirth) {
+        setDobError("Please enter your date of birth");
+        return;
+      }
+      if (isUnder18(dateOfBirth)) {
+        setDobError("You must be 18 or over to create an account");
+        return;
+      }
     }
     authMutation.mutate({
       mode,
@@ -148,7 +166,11 @@ export default function Login() {
       ...(mode === "signup" && firstName.trim() && { firstName: firstName.trim() }),
       ...(mode === "signup" && lastName.trim() && { lastName: lastName.trim() }),
       ...(mode === "signup" && country && { country }),
-      ...(mode === "signup" && { ageConfirmed: true }),
+      // When dateOfBirth is sent we must NOT send ageConfirmed — the server
+      // validates 18+ from the date itself.
+      ...(mode === "signup" && { dateOfBirth }),
+      // Skipped gender is omitted entirely (never an empty string).
+      ...(mode === "signup" && gender && { gender }),
     });
   };
 
@@ -294,20 +316,60 @@ export default function Login() {
             </div>
 
             {mode === "signup" && (
-              <div className="flex items-start gap-3 pt-2">
-                <Checkbox
-                  id="ageConfirmed"
-                  checked={ageConfirmed}
-                  onCheckedChange={(checked) => setAgeConfirmed(checked === true)}
-                  className="mt-0.5"
-                  data-testid="checkbox-age-confirm"
-                />
-                <Label
-                  htmlFor="ageConfirmed"
-                  className="text-gray-700 text-sm font-medium leading-snug cursor-pointer"
-                >
-                  I confirm I am over 18
+              <div className="space-y-2">
+                <Label htmlFor="dateOfBirth" className="text-gray-700 text-sm font-bold">
+                  Date of birth
                 </Label>
+                <Input
+                  id="dateOfBirth"
+                  type="date"
+                  value={dateOfBirth}
+                  max={todayStr}
+                  onChange={(e) => {
+                    setDateOfBirth(e.target.value);
+                    setDobError(null);
+                  }}
+                  className="h-14 rounded-2xl bg-gray-50 border-0 text-gray-900 focus-visible:ring-2 focus-visible:ring-[#4ECCA3] focus-visible:ring-offset-0"
+                  data-testid="input-date-of-birth"
+                />
+                {dobError && (
+                  <p className="text-sm font-medium text-red-500" data-testid="text-dob-error">
+                    {dobError}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {mode === "signup" && (
+              <div className="space-y-2">
+                <Label className="text-gray-700 text-sm font-bold">
+                  Gender <span className="text-gray-400 font-medium">(optional)</span>
+                </Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(
+                    [
+                      { value: "male", label: "Male" },
+                      { value: "female", label: "Female" },
+                      { value: "other", label: "Other" },
+                      { value: "prefer_not_to_say", label: "Prefer not to say" },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      // Tapping the selected option again deselects it (back to skipped).
+                      onClick={() => setGender(gender === opt.value ? "" : opt.value)}
+                      className={`h-12 px-3 rounded-2xl text-sm font-bold transition-colors ${
+                        gender === opt.value
+                          ? "bg-[#4ECCA3] text-white"
+                          : "bg-gray-50 text-gray-500"
+                      }`}
+                      data-testid={`button-gender-${opt.value}`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 

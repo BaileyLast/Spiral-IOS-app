@@ -88,6 +88,61 @@ function instagramAppSchemeUrl(url: string): string | null {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Native address lookup (MapKit autocomplete) — OPTIONAL bridge.
+// The separate iPhone-app repo may implement a `spiralAddressLookup` WKWebView
+// message handler that opens a native address search UI and calls
+// window.spiralAddressLookupResult(result) with the picked address. Like the
+// Story-share bridge, its absence must never break anything: when the handler
+// isn't there we simply report unavailable and the profile screen keeps plain
+// manual fields.
+export interface NativeAddressResult {
+  address?: string;   // free-text street address
+  city?: string;
+  county?: string;
+  postcode?: string;
+  country?: string;   // 2-letter uppercase ISO code
+}
+
+export function isNativeAddressLookupAvailable(): boolean {
+  const w = window as any;
+  return typeof w?.webkit?.messageHandlers?.spiralAddressLookup?.postMessage === "function";
+}
+
+// Ask the native shell to run its address search. Resolves with the picked
+// address, or null if the user cancelled / the bridge is missing or throws.
+export function requestNativeAddressLookup(): Promise<NativeAddressResult | null> {
+  return new Promise((resolve) => {
+    const w = window as any;
+    const handler = w?.webkit?.messageHandlers?.spiralAddressLookup;
+    if (!handler || typeof handler.postMessage !== "function") {
+      resolve(null);
+      return;
+    }
+    // The bridge might never call back (native bug, app backgrounded mid-search,
+    // handler version mismatch). Always settle so the UI can't hang: give the
+    // shopper up to 2 minutes to pick, then resolve null and clean up.
+    const timeout = setTimeout(() => {
+      if (w.spiralAddressLookupResult) {
+        delete w.spiralAddressLookupResult;
+        resolve(null);
+      }
+    }, 120_000);
+    w.spiralAddressLookupResult = (result: NativeAddressResult | null) => {
+      clearTimeout(timeout);
+      delete w.spiralAddressLookupResult;
+      resolve(result ?? null);
+    };
+    try {
+      handler.postMessage({});
+    } catch {
+      clearTimeout(timeout);
+      delete w.spiralAddressLookupResult;
+      resolve(null);
+    }
+  });
+}
+
 // Open a link that should hand off to the native Instagram app when possible.
 // On native we FIRST try Instagram's custom instagram:// scheme (the only thing
 // that opens the actual app); the `instagram` scheme is whitelisted in

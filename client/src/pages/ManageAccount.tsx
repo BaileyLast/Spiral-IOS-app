@@ -21,6 +21,7 @@ import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { useInstagramAvatar } from "@/hooks/use-instagram-avatar";
 import { useToast } from "@/hooks/use-toast";
 import { COUNTRIES, getCountryByCode, detectCountryFromLocale } from "@/lib/countries";
+import { isNativeAddressLookupAvailable, requestNativeAddressLookup } from "@/lib/native";
 import {
   ArrowLeft,
   Instagram,
@@ -49,8 +50,23 @@ interface CustomerProfile {
   instagramAccountType?: string;
   followerCount?: number;
   dateOfBirth?: string;
+  gender?: string;
   address?: string;
+  city?: string;
+  county?: string;
+  postcode?: string;
   country?: string;
+}
+
+const GENDER_OPTIONS = [
+  { value: "male", label: "Male" },
+  { value: "female", label: "Female" },
+  { value: "other", label: "Other" },
+  { value: "prefer_not_to_say", label: "Prefer not to say" },
+] as const;
+
+function genderLabel(value: string | undefined): string {
+  return GENDER_OPTIONS.find((o) => o.value === value)?.label || "";
 }
 
 function formatFollowerCount(count: number | null | undefined): string {
@@ -64,7 +80,16 @@ function formatFollowerCount(count: number | null | undefined): string {
   return count.toString();
 }
 
-type EditingField = "firstName" | "lastName" | "dateOfBirth" | "address" | "country" | null;
+type EditingField =
+  | "firstName"
+  | "lastName"
+  | "dateOfBirth"
+  | "address"
+  | "city"
+  | "county"
+  | "postcode"
+  | "country"
+  | null;
 
 export default function ManageAccount() {
   const [, setLocation] = useLocation();
@@ -72,6 +97,8 @@ export default function ManageAccount() {
   const [editingField, setEditingField] = useState<EditingField>(null);
   const [editValue, setEditValue] = useState("");
   const [countryPickerOpen, setCountryPickerOpen] = useState(false);
+  const [genderPickerOpen, setGenderPickerOpen] = useState(false);
+  const [addressLookupBusy, setAddressLookupBusy] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const { data: profile, isLoading, error: profileError } = useQuery<CustomerProfile>({
@@ -85,7 +112,7 @@ export default function ManageAccount() {
   const avatarUrl = useInstagramAvatar(!!profile?.instagramProfilePicture);
 
   const updateMutation = useMutation({
-    mutationFn: async (data: { firstName?: string | null; lastName?: string | null; dateOfBirth?: string | null; address?: string | null; country?: string | null }) => {
+    mutationFn: async (data: { firstName?: string | null; lastName?: string | null; dateOfBirth?: string | null; gender?: string | null; address?: string | null; city?: string | null; county?: string | null; postcode?: string | null; country?: string | null }) => {
       const response = await apiRequest("PATCH", "/api/customer/profile", data);
       return response.json();
     },
@@ -153,14 +180,48 @@ export default function ManageAccount() {
 
   const saveField = () => {
     if (!editingField) return;
+    const newValue = editValue.trim() || null;
+    // Send only what changed — an unchanged value is a no-op, not a PATCH.
+    const currentValue = (profile?.[editingField as keyof CustomerProfile] as string | undefined)?.trim() || null;
+    if (newValue === currentValue) {
+      setEditingField(null);
+      setEditValue("");
+      return;
+    }
     const data: Record<string, string | null> = {};
-    data[editingField] = editValue.trim() || null;
+    data[editingField] = newValue;
     updateMutation.mutate(data);
   };
 
   const saveCountry = (code: string | null) => {
     setCountryPickerOpen(false);
     updateMutation.mutate({ country: code });
+  };
+
+  const saveGender = (value: string | null) => {
+    setGenderPickerOpen(false);
+    // null clears the stored gender server-side.
+    updateMutation.mutate({ gender: value });
+  };
+
+  // Native iOS address autocomplete (optional bridge). When it returns a pick
+  // we save every populated part in one PATCH; cancel/missing bridge is a no-op.
+  const runAddressLookup = async () => {
+    setAddressLookupBusy(true);
+    try {
+      const result = await requestNativeAddressLookup();
+      if (result && (result.address || result.city || result.county || result.postcode || result.country)) {
+        updateMutation.mutate({
+          ...(result.address !== undefined && { address: result.address }),
+          ...(result.city !== undefined && { city: result.city }),
+          ...(result.county !== undefined && { county: result.county }),
+          ...(result.postcode !== undefined && { postcode: result.postcode }),
+          ...(result.country !== undefined && { country: result.country }),
+        });
+      }
+    } finally {
+      setAddressLookupBusy(false);
+    }
   };
 
   const suggestedCountryCode = useMemo(() => detectCountryFromLocale(), []);
@@ -182,7 +243,10 @@ export default function ManageAccount() {
     { key: "firstName" as const, label: "First name", value: profile?.firstName || "", icon: User, editable: true },
     { key: "lastName" as const, label: "Last name", value: profile?.lastName || "", icon: User, editable: true },
     { key: "dateOfBirth" as const, label: "Date of birth", value: profile?.dateOfBirth || "", icon: Calendar, editable: true },
-    { key: "address" as const, label: "Address", value: profile?.address || "", icon: MapPin, editable: true },
+    { key: "address" as const, label: "Street address", value: profile?.address || "", icon: MapPin, editable: true },
+    { key: "city" as const, label: "City", value: profile?.city || "", icon: MapPin, editable: true },
+    { key: "county" as const, label: "County", value: profile?.county || "", icon: MapPin, editable: true },
+    { key: "postcode" as const, label: "Postcode", value: profile?.postcode || "", icon: MapPin, editable: true },
   ];
 
   return (
@@ -292,6 +356,8 @@ export default function ManageAccount() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Input
+                          type={field.key === "dateOfBirth" ? "date" : "text"}
+                          max={field.key === "dateOfBirth" ? new Date().toISOString().slice(0, 10) : undefined}
                           value={editValue}
                           onChange={(e) => setEditValue(e.target.value)}
                           className="flex-1 rounded-2xl bg-gray-50 border-gray-100 text-gray-900 font-medium placeholder:text-gray-300 focus-visible:ring-[#4ECCA3]/20 focus-visible:border-[#4ECCA3] h-12"
@@ -352,6 +418,81 @@ export default function ManageAccount() {
                 </div>
               );
             })}
+
+            {/* Native address autocomplete — only rendered when the iOS shell
+                provides the bridge; on the web this button simply isn't there. */}
+            {isNativeAddressLookupAvailable() && (
+              <div className="p-3" data-testid="field-address-lookup">
+                <button
+                  className="w-full flex items-center gap-3 p-2 rounded-2xl hover-elevate text-left"
+                  onClick={runAddressLookup}
+                  disabled={addressLookupBusy || updateMutation.isPending}
+                  data-testid="button-address-lookup"
+                >
+                  <div className="w-10 h-10 rounded-2xl bg-[#E6F8F0] flex items-center justify-center flex-shrink-0">
+                    {addressLookupBusy ? (
+                      <Loader2 className="w-5 h-5 animate-spin text-[#1A996E]" />
+                    ) : (
+                      <MapPin className="w-5 h-5 text-[#1A996E]" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-[#1A996E]">Find my address</p>
+                    <p className="text-xs font-medium text-gray-400">Search and fill your address automatically</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                </button>
+              </div>
+            )}
+
+            {/* Gender picker */}
+            <div className="p-3" data-testid="field-gender">
+              <Popover open={genderPickerOpen} onOpenChange={setGenderPickerOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    className="w-full flex items-center gap-3 p-2 rounded-2xl hover-elevate text-left"
+                    data-testid="button-edit-gender"
+                  >
+                    <div className="w-10 h-10 rounded-2xl bg-[#E6F8F0] flex items-center justify-center flex-shrink-0">
+                      <User className="w-5 h-5 text-[#1A996E]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-0.5">
+                        Gender
+                      </p>
+                      <p className={`text-sm font-bold truncate ${profile?.gender ? "text-gray-900" : "text-gray-300"}`}>
+                        {genderLabel(profile?.gender) || "Not set"}
+                      </p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[240px] p-2" align="end">
+                  <div className="space-y-1">
+                    {GENDER_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-900 hover-elevate text-left"
+                        onClick={() => saveGender(opt.value)}
+                        data-testid={`option-gender-${opt.value}`}
+                      >
+                        <span className="flex-1">{opt.label}</span>
+                        {profile?.gender === opt.value && <Check className="w-4 h-4 text-[#4ECCA3]" />}
+                      </button>
+                    ))}
+                    {profile?.gender && (
+                      <button
+                        className="w-full px-3 py-2.5 rounded-xl text-sm font-medium text-gray-400 hover-elevate text-left"
+                        onClick={() => saveGender(null)}
+                        data-testid="option-gender-clear"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
 
             {/* Country picker */}
             <div className="p-3" data-testid="field-country">
