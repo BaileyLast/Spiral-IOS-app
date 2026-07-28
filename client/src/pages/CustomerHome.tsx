@@ -277,16 +277,18 @@ export default function CustomerHome() {
   const hasStats = !!stats;
 
   // Honest "average saved per order": the mean of the discount percent that was
-  // actually applied to each completed order. We deliberately do NOT show the
+  // actually applied to each order that landed with a discount — counted as
+  // soon as the order arrives, not after Story verification, since the
+  // discount is already kept. We deliberately do NOT show the
   // tier percent from the backend — every brand sets its own discount rules, so
   // a single "your discount" number would be a promise the app can't keep.
-  const completedWithPercent = orders.filter(
-    (o) => isCompleted(o) && Number(o.discountPercent) > 0,
+  const ordersWithPercent = orders.filter(
+    (o) => Number(o.discountPercent) > 0,
   );
   const avgPercent =
-    completedWithPercent.length > 0
-      ? completedWithPercent.reduce((sum, o) => sum + Number(o.discountPercent), 0) /
-        completedWithPercent.length
+    ordersWithPercent.length > 0
+      ? ordersWithPercent.reduce((sum, o) => sum + Number(o.discountPercent), 0) /
+        ordersWithPercent.length
       : 0;
   const discountText =
     avgPercent > 0
