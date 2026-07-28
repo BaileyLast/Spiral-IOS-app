@@ -282,6 +282,13 @@ export default function CustomerHome() {
   // discount is already kept. We deliberately do NOT show the
   // tier percent from the backend — every brand sets its own discount rules, so
   // a single "your discount" number would be a promise the app can't keep.
+  // Orders count: every order that has landed in the app, excluding
+  // cancelled/refunded ones — shown immediately, not after Story
+  // verification (the backend's ordersCompleted counter waits for that).
+  const landedOrdersCount = orders.filter(
+    (o) => o.status !== "cancelled" && o.status !== "refunded",
+  ).length;
+
   const ordersWithPercent = orders.filter(
     (o) => Number(o.discountPercent) > 0,
   );
@@ -344,7 +351,7 @@ export default function CustomerHome() {
                   className="text-2xl font-black text-white"
                   data-testid="text-orders-completed"
                 >
-                  {stats!.ordersCompleted}
+                  {landedOrdersCount}
                 </p>
               </div>
             </div>
