@@ -16,6 +16,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import {
   ArrowLeft,
+  ArrowRight,
+  AtSign,
+  Globe,
   CheckCircle,
   Clock,
   Package,
@@ -389,50 +392,68 @@ export default function OrderDetail() {
         )}
 
         {["awaiting", "ordered", "shipped"].includes(status) && (
-          <div className="creator-card story-bg-gradient p-6 text-white text-center relative overflow-hidden" data-testid="card-post-story">
-            <div className="relative z-10 flex flex-col items-center">
-              <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-[#4ECCA3] shadow-lg mb-4">
-                <Instagram className="w-8 h-8" />
+          <div className="creator-card bg-white p-5" data-testid="card-post-story">
+            {/* Header: icon left, pill + title + subtitle right */}
+            <div className="flex items-start gap-4 mb-4">
+              <div className="w-12 h-12 rounded-full bg-[#E6F8F0] flex items-center justify-center text-[#4ECCA3] flex-shrink-0">
+                <Instagram className="w-6 h-6" />
               </div>
-              <h2 className="text-2xl font-black mb-2 leading-tight">
-                Post your Story,<br />unlock your next discount.
-              </h2>
-              <p className="text-[#E6F8F0] font-medium text-sm mb-6 max-w-[260px]">
-                Showcase your new purchase and tag {rawHandle ? <BrandHandle handle={rawHandle} /> : "the brand"} in a public Story to unlock more discounts from your favourite stores.
-              </p>
-
-              {rawHandle ? (
-                <button
-                  type="button"
-                  onClick={() => setShowComposer(true)}
-                  className="tactile-btn bg-white text-[#4ECCA3] w-full py-4 text-lg shadow-[0_4px_12px_rgba(0,0,0,0.1),inset_0_-4px_0_rgba(240,240,240,1)] text-center"
-                  data-testid="button-open-composer"
-                >
-                  Post your Story
-                </button>
-              ) : (
-                <span className="tactile-btn bg-white text-[#4ECCA3] w-full py-4 text-lg shadow-[0_4px_12px_rgba(0,0,0,0.1),inset_0_-4px_0_rgba(240,240,240,1)] text-center">
-                  Post Story Now
+              <div className="min-w-0">
+                <span className="inline-block bg-[#E6F8F0] text-[#2FA97F] text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full mb-1.5">
+                  Action required
                 </span>
-              )}
-
-              <ul className="mt-4 text-[#E6F8F0] text-xs font-medium bg-black/10 px-4 py-3 rounded-2xl space-y-1.5 text-left w-full max-w-[280px]">
-                <li className="flex items-start gap-2">
-                  <ShieldCheck className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>Public Story (not Close Friends)</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <ShieldCheck className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>
-                    {rawHandle ? <BrandHandle handle={rawHandle} /> : "@brand"} must be clearly visible
-                  </span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <ShieldCheck className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>Stays up for 24 hours</span>
-                </li>
-              </ul>
+                <h2 className="text-xl font-black text-gray-900 leading-tight">
+                  Post your Story
+                </h2>
+                <p className="text-sm text-gray-500 font-medium mt-0.5">
+                  Post on Instagram to unlock your next Spiral discount.
+                </p>
+              </div>
             </div>
+
+            {/* CTA */}
+            {rawHandle ? (
+              <button
+                type="button"
+                onClick={() => setShowComposer(true)}
+                className="tactile-btn bg-[#4ECCA3] text-white w-full py-3.5 text-base shadow-[0_4px_12px_rgba(78,204,163,0.35),inset_0_-4px_0_rgba(0,0,0,0.08)] flex items-center justify-center gap-2"
+                data-testid="button-open-composer"
+              >
+                <Instagram className="w-4 h-4" />
+                <span>Post your Story</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            ) : (
+              <span className="tactile-btn bg-[#4ECCA3] text-white w-full py-3.5 text-base shadow-[0_4px_12px_rgba(78,204,163,0.35),inset_0_-4px_0_rgba(0,0,0,0.08)] flex items-center justify-center gap-2">
+                <Instagram className="w-4 h-4" />
+                <span>Post your Story</span>
+                <ArrowRight className="w-4 h-4" />
+              </span>
+            )}
+
+            {/* Requirements row */}
+            <div className="mt-4 bg-gray-50 rounded-2xl px-3 py-3 grid grid-cols-3 divide-x divide-gray-200">
+              <div className="flex flex-col items-center text-center px-1">
+                <Globe className="w-4 h-4 text-[#4ECCA3] mb-1" />
+                <span className="text-[11px] font-black text-gray-900 leading-tight">Public Story</span>
+                <span className="text-[10px] text-gray-500 font-medium leading-tight">Not Close Friends</span>
+              </div>
+              <div className="flex flex-col items-center text-center px-1">
+                <AtSign className="w-4 h-4 text-[#4ECCA3] mb-1" />
+                <span className="text-[11px] font-black text-gray-900 leading-tight">Tag this account</span>
+                <span className="text-[10px] text-[#2FA97F] font-bold leading-tight border-b border-dotted border-[#4ECCA3] max-w-full truncate">
+                  {rawHandle ? <BrandHandle handle={rawHandle} /> : "@brand"}
+                </span>
+              </div>
+              <div className="flex flex-col items-center text-center px-1">
+                <Clock className="w-4 h-4 text-[#4ECCA3] mb-1" />
+                <span className="text-[11px] font-black text-gray-900 leading-tight">Keep it visible</span>
+                <span className="text-[10px] text-gray-500 font-medium leading-tight">For 24 hours</span>
+              </div>
+            </div>
+            <p className="mt-2 text-center text-xs text-[#2FA97F] italic font-semibold">
+              Don&apos;t forget to tag!
+            </p>
           </div>
         )}
 
