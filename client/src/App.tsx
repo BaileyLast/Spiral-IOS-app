@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient, apiRequest } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -21,11 +21,10 @@ import Privacy from "@/pages/Privacy";
 import DataDeletion from "@/pages/DataDeletion";
 import PreviewCodeCard from "@/pages/PreviewCodeCard";
 import { ConnectInstagramHeaderCTA } from "@/components/ConnectInstagramHeaderCTA";
-import CheckoutCodeDialog from "@/components/CheckoutCodeDialog";
+import SpiralCode from "@/pages/SpiralCode";
 
 function BottomNav() {
   const [location] = useLocation();
-  const [codeOpen, setCodeOpen] = useState(false);
   
   const navItems = [
     { path: "/home", icon: Home, label: "Home" },
@@ -67,20 +66,23 @@ function BottomNav() {
             </Link>
           );
         })}
-        {/* Spiral Code (checkout login) — opens a popup, not a route. */}
-        <button
-          onClick={() => setCodeOpen(true)}
-          className="relative flex items-center gap-2 px-4 h-11 rounded-full transition-all text-gray-400"
-          aria-label="Spiral Code"
-          data-testid="nav-spiral-code"
-        >
-          <KeyRound className="w-5 h-5 stroke-[2]" />
-        </button>
+        {/* Spiral Code (checkout login) — its own page. The page unmounts on
+            navigation away and gcTime: 0 clears the cached code, so returning
+            always shows a fresh fetch, never a stale/used code. */}
+        <Link href="/spiral-code">
+          <button
+            className={`relative flex items-center gap-2 px-4 h-11 rounded-full transition-all ${
+              location === "/spiral-code"
+                ? "bg-[#4ECCA3] text-white shadow-[0_4px_12px_rgba(78,204,163,0.3)]"
+                : "text-gray-400"
+            }`}
+            aria-label="Spiral Code"
+            data-testid="nav-spiral-code"
+          >
+            <KeyRound className={`w-5 h-5 ${location === "/spiral-code" ? "stroke-[2.5]" : "stroke-[2]"}`} />
+          </button>
+        </Link>
       </div>
-      {/* Mounted only while open so the query observer unmounts on close and
-          gcTime: 0 actually clears the cached code — reopening always shows a
-          fresh fetch (loading spinner), never a stale/used code. */}
-      {codeOpen && <CheckoutCodeDialog open={codeOpen} onOpenChange={setCodeOpen} />}
     </nav>
   );
 }
@@ -98,6 +100,7 @@ function Router() {
       <Route path="/discounts" component={Orders} />
       <Route path="/orders/:id" component={OrderDetail} />
       <Route path="/profile" component={Profile} />
+      <Route path="/spiral-code" component={SpiralCode} />
       <Route path="/manage-account" component={ManageAccount} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/data-deletion" component={DataDeletion} />
@@ -147,7 +150,7 @@ function AppContent() {
     <div className="min-h-screen md:bg-[#F4F1EC] md:py-8">
       <ScrollToTop />
       <div className={`min-h-screen bg-white md:min-h-[calc(100vh-4rem)] md:max-w-md md:mx-auto md:rounded-[2.5rem] md:shadow-[0_30px_80px_-20px_rgba(0,0,0,0.25)] md:overflow-hidden md:relative${hideBottomNav ? "" : " safe-top"}`}>
-        {!hideBottomNav && location !== "/discounts" && location !== "/home" && <ConnectInstagramHeaderCTA />}
+        {!hideBottomNav && location !== "/discounts" && location !== "/home" && location !== "/spiral-code" && <ConnectInstagramHeaderCTA />}
         <main className={hideBottomNav ? "" : "pb-20"}>
           <Router />
         </main>
