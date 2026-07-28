@@ -89,10 +89,7 @@ export default function SpiralCode() {
             <Ticket className="w-7 h-7" />
           </div>
           <h1 className="text-3xl font-black text-gray-900">Your Spiral Code</h1>
-          <p className="text-gray-500 font-medium mt-2 max-w-[280px]">
-            Type this code at a partner store's checkout to sign in — no email
-            or password needed.
-          </p>
+          <p className="text-gray-500 font-medium mt-2 max-w-[280px]">This code will generate you discount at any of our partner stores.</p>
         </div>
 
         {/* Code card */}
