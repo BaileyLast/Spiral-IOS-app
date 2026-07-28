@@ -166,11 +166,23 @@ export default function SpiralCode() {
             )}
           </button>
           {howToOpen && (
-            <ol className="px-5 pb-5 pt-1 space-y-2 text-sm text-gray-600 font-medium list-decimal list-inside" data-testid="text-how-to-use">
-              <li>Shop at any Spiral partner store.</li>
-              <li>At checkout, look for the Spiral sign-in.</li>
-              <li>Type in this code — that's it, you're signed in.</li>
-            </ol>
+            <div className="px-5 pb-5 pt-1 space-y-4 text-sm text-gray-600 font-medium" data-testid="text-how-to-use">
+              <div>
+                <p className="font-bold text-gray-900 mb-1">Online</p>
+                <p>
+                  Use this code to log in to your Spiral account on our partner
+                  websites and your discount will be applied automatically at
+                  checkout.
+                </p>
+              </div>
+              <div>
+                <p className="font-bold text-gray-900 mb-1">In store</p>
+                <p>
+                  Show this code to a member of staff before you pay to get
+                  your Spiral discount.
+                </p>
+              </div>
+            </div>
           )}
         </div>
       </main>
