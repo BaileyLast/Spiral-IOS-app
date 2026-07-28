@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Copy,
   Info,
+  Instagram,
   Loader2,
   Ticket,
 } from "lucide-react";
@@ -28,10 +29,24 @@ interface CheckoutCodeResponse {
 // rotates server-side (expiry or use) is replaced without the shopper noticing.
 const REFRESH_MS = 45_000;
 
+// Minimal slice of GET /api/customer/me needed for the Instagram gate.
+interface CustomerProfile {
+  instagramHandle?: string;
+  followerCount?: number;
+}
+
 export default function SpiralCode() {
   const [, setLocation] = useLocation();
   const [copied, setCopied] = useState(false);
   const [howToOpen, setHowToOpen] = useState(false);
+
+  // Same "Instagram linked" rule as Home/Marketplace: a handle must exist AND
+  // a follower count must have been captured — not merely a lingering count.
+  const profileQuery = useQuery<CustomerProfile>({
+    queryKey: ["/api/customer/me"],
+  });
+  const igLinked =
+    !!profileQuery.data?.instagramHandle && (profileQuery.data?.followerCount ?? 0) > 0;
 
   const codeQuery = useQuery<CheckoutCodeResponse>({
     queryKey: ["/api/customer/checkout-code"],
@@ -39,6 +54,9 @@ export default function SpiralCode() {
       const res = await apiRequest("POST", "/api/customer/checkout-code");
       return res.json();
     },
+    // The code is only usable once Instagram is linked — don't even ask the
+    // server for one until then (avoids flashing a spinner/error at new users).
+    enabled: igLinked,
     // Always fetch fresh when the page opens, and keep it fresh while open.
     staleTime: 0,
     gcTime: 0,
@@ -48,6 +66,7 @@ export default function SpiralCode() {
   });
 
   // Session expired → same behavior as everywhere else: back to login.
+  useAuthGuard(profileQuery.error);
   useAuthGuard(codeQuery.error);
 
   const code = codeQuery.data?.code;
@@ -92,6 +111,61 @@ export default function SpiralCode() {
           <p className="text-gray-500 font-medium mt-2 max-w-[280px]">This code will generate your discount at any of our partner stores.</p>
         </div>
 
+        {!igLinked ? (
+          profileQuery.isLoading ? (
+            // Profile still loading — don't flash the wrong state either way.
+            <div className="mt-8 flex justify-center py-10" data-testid="state-profile-loading">
+              <Loader2 className="w-8 h-8 animate-spin text-[#4ECCA3]" />
+            </div>
+          ) : profileQuery.isError ? (
+            // Profile fetch failed (network/server) — we don't actually know
+            // whether Instagram is linked, so never show the "link first"
+            // gate here. Offer a retry instead.
+            <div
+              className="mt-8 bg-white rounded-3xl px-6 py-10 text-center space-y-3"
+              data-testid="state-profile-error"
+            >
+              <p className="text-sm text-gray-500">
+                Couldn't load your account. Try again.
+              </p>
+              <button
+                type="button"
+                onClick={() => profileQuery.refetch()}
+                className="tactile-btn bg-[#4ECCA3] text-white px-6 py-3 text-sm rounded-full"
+                data-testid="button-retry-profile"
+              >
+                Try again
+              </button>
+            </div>
+          ) : (
+            // Not linked yet — no code fetch happens at all (query disabled).
+            <div
+              className="mt-8 bg-white rounded-3xl px-6 py-10 text-center"
+              data-testid="state-instagram-required"
+            >
+              <div className="w-14 h-14 rounded-full bg-[#E6F8F0] flex items-center justify-center text-[#2BAE88] mx-auto mb-4">
+                <Instagram className="w-6 h-6" />
+              </div>
+              <h2 className="text-xl font-black text-gray-900">
+                Link your Instagram first
+              </h2>
+              <p className="text-sm text-gray-500 font-medium mt-2 max-w-[280px] mx-auto">
+                Your Spiral Code unlocks once your Instagram is connected —
+                that's how partner stores know it's really you.
+              </p>
+              <button
+                type="button"
+                onClick={() => setLocation("/home")}
+                className="tactile-btn mt-6 bg-[#4ECCA3] text-white px-8 py-4 text-base rounded-full shadow-[0_4px_12px_rgba(78,204,163,0.35),inset_0_-4px_0_rgba(0,0,0,0.08)] inline-flex items-center gap-2"
+                data-testid="button-connect-instagram"
+              >
+                <Instagram className="w-5 h-5" />
+                <span>Connect Instagram</span>
+              </button>
+            </div>
+          )
+        ) : (
+          <>
         {/* Code card */}
         <div className="mt-8 bg-white rounded-3xl border-2 border-dashed border-[#A8E6CE] px-6 py-10 text-center">
           <p className="text-xs uppercase tracking-[0.2em] text-[#2BAE88] font-black mb-3">
@@ -185,6 +259,8 @@ export default function SpiralCode() {
             </div>
           )}
         </div>
+          </>
+        )}
       </main>
     </div>
   );
