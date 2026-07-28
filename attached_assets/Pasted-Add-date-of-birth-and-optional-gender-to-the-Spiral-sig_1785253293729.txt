@@ -1,0 +1,22 @@
+Add date of birth and optional gender to the Spiral signup flow, and structured address fields to the profile screen.
+
+The Core API (api.joinspiral.app) now collects shopper demographics. Make these changes:
+
+1. Signup screen — replace the "I confirm I am over 18" checkbox with a date-of-birth picker:
+
+Add a required date-of-birth field (native date picker, default to a sensible year like 2000, max selectable date = today).
+Send it to POST /api/customer/signup as dateOfBirth in YYYY-MM-DD format (e.g. "1995-06-15"). When dateOfBirth is sent, do NOT send ageConfirmed — the server validates 18+ from the date itself.
+Handle these 400 error responses by showing the message inline: "You must be 18 or over to create an account" and "Date of birth must be a valid date in YYYY-MM-DD format".
+Optionally do a client-side 18+ check before submitting for a friendlier experience, but the server is the source of truth.
+2. Signup screen — add an optional gender picker:
+
+Optional field, four choices only. Send as gender with exactly one of these values: male, female, other, prefer_not_to_say. If the shopper skips it, omit the field entirely (don't send empty string).
+Suggested labels: Male / Female / Other / Prefer not to say.
+3. Profile screen — structured address with address lookup:
+
+PATCH /api/customer/profile now accepts these fields (all optional, send only what changed): dateOfBirth (YYYY-MM-DD, server rejects under-18), gender (same four values, or null to clear), address (free-text street address, max 500 chars), city (max 100), county (max 100), postcode (max 20), country (2-letter uppercase ISO code, e.g. "GB").
+Use the iOS address-lookup UI (e.g. MapKit/CLGeocoder autocomplete) so the shopper picks their address and you populate address, city, county, postcode, country from the result. Core just stores what you send — no parsing server-side.
+GET /api/customer/me now returns dateOfBirth, gender, city, county, postcode alongside the existing fields — use these to pre-fill the profile screen.
+Notes:
+
+The verify-email flow is unchanged; DOB and gender are carried through automatically when the account is created.
