@@ -33,7 +33,7 @@ import type { Order } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { openStoreUrl } from "@/lib/native";
 import { useToast } from "@/hooks/use-toast";
-import StoryComposer from "@/components/StoryComposer";
+import StoryComposer, { type StoryTemplateKit } from "@/components/StoryComposer";
 import {
   parseLineItems,
   lineItemDisplayName,
@@ -78,6 +78,13 @@ interface StoryImageResponse {
   mode: string;
   imageUrl: string | null;
   productImages?: { productId: string; imageUrl: string | null; price?: number | string | null }[];
+  /**
+   * Additive Core fields: "brand_imagery" = post `imageUrl` as-is;
+   * "default_template" = compose the branded Story from `template`. Unknown
+   * values fall back to legacy behavior.
+   */
+  storyType?: string | null;
+  template?: StoryTemplateKit | null;
 }
 
 // Tolerant unit-price read: Core may send a number, a numeric string, or
@@ -786,6 +793,8 @@ export default function OrderDetail() {
         shopUrl={shopUrl}
         creativeUrls={composerCreativeUrls}
         products={composerProducts}
+        storyType={isMock ? null : storyImage?.storyType ?? null}
+        templateKit={isMock ? null : storyImage?.template ?? null}
         sourcePending={sourcePending}
         sourceError={sourceError}
         onRetrySource={() => storyImageQuery.refetch()}

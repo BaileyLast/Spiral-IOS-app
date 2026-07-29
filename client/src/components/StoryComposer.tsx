@@ -3,9 +3,12 @@ import { X, Loader2, Instagram, Copy, Check, ShieldCheck, ShoppingBag, RefreshCw
 import { useToast } from "@/hooks/use-toast";
 import { openInstagram } from "@/lib/native";
 
-// Plain, CMA-friendly disclosure label. This is the working default rendered in
-// the app; swap DISCLOSURE_LABEL for a Spiral-branded graphic later.
-const DISCLOSURE_LABEL = "SPIRAL AD";
+// CMA-friendly disclosure label, matching the branded template mockups.
+const DISCLOSURE_LABEL = "Sponsored by Spiral";
+
+// Instagram Story frame: full-screen 9:16.
+const STORY_W = 1080;
+const STORY_H = 1920;
 
 interface StoryProduct {
   name: string;
@@ -22,11 +25,31 @@ interface StoryProduct {
 // very tall, shrinks every photo, and Instagram crops the top/bottom.
 const MAX_COLLAGE_IMAGES = 4;
 
+// Template kit from Spiral Core (storyType === "default_template"). Every field
+// can be null — the renderer degrades gracefully and the caller falls back to
+// the legacy composition when the kit can't produce a Story at all.
+export interface StoryTemplateKit {
+  backgroundImageUrl: string | null;
+  backgroundSource: "lifestyle" | "product" | null;
+  productImages?: { productId: string; imageUrl: string | null; price?: number | string | null }[] | null;
+  logoUrl: string | null;
+  logoSource: "custom" | "default" | null;
+  instagramHandle: string | null;
+}
+
 interface StoryComposerProps {
   open: boolean;
   onClose: () => void;
   /** Merchant handle without a leading @. */
   merchantHandle: string;
+  /**
+   * Core's storyType for this order. "brand_imagery" = finished creative,
+   * "default_template" = compose from templateKit. Unknown/missing values fall
+   * back to the legacy composition — never crash on new enum values.
+   */
+  storyType?: string | null;
+  /** Template kit, present when storyType === "default_template". */
+  templateKit?: StoryTemplateKit | null;
   /** Brand's public shop URL, used for the native link sticker when available. */
   shopUrl?: string | null;
   /**
@@ -65,25 +88,58 @@ function roundRect(
   ctx.closePath();
 }
 
-// Draws the disclosure pill into the bottom-left corner of an image of the given
-// width. The pill (and its font) scale with the image so it stays a small,
-// legible badge regardless of the source image size.
+const FONT_STACK = `-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif`;
+
+// Draws the "Sponsored by Spiral" disclosure pill, bottom-centered, per the
+// template mockups. The pill (and its font) scale with the image so it stays a
+// small, legible badge regardless of the source image size.
 function bakeDisclosure(ctx: CanvasRenderingContext2D, imageWidth: number, imageHeight: number) {
-  const fontSize = Math.max(20, Math.round(imageWidth * 0.04));
-  ctx.font = `700 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif`;
+  const fontSize = Math.max(18, Math.round(imageWidth * 0.028));
+  ctx.font = `600 ${fontSize}px ${FONT_STACK}`;
   const metrics = ctx.measureText(DISCLOSURE_LABEL);
-  const pillH = Math.round(fontSize * 2);
-  const pillW = Math.round(metrics.width + fontSize * 1.8);
-  const pad = Math.round(imageWidth * 0.035);
-  const x = pad;
-  const y = imageHeight - pad - pillH;
-  ctx.fillStyle = "rgba(0,0,0,0.62)";
+  const pillH = Math.round(fontSize * 2.1);
+  const pillW = Math.round(metrics.width + fontSize * 2.2);
+  const x = Math.round((imageWidth - pillW) / 2);
+  const y = imageHeight - Math.round(imageWidth * 0.045) - pillH;
+  ctx.fillStyle = "rgba(20,20,20,0.72)";
   roundRect(ctx, x, y, pillW, pillH, pillH / 2);
   ctx.fill();
   ctx.fillStyle = "#ffffff";
-  ctx.textAlign = "left";
+  ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(DISCLOSURE_LABEL, x + fontSize * 0.9, y + pillH / 2 + 1);
+  ctx.fillText(DISCLOSURE_LABEL, x + pillW / 2, y + pillH / 2 + 1);
+  ctx.textAlign = "left";
+}
+
+// Renders the disclosure pill alone on a transparent canvas — the movable
+// sticker handed to the native iOS bridge alongside the CLEAN photo (native
+// share path), while web/download tiers get the disclosure baked in.
+function makeDisclosureSticker(): string | null {
+  try {
+    const fontSize = 34;
+    const probe = document.createElement("canvas").getContext("2d");
+    if (!probe) return null;
+    probe.font = `600 ${fontSize}px ${FONT_STACK}`;
+    const textW = probe.measureText(DISCLOSURE_LABEL).width;
+    const pillH = Math.round(fontSize * 2.1);
+    const pillW = Math.round(textW + fontSize * 2.2);
+    const canvas = document.createElement("canvas");
+    canvas.width = pillW;
+    canvas.height = pillH;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.font = `600 ${fontSize}px ${FONT_STACK}`;
+    ctx.fillStyle = "rgba(20,20,20,0.85)";
+    roundRect(ctx, 0, 0, pillW, pillH, pillH / 2);
+    ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(DISCLOSURE_LABEL, pillW / 2, pillH / 2 + 1);
+    return canvas.toDataURL("image/png");
+  } catch {
+    return null;
+  }
 }
 
 // Loads an image with CORS enabled so it can be drawn to a canvas and exported
@@ -133,9 +189,44 @@ function drawCover(
   ctx.restore();
 }
 
-// Renders a single image as-is (no reframe to a Story canvas) with the
-// disclosure badge baked into the bottom-left corner.
-function bakeSingle(img: HTMLImageElement): string {
+// Contain-fits an image into the given rect (no cropping, no distortion),
+// centered. Used for product shots inside their white cards and the brand logo.
+function drawContain(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+) {
+  const iw = img.naturalWidth || img.width;
+  const ih = img.naturalHeight || img.height;
+  if (!iw || !ih) return;
+  const s = Math.min(w / iw, h / ih);
+  const dw = iw * s;
+  const dh = ih * s;
+  ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+}
+
+// A composed Story: the CLEAN photo (no disclosure) for the native bridge and
+// the BAKED photo (disclosure burned in) for web share / download / preview.
+interface ComposedStory {
+  clean: string;
+  baked: string;
+}
+
+// Exports a finished canvas as { clean, baked }: clean is captured first, then
+// the disclosure pill is baked on for the web/fallback tiers.
+function exportStory(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): ComposedStory {
+  const clean = canvas.toDataURL("image/jpeg", 0.92);
+  bakeDisclosure(ctx, canvas.width, canvas.height);
+  const baked = canvas.toDataURL("image/jpeg", 0.92);
+  return { clean, baked };
+}
+
+// Renders a single image as-is (brand-supplied finished creative — Core already
+// sized it; our only job is the disclosure).
+function bakeSingle(img: HTMLImageElement): ComposedStory {
   const w = img.naturalWidth || img.width;
   const h = img.naturalHeight || img.height;
   if (!w || !h) throw new Error("image-empty");
@@ -145,13 +236,12 @@ function bakeSingle(img: HTMLImageElement): string {
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("no-2d-context");
   ctx.drawImage(img, 0, 0);
-  bakeDisclosure(ctx, w, h);
-  return canvas.toDataURL("image/jpeg", 0.92);
+  return exportStory(canvas, ctx);
 }
 
-// Composes several images into a tidy 2-column collage with the disclosure badge
-// baked in. An odd final image spans the full width so the grid never has a hole.
-function bakeCollage(imgs: HTMLImageElement[]): string {
+// Composes several images into a tidy 2-column collage. An odd final image
+// spans the full width so the grid never has a hole. (Legacy fallback path.)
+function bakeCollage(imgs: HTMLImageElement[]): ComposedStory {
   const n = imgs.length;
   const cols = 2;
   const rows = Math.ceil(n / cols);
@@ -186,8 +276,181 @@ function bakeCollage(imgs: HTMLImageElement[]): string {
     }
   }
 
-  bakeDisclosure(ctx, W, H);
-  return canvas.toDataURL("image/jpeg", 0.92);
+  return exportStory(canvas, ctx);
+}
+
+// ---------------------------------------------------------------------------
+// Branded 1080×1920 Story template (storyType === "default_template").
+// Full-bleed background, brand logo top, 1–4 rounded product cards, @handle
+// badge — per the reference mockups. Returns null when the kit can't produce a
+// Story (no/broken background AND no product images), so the caller can fall
+// back to the legacy composition.
+
+// Draws a rounded white card with the product image contained inside.
+function drawProductCard(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+) {
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.28)";
+  ctx.shadowBlur = 36;
+  ctx.shadowOffsetY = 12;
+  ctx.fillStyle = "#F7F6F3";
+  roundRect(ctx, x, y, w, h, 44);
+  ctx.fill();
+  ctx.restore();
+  const pad = Math.round(Math.min(w, h) * 0.09);
+  drawContain(ctx, img, x + pad, y + pad, w - pad * 2, h - pad * 2);
+}
+
+// Draws the @handle pill with a verification-style badge.
+function drawHandleBadge(ctx: CanvasRenderingContext2D, handle: string, centerY: number) {
+  const fontSize = 46;
+  ctx.font = `700 ${fontSize}px ${FONT_STACK}`;
+  const textW = ctx.measureText(handle).width;
+  const badgeR = 25;
+  const gap = 18;
+  const padX = 44;
+  const pillH = 104;
+  const pillW = Math.round(textW + gap + badgeR * 2 + padX * 2);
+  const x = Math.round((STORY_W - pillW) / 2);
+  const y = Math.round(centerY - pillH / 2);
+  ctx.save();
+  ctx.fillStyle = "rgba(0,0,0,0.30)";
+  roundRect(ctx, x, y, pillW, pillH, pillH / 2);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.85)";
+  ctx.lineWidth = 3;
+  roundRect(ctx, x + 1.5, y + 1.5, pillW - 3, pillH - 3, (pillH - 3) / 2);
+  ctx.stroke();
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  const textX = x + padX;
+  ctx.fillText(handle, textX, y + pillH / 2 + 2);
+  // Verification-style badge: white disc + dark check.
+  const bx = textX + textW + gap + badgeR;
+  const by = y + pillH / 2;
+  ctx.beginPath();
+  ctx.arc(bx, by, badgeR, 0, Math.PI * 2);
+  ctx.fillStyle = "#ffffff";
+  ctx.fill();
+  ctx.strokeStyle = "#1A996E";
+  ctx.lineWidth = 6;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(bx - badgeR * 0.42, by + badgeR * 0.02);
+  ctx.lineTo(bx - badgeR * 0.1, by + badgeR * 0.34);
+  ctx.lineTo(bx + badgeR * 0.46, by - badgeR * 0.3);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Lays out 1–4 product cards per the mockups within the central band.
+function drawProductGrid(ctx: CanvasRenderingContext2D, imgs: HTMLImageElement[], centerY: number) {
+  const AREA_W = 900;
+  const left = (STORY_W - AREA_W) / 2;
+  const G = 24;
+  const half = (AREA_W - G) / 2; // 438
+  const n = Math.min(imgs.length, 4);
+  if (n === 1) {
+    drawProductCard(ctx, imgs[0], left, centerY - AREA_W / 2, AREA_W, AREA_W);
+  } else if (n === 2) {
+    const y = centerY - half / 2;
+    drawProductCard(ctx, imgs[0], left, y, half, half);
+    drawProductCard(ctx, imgs[1], left + half + G, y, half, half);
+  } else if (n === 3) {
+    // One large card above two side-by-side.
+    const bigH = 560;
+    const totalH = bigH + G + half;
+    const top = centerY - totalH / 2;
+    drawProductCard(ctx, imgs[0], left + (AREA_W - 620) / 2, top, 620, bigH);
+    drawProductCard(ctx, imgs[1], left, top + bigH + G, half, half);
+    drawProductCard(ctx, imgs[2], left + half + G, top + bigH + G, half, half);
+  } else {
+    // 2×2 grid.
+    const totalH = half * 2 + G;
+    const top = centerY - totalH / 2;
+    drawProductCard(ctx, imgs[0], left, top, half, half);
+    drawProductCard(ctx, imgs[1], left + half + G, top, half, half);
+    drawProductCard(ctx, imgs[2], left, top + half + G, half, half);
+    drawProductCard(ctx, imgs[3], left + half + G, top + half + G, half, half);
+  }
+}
+
+async function composeTemplate(
+  kit: StoryTemplateKit,
+  loadAll: (urls: string[]) => Promise<HTMLImageElement[]>,
+): Promise<ComposedStory | null> {
+  const isWeb = (u: unknown): u is string => typeof u === "string" && /^https?:\/\//i.test(u);
+  const productUrls = (kit.productImages ?? [])
+    .map((p) => p?.imageUrl)
+    .filter(isWeb)
+    .slice(0, 4);
+  const [prodImgs, bgImg, logoImg] = await Promise.all([
+    loadAll(productUrls),
+    isWeb(kit.backgroundImageUrl) ? loadImage(kit.backgroundImageUrl).catch(() => null) : Promise.resolve(null),
+    isWeb(kit.logoUrl) ? loadImage(kit.logoUrl).catch(() => null) : Promise.resolve(null),
+  ]);
+  // Nothing visual to work with → let the caller use the legacy fallback.
+  if (!bgImg && !prodImgs.length) return null;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = STORY_W;
+  canvas.height = STORY_H;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("no-2d-context");
+
+  // Background: lifestyle photos go full-bleed; a substituted product shot gets
+  // blurred so it reads as a backdrop, not a squashed product photo.
+  ctx.fillStyle = "#141414";
+  ctx.fillRect(0, 0, STORY_W, STORY_H);
+  if (bgImg) {
+    const blur = kit.backgroundSource === "product";
+    ctx.save();
+    if (blur && "filter" in ctx) {
+      ctx.filter = "blur(42px)";
+      // Overscan so the blur doesn't reveal transparent edges.
+      const iw = bgImg.naturalWidth || bgImg.width;
+      const ih = bgImg.naturalHeight || bgImg.height;
+      const s = Math.max(STORY_W / iw, STORY_H / ih) * 1.12;
+      ctx.drawImage(bgImg, (STORY_W - iw * s) / 2, (STORY_H - ih * s) / 2, iw * s, ih * s);
+    } else {
+      drawCover(ctx, bgImg, 0, 0, STORY_W, STORY_H);
+    }
+    ctx.restore();
+    // Soft darkening for legibility (a bit heavier over a blurred product shot).
+    ctx.fillStyle = blur ? "rgba(0,0,0,0.45)" : "rgba(0,0,0,0.30)";
+    ctx.fillRect(0, 0, STORY_W, STORY_H);
+    const grad = ctx.createLinearGradient(0, STORY_H * 0.62, 0, STORY_H);
+    grad.addColorStop(0, "rgba(0,0,0,0)");
+    grad.addColorStop(1, "rgba(0,0,0,0.38)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, STORY_W, STORY_H);
+  }
+
+  // Brand logo, centered near the top.
+  if (logoImg) {
+    drawContain(ctx, logoImg, (STORY_W - 460) / 2, 110, 460, 190);
+  }
+
+  // Product cards in the central band.
+  if (prodImgs.length) {
+    drawProductGrid(ctx, prodImgs, 985);
+  }
+
+  // @handle badge (prefix @ ourselves; Core sends it bare).
+  const handle = (kit.instagramHandle || "").replace(/^@/, "").trim();
+  if (handle) {
+    drawHandleBadge(ctx, `@${handle}`, 1660);
+  }
+
+  return exportStory(canvas, ctx);
 }
 
 function dataUrlToFile(dataUrl: string, filename: string): File | null {
@@ -215,15 +478,19 @@ function downloadDataUrl(dataUrl: string, filename: string) {
 
 // Native iOS Share-to-Stories bridge. The separate iPhone-app repo implements a
 // `spiralStoryShare` WKWebView message handler that places the photo as the
-// Story background and shopUrl as a link sticker. The disclosure is now baked
-// into the photo, so no separate disclosure sticker is sent. Returns true if a
-// native handler accepted the payload.
-function tryNativeBridge(backgroundImage: string, contentURL?: string | null): boolean {
+// Story background and shopUrl as a link sticker. The native path gets the
+// CLEAN photo plus the disclosure as a movable sticker; web/fallback tiers use
+// the baked photo instead. Returns true if a native handler accepted the payload.
+function tryNativeBridge(
+  backgroundImage: string,
+  stickerImage: string | null,
+  contentURL?: string | null,
+): boolean {
   const w = window as any;
   const handler = w?.webkit?.messageHandlers?.spiralStoryShare;
   if (handler && typeof handler.postMessage === "function") {
     try {
-      handler.postMessage({ backgroundImage, stickerImage: null, contentURL: contentURL ?? null });
+      handler.postMessage({ backgroundImage, stickerImage, contentURL: contentURL ?? null });
       // Native owns completion + error surfacing from here. We only treat a
       // throwing postMessage as "not handled" so we fall through to web tiers.
       return true;
@@ -243,12 +510,14 @@ export default function StoryComposer({
   shopUrl,
   creativeUrls,
   products,
+  storyType,
+  templateKit,
   sourcePending,
   sourceError,
   onRetrySource,
 }: StoryComposerProps) {
   const { toast } = useToast();
-  const [composed, setComposed] = useState<string | null>(null);
+  const [composed, setComposed] = useState<ComposedStory | null>(null);
   const [status, setStatus] = useState<Status>("loading");
   const [sharing, setSharing] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -267,7 +536,18 @@ export default function StoryComposer({
     .sort((a, z) => (Number(z?.price) || 0) - (Number(a?.price) || 0))
     .map((p) => p.imageUrl)
     .filter(isWebUrl);
-  const sourceKey = `${creatives.join("|")}##${productUrls.join("|")}`;
+  // Template kit inputs participate in the rebuild key so a late-arriving or
+  // changed kit re-composes the Story.
+  const templateKey = templateKit
+    ? [
+        templateKit.backgroundImageUrl ?? "",
+        templateKit.backgroundSource ?? "",
+        templateKit.logoUrl ?? "",
+        templateKit.instagramHandle ?? "",
+        ...(templateKit.productImages ?? []).map((p) => p?.imageUrl ?? ""),
+      ].join("|")
+    : "";
+  const sourceKey = `${storyType ?? ""}##${templateKey}##${creatives.join("|")}##${productUrls.join("|")}`;
 
   // Monotonic token so only the most recent build can mutate state.
   const buildVersion = useRef(0);
@@ -297,6 +577,24 @@ export default function StoryComposer({
       return;
     }
     setStatus("loading");
+    // Branded template path (storyType === "default_template"): compose the
+    // full-screen 1080×1920 Story from Core's kit. If the kit can't produce a
+    // Story (missing/broken assets), fall through to the legacy composition —
+    // and unknown future storyType values also fall through, never crash.
+    if (storyType === "default_template" && templateKit) {
+      try {
+        const out = await composeTemplate(templateKit, loadAll);
+        if (version !== buildVersion.current) return;
+        if (out) {
+          setComposed(out);
+          setStatus("ready");
+          return;
+        }
+      } catch {
+        if (version !== buildVersion.current) return;
+        // Fall through to the legacy composition below.
+      }
+    }
     if (!creatives.length && !productUrls.length) {
       setStatus("empty");
       return;
@@ -362,12 +660,12 @@ export default function StoryComposer({
     setSharing(true);
     await copyHandle();
     try {
-      // 1) Native iPhone app (link sticker), if present.
-      if (tryNativeBridge(composed, shopUrl)) {
+      // 1) Native iPhone app: clean photo + disclosure as a movable sticker.
+      if (tryNativeBridge(composed.clean, makeDisclosureSticker(), shopUrl)) {
         return;
       }
       // 2) Web share sheet with the baked image.
-      const file = dataUrlToFile(composed, "spiral-story.jpg");
+      const file = dataUrlToFile(composed.baked, "spiral-story.jpg");
       const canShareFile =
         !!file &&
         typeof navigator.canShare === "function" &&
@@ -377,7 +675,7 @@ export default function StoryComposer({
         return;
       }
       // 3) Fallback: save the image and open Instagram for a manual post.
-      downloadDataUrl(composed, "spiral-story.jpg");
+      downloadDataUrl(composed.baked, "spiral-story.jpg");
       await openInstagram(`https://instagram.com/${merchantHandle.replace(/^@/, "")}`);
       toast({
         title: "Photo saved",
@@ -417,7 +715,7 @@ export default function StoryComposer({
         <div className="flex-1 flex flex-col px-5 pb-6 overflow-y-auto">
           <div className="flex-1 flex items-center justify-center min-h-0">
             <img
-              src={composed}
+              src={composed.baked}
               alt="Your Story preview"
               className="max-h-[52vh] w-auto rounded-2xl object-contain"
               data-testid="img-story-preview"
