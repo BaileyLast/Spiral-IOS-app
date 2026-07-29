@@ -1,0 +1,21 @@
+Spiral Core now returns a Story template payload so the app can compose branded purchase Stories. Build the renderer and story-type handling.
+
+Context: After a purchase, the shopper shares an Instagram Story to earn their discount. GET /api/customer/orders/:id/story-image (Bearer auth, unchanged) now includes two additive fields alongside the legacy ones: storyType and template. Old fields (mode, imageUrl, productImages) are unchanged — keep the current flow as fallback for any missing data.
+
+1. Branch on storyType:
+
+"brand_imagery" — the brand supplied a finished Story image. imageUrl holds it; template is null. Use the image as-is; your only job is to bake in the "Sponsored by Spiral" disclosure (same rules as today).
+"default_template" — compose the Story from the template kit (reference designs: the 4 template mockups already shared — full-bleed lifestyle background, grid of 1–4 product cards, brand logo top, @handle badge, Spiral disclosure).
+Treat any unknown future value (e.g. "video", coming later for pro-tier brands) as unsupported → fall back to today's behavior. Never crash on new enum values.
+2. template kit fields (when storyType == "default_template"):
+
+backgroundImageUrl (string|null) + backgroundSource ("lifestyle" | "product" | null). Lifestyle = a brand Instagram photo, use full-bleed. "product" means Core had no lifestyle image and substituted the highest-priced product photo — apply whatever treatment suits a product shot as backdrop (e.g. blur/darken) rather than assuming it's a lifestyle scene. It's never null when any product image exists.
+productImages: [{productId, imageUrl, price}] — already sorted price-descending and capped at 4. Render 1–4 cards per the reference layouts.
+logoUrl (string|null) + logoSource ("custom" | "default" | null) — show at the top of the template; custom means the merchant uploaded their own.
+instagramHandle (string|null, no leading @) — render as the @handle badge; prefix @ yourself.
+Every field can be null — degrade gracefully (skip the logo/badge if missing; if there's no background at all, use the current fallback Story).
+3. Rules:
+
+The Spiral disclosure must be baked into the composed photo for web/fallback share paths; the native spiralStoryShare bridge gets the clean photo + movable sticker as today.
+All of this is additive — don't remove handling for the legacy response, older orders may still return only the old shape.
+Important: test against dev only for now. These fields are not yet live in production — Core needs to be published first. Flag when you're ready for prod testing.
