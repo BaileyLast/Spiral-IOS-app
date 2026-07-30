@@ -10,8 +10,8 @@ import {
   Info,
   Instagram,
   Loader2,
-  Ticket,
 } from "lucide-react";
+import spiralTagLogoUrl from "@assets/Spiral_logo_(2)_1785419399374.png";
 import { apiRequest, isUnauthorizedError } from "@/lib/queryClient";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 
@@ -104,8 +104,8 @@ export default function SpiralCode() {
         </button>
 
         <div className="flex flex-col items-center text-center mt-6">
-          <div className="w-16 h-16 rounded-full bg-[#E6F8F0] flex items-center justify-center text-[#2BAE88] mb-4">
-            <Ticket className="w-7 h-7" />
+          <div className="w-16 h-16 rounded-full bg-[#E6F8F0] flex items-center justify-center mb-4">
+            <img src={spiralTagLogoUrl} alt="" className="w-10 h-10 object-contain" data-testid="img-spiral-code-logo" />
           </div>
           <h1 className="text-3xl font-black text-gray-900">Your Spiral Code</h1>
           <p className="text-gray-500 font-medium mt-2 max-w-[280px]">This code will generate your discount at any of our partner stores.</p>
