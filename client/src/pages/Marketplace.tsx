@@ -52,14 +52,6 @@ interface ProductCard {
   available: boolean;
 }
 
-type InstagramMediaType = "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM" | "REELS";
-
-interface InstagramMediaItem {
-  mediaUrl: string;
-  mediaType: InstagramMediaType;
-  thumbnailUrl: string | null;
-}
-
 interface DiscountTier {
   fromFollowers: number;
   toFollowers: number | null;
@@ -79,7 +71,26 @@ export interface Brand {
   selectedProductCount: number;
   discountTiers?: DiscountTier[] | null;
   products?: ProductCard[];
-  instagramMedia?: InstagramMediaItem[];
+  /**
+   * Additive brand-level lifestyle image from Core (sourced by the Shopify
+   * app's storefront scraping). Either a single URL or an ordered list —
+   * tolerate both shapes and their absence.
+   */
+  backgroundImageUrl?: string | null;
+  lifestyleImages?: (string | null)[] | null;
+}
+
+// First safe http(s) lifestyle URL for a brand, or null. Defensive about the
+// wire shape: `lifestyleImages` may arrive as an array OR a bare string while
+// Core's field settles, and either field may be absent/null.
+export function brandLifestyleImageUrl(brand: Brand): string | null {
+  const rawList = brand.lifestyleImages;
+  const list = Array.isArray(rawList) ? rawList : typeof rawList === "string" ? [rawList] : [];
+  const candidates = [brand.backgroundImageUrl, ...list];
+  for (const url of candidates) {
+    if (isSafeHttpUrl(url)) return url as string;
+  }
+  return null;
 }
 
 export function maxDiscountPercent(brand: Brand): number {
@@ -144,287 +155,56 @@ function discountedProductPrice(price: string | null, pct: number): string | nul
   return `£${discounted.toFixed(2)}`;
 }
 
-const IMAGE_SLIDE_MS = 5000;
-const MAX_SLIDES = 4;
-
-interface HeroSlideshowProps {
-  media: InstagramMediaItem[];
-  fallbackImageUrl: string | null;
-  fallbackImageAlt: string;
+interface BrandHeroProps {
+  /** Candidate image URLs in priority order: lifestyle → product → profile pic. */
+  imageUrls: string[];
+  alt: string;
   fallbackInitial: string;
   fallbackGradient: string;
-  alt: string;
   testKey: string;
 }
 
-// Ambient brand hero — slow cross-fade through the brand's recent IG posts.
-// Images dwell IMAGE_SLIDE_MS; videos play to completion before advancing.
-// Pauses when offscreen or when the browser tab is hidden so we don't burn
-// CPU/bandwidth on cards the shopper can't see.
-function HeroSlideshow({
-  media,
-  fallbackImageUrl,
-  fallbackImageAlt,
-  fallbackInitial,
-  fallbackGradient,
-  alt,
-  testKey,
-}: HeroSlideshowProps) {
-  // Use a stable signature (URLs + types) so parent re-renders with a fresh
-  // array reference but the same content don't reset playback mid-slide.
-  const mediaSignature = useMemo(
-    () => media.slice(0, MAX_SLIDES).map((m) => `${m.mediaType}|${m.mediaUrl}`).join("\n"),
-    [media],
-  );
-  const slides = useMemo(
-    () => media.slice(0, MAX_SLIDES),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [mediaSignature],
-  );
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [index, setIndex] = useState(0);
-  const [isVisible, setIsVisible] = useState(false);
-  const [isTabVisible, setIsTabVisible] = useState(() =>
-    typeof document === "undefined" ? true : !document.hidden,
-  );
-  const [loaded, setLoaded] = useState<Set<number>>(() => new Set([0]));
-  const [videoFailed, setVideoFailed] = useState<Record<number, boolean>>({});
-  const [fallbackImgFailed, setFallbackImgFailed] = useState(false);
-
-  // Reset slideshow state only when the actual media content changes.
+// Static brand hero. Walks the candidate URLs in priority order (lifestyle
+// image → product photo → IG profile picture), advancing on load failure, and
+// lands on the deterministic gradient+initial when nothing loads.
+function BrandHero({ imageUrls, alt, fallbackInitial, fallbackGradient, testKey }: BrandHeroProps) {
+  const [failedCount, setFailedCount] = useState(0);
+  // New candidate list → start again from the strongest candidate.
+  const urlsSignature = imageUrls.join("\n");
   useEffect(() => {
-    setIndex(0);
-    setLoaded(new Set([0]));
-    setVideoFailed({});
-  }, [mediaSignature]);
+    setFailedCount(0);
+  }, [urlsSignature]);
 
-  // Pause when card is offscreen.
-  useEffect(() => {
-    const node = containerRef.current;
-    if (!node) return;
-    if (typeof IntersectionObserver === "undefined") {
-      setIsVisible(true);
-      return;
-    }
-    const obs = new IntersectionObserver(
-      ([entry]) => setIsVisible(entry.intersectionRatio >= 0.5),
-      { threshold: [0, 0.5, 1] },
-    );
-    obs.observe(node);
-    return () => obs.disconnect();
-  }, []);
-
-  // Pause when tab is hidden.
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    const onVis = () => setIsTabVisible(!document.hidden);
-    document.addEventListener("visibilitychange", onVis);
-    return () => document.removeEventListener("visibilitychange", onVis);
-  }, []);
-
-  const active = isVisible && isTabVisible;
-
-  const advance = useCallback(() => {
-    setIndex((i) => {
-      const total = Math.max(1, slides.length);
-      const next = (i + 1) % total;
-      setLoaded((s) => {
-        if (s.has(next)) return s;
-        const copy = new Set(s);
-        copy.add(next);
-        return copy;
-      });
-      return next;
-    });
-  }, [slides.length]);
-
-  const markVideoFailed = useCallback((i: number) => {
-    setVideoFailed((p) => (p[i] ? p : { ...p, [i]: true }));
-  }, []);
-
-  // Image-timer effect — only for non-video (or failed-video) current slides.
-  // Video slides advance on the `ended` event instead.
-  const currentSlide = slides[index];
-  const isVideoType = (t: InstagramMediaType) => t === "VIDEO" || t === "REELS";
-  const treatAsImage =
-    !currentSlide ||
-    !isVideoType(currentSlide.mediaType) ||
-    !!videoFailed[index];
-
-  useEffect(() => {
-    if (!active || slides.length <= 1 || !treatAsImage) return;
-    const t = window.setTimeout(advance, IMAGE_SLIDE_MS);
-    return () => window.clearTimeout(t);
-  }, [active, index, treatAsImage, slides.length, advance]);
-
-  // Empty slideshow → fall back to the existing static hero behavior.
-  if (slides.length === 0) {
-    const showImage = fallbackImageUrl && !fallbackImgFailed;
+  const src = imageUrls[failedCount] ?? null;
+  if (!src) {
     return (
-      <div ref={containerRef} className="absolute inset-0">
-        {showImage ? (
-          <img
-            src={fallbackImageUrl}
-            alt={fallbackImageAlt}
-            loading="lazy"
-            decoding="async"
-            className="w-full h-full object-cover"
-            onError={() => setFallbackImgFailed(true)}
-          />
-        ) : (
-          <div
-            className="w-full h-full flex items-center justify-center"
-            style={{ background: fallbackGradient }}
-            data-testid={`fallback-brand-${testKey}`}
-          >
-            <span className="text-7xl font-black text-white drop-shadow-md">
-              {fallbackInitial}
-            </span>
-          </div>
-        )}
+      <div className="absolute inset-0">
+        <div
+          className="w-full h-full flex items-center justify-center"
+          style={{ background: fallbackGradient }}
+          data-testid={`fallback-brand-${testKey}`}
+        >
+          <span className="text-7xl font-black text-white drop-shadow-md">
+            {fallbackInitial}
+          </span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="absolute inset-0"
-      data-testid={`slideshow-${testKey}`}
-    >
-      {slides.map((slide, i) => {
-        if (!loaded.has(i)) return null;
-        const isActive = i === index;
-        return (
-          <div
-            key={i}
-            className="absolute inset-0 transition-opacity duration-700 ease-in-out"
-            style={{ opacity: isActive ? 1 : 0 }}
-          >
-            <SlideMedia
-              slide={slide}
-              isActive={isActive}
-              active={active}
-              hasFailed={!!videoFailed[i]}
-              fallbackInitial={fallbackInitial}
-              fallbackGradient={fallbackGradient}
-              alt={alt}
-              onVideoEnded={advance}
-              onVideoFailed={() => markVideoFailed(i)}
-            />
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-interface SlideMediaProps {
-  slide: InstagramMediaItem;
-  isActive: boolean;
-  active: boolean;
-  hasFailed: boolean;
-  fallbackInitial: string;
-  fallbackGradient: string;
-  alt: string;
-  onVideoEnded: () => void;
-  onVideoFailed: () => void;
-}
-
-function SlideMedia({
-  slide,
-  isActive,
-  active,
-  hasFailed,
-  fallbackInitial,
-  fallbackGradient,
-  alt,
-  onVideoEnded,
-  onVideoFailed,
-}: SlideMediaProps) {
-  const [imgFailed, setImgFailed] = useState(false);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  // Tracks whether this slide is in the middle of a playback session. We
-  // rewind to t=0 when a slide *becomes* active for the first time, but on
-  // subsequent visibility/tab flips we resume from where we paused.
-  const playbackStartedRef = useRef(false);
-  const isVideo = (slide.mediaType === "VIDEO" || slide.mediaType === "REELS") && !hasFailed;
-
-  // Reset playback-session flag whenever this slide leaves the active spot
-  // so the next time it becomes active it starts fresh from t=0.
-  useEffect(() => {
-    if (!isActive) playbackStartedRef.current = false;
-  }, [isActive]);
-
-  // Drive playback. If autoplay is rejected (e.g. browser policy) treat the
-  // slide as a still — parent will then start its image timer.
-  useEffect(() => {
-    if (!isVideo) return;
-    const v = videoRef.current;
-    if (!v) return;
-    if (isActive && active) {
-      if (!playbackStartedRef.current) {
-        try {
-          v.currentTime = 0;
-        } catch {
-          // some browsers throw if metadata isn't loaded yet — ignored
-        }
-        playbackStartedRef.current = true;
-      }
-      const p = v.play();
-      if (p && typeof (p as Promise<void>).catch === "function") {
-        (p as Promise<void>).catch(() => onVideoFailed());
-      }
-    } else {
-      v.pause();
-    }
-  }, [isActive, active, isVideo, onVideoFailed]);
-
-  if (isVideo) {
-    return (
-      <video
-        ref={videoRef}
-        src={slide.mediaUrl}
-        poster={slide.thumbnailUrl ?? undefined}
-        muted
-        playsInline
-        preload={isActive ? "auto" : "metadata"}
-        onEnded={() => {
-          if (isActive) onVideoEnded();
-        }}
-        onError={() => onVideoFailed()}
+    <div className="absolute inset-0">
+      <img
+        key={src}
+        src={src}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
         className="w-full h-full object-cover"
+        onError={() => setFailedCount((n) => n + 1)}
+        data-testid={`img-brand-hero-${testKey}`}
       />
-    );
-  }
-
-  const stillUrl =
-    slide.mediaType === "IMAGE"
-      ? slide.mediaUrl
-      : slide.thumbnailUrl ?? slide.mediaUrl;
-
-  if (imgFailed || !stillUrl) {
-    return (
-      <div
-        className="w-full h-full flex items-center justify-center"
-        style={{ background: fallbackGradient }}
-      >
-        <span className="text-7xl font-black text-white drop-shadow-md">
-          {fallbackInitial}
-        </span>
-      </div>
-    );
-  }
-
-  return (
-    <img
-      src={stillUrl}
-      alt={alt}
-      loading="lazy"
-      decoding="async"
-      className="w-full h-full object-cover"
-      onError={() => setImgFailed(true)}
-    />
+    </div>
   );
 }
 
@@ -454,12 +234,13 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
 
   const products = (brand.products ?? []).filter((p) => isSafeHttpUrl(p.productUrl));
   const heroProduct = products.find((p) => p.image) ?? null;
-  // When IG media is present every product appears in the carousel; without
-  // IG media we still promote the first imaged product into the hero so the
-  // card never goes blank.
-  const igMedia = brand.instagramMedia ?? [];
-  const carouselProducts =
-    igMedia.length > 0 ? products : products.filter((p) => p.id !== heroProduct?.id);
+  // When a lifestyle image is present every product appears in the carousel;
+  // without one we promote the first imaged product into the hero so the card
+  // never goes blank.
+  const lifestyleImageUrl = brandLifestyleImageUrl(brand);
+  const carouselProducts = lifestyleImageUrl
+    ? products
+    : products.filter((p) => p.id !== heroProduct?.id);
 
   // Track which thumbnail images failed to load so we can show a deterministic
   // fallback instead of a blank gray box. Keyed by a stable id per thumb.
@@ -498,10 +279,13 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
     }
   }, []);
 
-  // Hero fallback when there's no IG media: existing first-product image,
-  // then IG profile pic, then deterministic gradient+initial.
-  const heroFallbackImageUrl =
-    heroProduct?.image ?? brand.instagramProfilePictureUrl ?? null;
+  // Hero candidates in priority order: brand lifestyle image, first product
+  // image, IG profile pic. The gradient+initial renders when all fail.
+  const heroImageUrls = [
+    lifestyleImageUrl,
+    heroProduct?.image ?? null,
+    brand.instagramProfilePictureUrl,
+  ].filter((u): u is string => isSafeHttpUrl(u));
 
   return (
     <div
@@ -566,13 +350,11 @@ function BrandCard({ brand, onOpenBrand, igConnected, shopperDiscount }: BrandCa
           aria-label={`Open ${displayName}`}
           data-testid={`button-brand-hero-${testKey}`}
         >
-          <HeroSlideshow
-            media={igMedia}
-            fallbackImageUrl={heroFallbackImageUrl}
-            fallbackImageAlt={heroProduct?.title ?? displayName}
+          <BrandHero
+            imageUrls={heroImageUrls}
+            alt={heroProduct?.title ?? displayName}
             fallbackInitial={initial}
             fallbackGradient={gradient}
-            alt={displayName}
             testKey={testKey}
           />
           {/* Soft wash so light card text/UI stays legible regardless of image */}
