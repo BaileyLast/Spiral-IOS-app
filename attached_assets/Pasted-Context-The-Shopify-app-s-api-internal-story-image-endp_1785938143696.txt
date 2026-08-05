@@ -1,0 +1,19 @@
+Context
+The Shopify app's /api/internal/story-image endpoint (which Core already calls during lazy backfill in server/storyImage.ts) now returns an additive lifestyleImages: string[] — ordered background URLs scraped from the brand's storefront (first = strongest signal). The Shopify app now owns lifestyle sourcing; Core should stop scraping storefront og:image itself and use this field.
+
+Changes (Core)
+Ingest & persist — server/storyImage.ts: parse lifestyleImages from the dashboard response (validate http(s) URLs, cap length ~5), persist on the order (new column, e.g. orders.story_lifestyle_images jsonb) alongside existing story columns. Idempotent migration file + apply via executeSql (never drizzle-kit push). shared/schema.ts updated.
+
+Background priority in GET /api/customer/orders/:id/story-image (~routes.ts:3282):
+
+lifestyleImages[0] → backgroundImageUrl, backgroundSource: "lifestyle"
+else highest-priced product photo → backgroundSource: "product" (unchanged)
+Remove the og:image scraping path: delete resolveStoreLifestyleImage, fetchStorefrontSocialImage, extractSocialImage, storeImageCache, and the storeImageUrl preference (keep the brandSchema field tolerant/ignored so the feed can't break parsing).
+No Instagram media/profile-picture/gradient paths for the BACKGROUND (already none for background; logo fallback chain is separate and unchanged).
+Backfill for existing orders — orders resolved before this change have no stored lifestyleImages; they simply use the product fallback (acceptable, additive).
+
+Legacy fields (mode, imageUrl, productImages) and the rest of the template kit unchanged.
+
+Update replit.md story-image docs; e2e test in dev (mock/point at real dashboard endpoint), typecheck, restart workflow, architect review.
+
+Marketplace brand backgrounds — accept an optional brand-level lifestyle image from the public brands feed (reuse/rename the tolerant storeImageUrl field, or a lifestyleImages array if the dashboard publishes one) and pass it through Core's marketplace/brands response to iOS as an additive field (e.g. backgroundImageUrl), so brand cards in the marketplace tab can show it. Null-safe: absent field → iOS keeps current card rendering. Draft a one-line handoff note asking the dashboard/Shopify app to publish the brand-level field in /api/brands.
