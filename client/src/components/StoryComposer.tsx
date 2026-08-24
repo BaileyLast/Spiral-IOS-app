@@ -286,7 +286,9 @@ function bakeCollage(imgs: HTMLImageElement[]): ComposedStory {
 // Story (no/broken background AND no product images), so the caller can fall
 // back to the legacy composition.
 
-// Draws a rounded white card with the product image contained inside.
+// Draws a rounded white card with a subtly rounded inner image area. The inner
+// panel keeps opaque product shots soft at the corners while transparent PNGs
+// remain naturally centred over a clean backdrop.
 function drawProductCard(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
@@ -303,8 +305,24 @@ function drawProductCard(
   roundRect(ctx, x, y, w, h, 44);
   ctx.fill();
   ctx.restore();
+
   const pad = Math.round(Math.min(w, h) * 0.09);
-  drawContain(ctx, img, x + pad, y + pad, w - pad * 2, h - pad * 2);
+  const imageX = x + pad;
+  const imageY = y + pad;
+  const imageW = w - pad * 2;
+  const imageH = h - pad * 2;
+  const imageRadius = Math.round(Math.min(imageW, imageH) * 0.065);
+
+  // An almost-white inner panel makes the smaller rounded image boundary
+  // visible without competing with the product or the outer card.
+  ctx.save();
+  ctx.fillStyle = "#FFFFFF";
+  roundRect(ctx, imageX, imageY, imageW, imageH, imageRadius);
+  ctx.fill();
+  roundRect(ctx, imageX, imageY, imageW, imageH, imageRadius);
+  ctx.clip();
+  drawContain(ctx, img, imageX, imageY, imageW, imageH);
+  ctx.restore();
 }
 
 // Draws the @handle pill with a verification-style badge.
