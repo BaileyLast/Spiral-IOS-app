@@ -790,6 +790,7 @@ export default function OrderDetail() {
         open={showComposer}
         onClose={() => setShowComposer(false)}
         merchantHandle={rawHandle}
+        merchantBrandName={order.storeName}
         shopUrl={shopUrl}
         creativeUrls={composerCreativeUrls}
         products={composerProducts}
