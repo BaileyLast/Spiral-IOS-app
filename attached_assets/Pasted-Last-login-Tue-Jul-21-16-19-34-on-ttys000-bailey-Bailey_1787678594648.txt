@@ -1,0 +1,41 @@
+Last login: Tue Jul 21 16:19:34 on ttys000
+bailey@Baileys-MacBook-Pro ~ % git pull
+npm install
+fatal: not a git repository (or any of the parent directories): .git
+npm error code ENOENT
+npm error syscall open
+npm error path /Users/bailey/package.json
+npm error errno -2
+npm error enoent Could not read package.json: Error: ENOENT: no such file or directory, open '/Users/bailey/package.json'
+npm error enoent This is related to npm not being able to find a file.
+npm error enoent
+npm error A complete log of this run can be found in: /Users/bailey/.npm/_logs/2026-08-25T17_22_09_075Z-debug-0.log
+bailey@Baileys-MacBook-Pro ~ % cd ~/Spiral-IOS-app
+cd: no such file or directory: /Users/bailey/Spiral-IOS-app
+bailey@Baileys-MacBook-Pro ~ % git pull
+npm install
+npm run build
+npx cap sync ios
+npx cap open ios
+fatal: not a git repository (or any of the parent directories): .git
+npm error code ENOENT
+npm error syscall open
+npm error path /Users/bailey/package.json
+npm error errno -2
+npm error enoent Could not read package.json: Error: ENOENT: no such file or directory, open '/Users/bailey/package.json'
+npm error enoent This is related to npm not being able to find a file.
+npm error enoent
+npm error A complete log of this run can be found in: /Users/bailey/.npm/_logs/2026-08-25T17_23_07_975Z-debug-0.log
+npm error code ENOENT
+npm error syscall open
+npm error path /Users/bailey/package.json
+npm error errno -2
+npm error enoent Could not read package.json: Error: ENOENT: no such file or directory, open '/Users/bailey/package.json'
+npm error enoent This is related to npm not being able to find a file.
+npm error enoent
+npm error A complete log of this run can be found in: /Users/bailey/.npm/_logs/2026-08-25T17_23_08_322Z-debug-0.log
+npm error could not determine executable to run
+npm error A complete log of this run can be found in: /Users/bailey/.npm/_logs/2026-08-25T17_23_08_577Z-debug-0.log
+npm error could not determine executable to run
+npm error A complete log of this run can be found in: /Users/bailey/.npm/_logs/2026-08-25T17_23_09_062Z-debug-0.log
+bailey@Baileys-MacBook-Pro ~ % 
